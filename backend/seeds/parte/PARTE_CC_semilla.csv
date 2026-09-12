@@ -1,0 +1,120 @@
+centro_coste,proyecto,descripcion_cc,usos_ult_4_meses
+3700.06.01,3700,,5
+3700.06.02,3700,,5
+3700.06.05,3700,,2
+3700.11.09,3700,,1
+3701.01.02,3701,,4
+3701.02.01,3701,,2
+3701.02.03,3701,,16
+3701.02.05,3701,,243
+3701.02.06,3701,,40
+3701.02.07,3701,,504
+3701.02.08,3701,,82
+3701.02.09,3701,,34
+3701.02.10,3701,,132
+3701.02.11,3701,,457
+3701.03.01,3701,,316
+3701.03.02,3701,,51
+3701.03.03,3701,,172
+3701.03.04,3701,,55
+3701.04.01,3701,,2
+3701.04.03,3701,,1
+3701.05.02,3701,,1
+3701.05.04,3701,,376
+3701.05.05,3701,,6
+3701.06.01,3701,Excavaciones varias sin clasicar,32
+3701.06.02,3701,Rellenos con material seleccionado,34
+3701.06.04,3701,Acero de refuerzo Fy=420 Mpa.,30
+3701.06.05,3701,Tubería de Concreto Reforzado de 900mm de diámetro interior (Tipo III),29
+3701.06.07,3701,"Concreto clase 14 MPA (solados, estructuras)",1
+3701.06.09,3701,"Concreto clase  28 MPA (encoles, descoles, box, sumideros)",28
+3701.06.48,3701,Box abovedados galvanizados - Incluye tornilleria 2x1 30A-12-12,1
+3701.06.49,3701,Box abovedados galvanizados - Incluye tornilleria 2X3 48A-18-24A,1
+3701.06.60,3701,"Box abovedados galvanizados - Incluye tornilleria 2,5x2,5 48A18-24A",1
+3701.06.69,3701,"Concreto clase 21 MPA (atraques, cabezales)",1
+3701.07.01,3701,Excavaciones varias sin clasicar,11
+3701.07.02,3701,Material granular drenante,12
+3701.07.03,3701,Rellenos con material seleccionado,7
+3701.07.07,3701,Concreto clase 14 MPA (Cunetas de terraza y coronación),3
+3701.07.08,3701,Acero de refuerzo Fy=420 Mpa.,1
+3701.07.10,3701,Tubería de Concreto Reforzado de 600 mm de diámetro interior,3
+3701.09.02,3701,,4
+3701.11.01,3701,,5
+3701.11.03,3701,,1
+3701.I0408,3701,,88
+3701.I0504,3701,,1
+3701.I0513,3701,,1
+3702.01.11,3702,,2
+3702.02.02,3702,,1
+3702.02.03,3702,,16
+3702.02.05,3702,,37
+3702.02.07,3702,,417
+3702.02.08,3702,,43
+3702.02.09,3702,,6
+3702.02.10,3702,,51
+3702.02.11,3702,,460
+3702.03.01,3702,,157
+3702.03.02,3702,,46
+3702.03.03,3702,,41
+3702.03.04,3702,,35
+3702.06.01,3702,Excavaciones varias sin clasicar,27
+3702.06.02,3702,Rellenos con material seleccionado,47
+3702.06.04,3702,Acero de refuerzo Fy=420 Mpa.,13
+3702.06.05,3702,Tubería de Concreto Reforzado de 900mm de diámetro interior (Tipo III),48
+3702.06.07,3702,"Concreto clase 14 MPA (solados, estructuras)",1
+3702.06.09,3702,"Concreto clase  28 MPA (encoles, descoles, box, sumideros)",10
+3702.06.69,3702,"Concreto clase 21 MPA (atraques, cabezales)",1
+3702.07.01,3702,,6
+3702.07.02,3702,,3
+3702.07.03,3702,,5
+3702.07.08,3702,,1
+3702.07.10,3702,,3
+3702.11.01,3702,,11
+3702.11.04,3702,,14
+3702.I0408,3702,,117
+3702.I0504,3702,,1
+3702.I0513,3702,,1
+3703.01.02,3703,Demolición de Estructuras,5
+3703.01.06,3703,Remoción de señales existentes,2
+3703.011.01,3703,,1
+3703.02.01,3703,Desmonte y limpieza en bosque,10
+3703.02.02,3703,Aprovechamiento forestal,8
+3703.02.03,3703,Desmonte y limpieza en zonas no boscosas,16
+3703.02.04,3703,Excavación en roca de la explanación y canales,5
+3703.02.05,3703,Excavaciones en material común de la Explanación y Canales,263
+3703.02.06,3703,Excavación en material común de préstamos,5
+3703.02.07,3703,Terraplenes (solo conformación),4
+3703.02.09,3703,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (100 - 1.000 m)",67
+3703.02.10,3703,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (>1.000 m)",97
+3703.03.01,3703,Mejoramiento,1
+3703.03.02,3703,Subbase Granular,421
+3703.03.03,3703,Transporte de subbase granular,7
+3703.03.04,3703,"MGTC clase 4, gradación tipo MGTC-25",1
+3703.03.06,3703,Base granular,560
+3703.03.07,3703,Transporte de base granular,9
+3703.04.01,3703,Fresado de pavimento asfáltico,101
+3703.04.02,3703,Microfresado de pavimento asfáltico,8
+3703.04.03,3703,Riego de Liga con emulsión asfáltica,4
+3703.04.05,3703,Mezcla densa en caliente tipo MDC-19 para Bacheo,31
+3703.04.06,3703,Mezcla densa en caliente tipo MDC-25 Base Asfáltica,37
+3703.05.02,3703,Riego con emulsión  asfáltica,1
+3703.05.05,3703,,1
+3703.06.01,3703,Excavaciones varias sin clasicar,4
+3703.06.02,3703,Rellenos con material seleccionado,24
+3703.06.06,3703,"Concreto clase  28 MPA (encoles, descoles, box, sumideros)",31
+3703.06.07,3703,Concreto clase 21 MPA,9
+3703.06.08,3703,"Concreto clase 14 MPA (solados, estructuras)",1
+3703.06.10,3703,Acero de refuerzo Fy=420 Mpa.,25
+3703.06.11,3703,Tubería de Concreto Reforzado de 900mm de diámetro interior (Tipo III),1
+3703.07.01,3703,Excavaciones varias sin clasicar,22
+3703.07.04,3703,Cuneta de concreto vaciado en situ; no incluye la conformación del sitio de apoyo. (21 Mpa),37
+3703.07.08,3703,Acero de refuerzo Fy=420 Mpa.,26
+3703.11.01,3703,Plan manejo de Tráfico (PMT´S),43
+3703.I0504,3703,,2
+37P01.01.02,37P01,,1
+37PS01.01.05.14,37PS01,,3
+37PS01.03.02.01,37PS01,,8
+37PS01.04.02.01,37PS01,,4
+37PS02.01.02.01,37PS02,,1
+37PS04.08.01.06,37PS04,,1
+37PS04.13.01.03,37PS04,,6

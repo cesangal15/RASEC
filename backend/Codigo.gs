@@ -1025,6 +1025,10 @@ function doGet(e){
   // no escribe nada. Publicarla sigue pidiendo token y rol (tablero_guardar), que es lo que de
   // verdad hay que guardar.
   if(a==='tablero')     return tableroLeer();
+  // D165 (V3-01): Parte Digital de Maquinaria — módulo aparte (CodigoParte.gs). Se despacha ANTES de
+  // la puerta porque el formulario del operador no tiene login (la identidad es el equipo del QR);
+  // dentro, las operaciones de revisión (bandeja/base) SÍ pasan por sesion_() y exigen rol.
+  if(String(e.parameter.mod||'').toLowerCase()==='parte') return parteDoGet_(e);
   // D109: puerta única. La identidad sale del TOKEN y sobrescribe lo que venga en la petición, así
   // que el resto del archivo puede seguir leyendo `usuario` igual que siempre — pero ya autenticado.
   const ses=sesion_(e, null);
@@ -1049,6 +1053,8 @@ function doPost(e){
   try{
     const body=JSON.parse(e.postData.contents);
     if(body.action==='login') return login(body);                 // D108: única acción SIN token (aún no lo tiene)
+    // D165 (V3-01): el parte del operador entra sin token (solo CREA filas pendientes); `revisar` exige sesión dentro.
+    if(String(body.mod||'').toLowerCase()==='parte') return parteDoPost_(e, body);
     // D109: puerta única de escritura. `usuario` sale del token; `capataz`/`reporta` NO se tocan
     // porque son atribución de la LÍNEA (el envío del encargado conserva quién reportó cada fila).
     const ses=sesion_(e, body);

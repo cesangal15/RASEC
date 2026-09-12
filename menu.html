@@ -80,6 +80,7 @@
     .pc-g2{grid-column:span 6;}
     .pc-g3{grid-column:span 6;}
     .pc-g4{grid-column:span 12;}
+    .pc-g5{grid-column:span 12;}   /* D165: parte digital de maquinaria */
 
     /* etiqueta de área como cabecera de panel */
     .pc-group .group-label{
@@ -94,6 +95,7 @@
     .pc-g1 .pc-tiles{grid-template-columns:1fr 1fr;}
     .pc-g2 .pc-tiles,.pc-g3 .pc-tiles{grid-template-columns:1fr;}
     .pc-g4 .pc-tiles{grid-template-columns:1fr 1fr;}
+    .pc-g5 .pc-tiles{grid-template-columns:1fr 1fr;}
 
     /* accesos dentro del panel: fondo propio, riel de acento y chip de ícono */
     .pc-group .tile{margin:0;background:var(--surface2);position:relative;overflow:hidden;padding-left:22px;}
@@ -130,7 +132,7 @@
     </div>
     <div class="hero-meta">
       <div class="hero-date" id="heroDate">—</div>
-      <div class="hero-count">12 accesos · 4 áreas</div>
+      <div class="hero-count">18 accesos · 5 áreas</div>
     </div>
   </div>
 
@@ -210,6 +212,28 @@
           <div class="ico">🕳️</div>
           <div class="t-main"><h2>Reporte de Drenajes</h2><p>ODT + ODL en una sola pantalla: marcador o PK con cantidad directa</p></div>
           <div class="arrow">→</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="pc-group pc-g5">
+      <div class="group-label">Maquinaria · parte digital</div>
+      <p class="pc-note">Reemplaza al digitador del parte de maquinaria (V3-01): el operador transcribe el parte físico desde la cabina por el QR de su equipo y aquí se revisa, se aprueba y se copia a <code>BASE MAQUINARIA</code>.</p>
+      <div class="pc-tiles">
+        <a class="tile" href="revision-maquinaria.html">
+          <div class="ico">🚜</div>
+          <div class="t-main"><h2>Revisión de partes de maquinaria</h2><p>Pendientes del día con alertas, aprobar/descartar, equipos sin parte y la <b>Base</b> con «Copiar para Excel» (B→AR)</p></div>
+          <div class="arrow">→</div>
+        </a>
+        <a class="tile" href="parte.html">
+          <div class="ico">📱</div>
+          <div class="t-main"><h2>Parte digital (formulario del operador)</h2><p>La pantalla pública que abre el QR de la cabina. Sin código en la URL muestra el selector de equipo (para probar o capturar a mano)</p></div>
+          <div class="arrow">→</div>
+        </a>
+        <a class="tile" href="parte.html?demo=1" target="_blank" rel="noopener">
+          <div class="ico">🧪</div>
+          <div class="t-main"><h2>Parte digital · modo de prueba</h2><p>El mismo formulario con datos de ejemplo y sin guardar nada: para enseñarlo y ensayar el reparto por porcentaje entre centros de coste y el día sin operación</p></div>
+          <div class="arrow">↗</div>
         </a>
       </div>
     </div>

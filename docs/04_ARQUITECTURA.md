@@ -297,3 +297,73 @@ Captura_Diaria es una **tabla de Excel** (`fact_produccion`, A1:AA). Se pegan SO
 ---
 
 > ⚠️ **AVISO DE DESFASE (anotado en D119, ago-2026).** Este documento **no refleja nada desde D107**: le faltan **D107** (escritura quirúrgica), **D108** (login por hoja `USUARIOS`), **D109** (token firmado HMAC-SHA256 y puerta única en `doGet`/`doPost`), **D112** (`horas-nomina.js` y `?action=persona`), **D113**, **D115** (`usaFlujoDomFest`), **D116**, **D117** y **D118** (una persona, una fila). De D119 se agregó **solo** lo de su propia decisión (el rol nuevo en `areasDeUsuario`, la regla de intersección de `areasEfectivas` y la normalización de `area` vacía). Tampoco refleja **D142** (ago-2026), que agrega el endpoint `GET ?action=persona_admin&desde=&hasta=` —las horas del propio admin desde `EXTRAS_ADMIN`, solo lectura, con guard por `rol==='admin'` del token— y hace que `doGet` propague el rol de la sesión en `e.parameter._rol`. **Ponerlo al día es un trabajo aparte**; mientras tanto, la fuente de verdad es `02_REGISTRO_DECISIONES.md`.
+
+---
+
+## Módulo Parte Digital de Maquinaria (V3-01 / D165) — mismo Sheet y mismo Apps Script, hojas y endpoints propios
+
+Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA/MAQUINARIA ni los formularios de capataz/chequeadora: convive con el flujo de obra por un canal aparte (con horómetro/kilometraje, porque replica el parte que se factura; la regla «horas directas» del capataz sigue intacta).
+
+```
+┌──────────────── GITHUB PAGES ────────────────────────────────────────────────────────────┐
+│  parte.html?eq=<codigo>      PÚBLICO, sin login. La identidad es el EQUIPO (QR en cabina). │
+│      · cabecera fija: código · tipo · placa · medidor (HORÓMETRO | KM | sin medidor)       │
+│      · fecha (hoy/ayer) · nº parte físico · operador (buscador) · inicial PRECARGADO con   │
+│        el último final · final · total en vivo · hora de/a · CC (buscador: más usados,     │
+│        todos, «sin operación») · PR · UF derivada · descripción + sugerencias por tipo ·   │
+│        varada/lluvia (plegado) · observaciones                                             │
+│      · UN medidor del día + lista de CC (cada uno con % y PR): 1 CC → 1 fila; varios → N   │
+│        filas encadenadas, medidor y horas prorrateados, marca [Reparto x % · i/N] ·          │
+│        `?demo=1` modo de prueba (sin «+ Otro tramo», decisión del dueño)                    │
+│      · «Día sin operación» (domingo · festivo · taller · disponible · lluvia · sin op.)    │
+│      · sin `eq` válido → «Escanea el QR de tu equipo» + selector de respaldo               │
+│      · solo CREA filas `pendiente`; localStorage guarda el último operador por equipo      │
+│  revision-maquinaria.html   LOGIN: admin · encargado · residente · parte_maquinaria        │
+│      · PENDIENTES: fecha, tarjetas con todos los campos editables, alertas en naranja,     │
+│        ✓ aprobar / ✕ descartar (con las ediciones), «Aprobar todo lo sin alertas»,         │
+│        revisadas del día (reabrir), panel «Equipos sin parte» + «+ manual» (origen=manual) │
+│      · BASE: aprobados por rango/equipo/CC/texto, edición por fila, «Copiar para Excel»    │
+│        = TSV con las columnas B→AR de BASE MAQUINARIA (vacío donde va fórmula)             │
+│  menu.html  grupo «Maquinaria · parte digital» con los dos accesos                         │
+└─────────────────────────────────────┬────────────────────────────────────────────────────┘
+                                      │ fetch (POST text/plain); revisión con token (auth.js)
+                                      ▼
+┌──────────────── APPS SCRIPT (misma URL) — backend/CodigoParte.gs ────────────────────────┐
+│  doGet:  if(mod==='parte') return parteDoGet_(e)   ← ANTES de la puerta D109 (como tablero)│
+│  doPost: if(body.mod==='parte') return parteDoPost_(e, body)  ← ídem (tras `login`)        │
+│  GET  ?mod=parte&op=equipo&eq=      PÚBLICO → equipo + último final + operadores + CC +    │
+│                                     sugerencias por tipo + topes (UNA llamada)             │
+│  POST {mod:'parte',op:'reporte',codigo,tramos:[…],origen?}  PÚBLICO → 1..n filas pendiente │
+│        valida (fecha D106, final≥inicial, tope 24 h/700 km, CC/operador/nº parte),         │
+│        calcula total y uf, sella alertas: INICIAL_DISTINTO · TOTAL_ALTO · DUPLICADO ·      │
+│        CC_INUSUAL · SIN_MEDIDOR · CC_DESCONOCIDO; dedupe por id_registro del cliente;      │
+│        origen=manual solo con token de revisor                                             │
+│  GET  ?mod=parte&op=bandeja&fecha=  TOKEN+ROL → pendientes, revisadas, faltantes, listas   │
+│  POST {mod:'parte',op:'revisar',cambios:[{id_registro,estado?,campos?}]}  TOKEN+ROL →      │
+│        escritura QUIRÚRGICA por id_registro (lee esa fila, mezcla, reescribe esa fila)     │
+│  GET  ?mod=parte&op=base&desde=&hasta=[&estado=todos]  TOKEN+ROL → filas + excel.filas     │
+│        (B→AR, mapeo PARTE_EXCEL_MAPA) ; rango ≤ 186 días                                   │
+│  setupParte()  a mano: crea las 5 hojas, completa columnas, siembra pseudo-CC (idempotente)│
+└─────────────────────────────────────┬────────────────────────────────────────────────────┘
+                                      ▼
+┌──────────────── GOOGLE SHEETS (mismo archivo) ───────────────────────────────────────────┐
+│  PARTE_EQUIPOS      codigo·tipo·placa·proveedor·medidor·ultima_fecha·ultimo_final·activo   │
+│                     (+ultimo_final_manual)  — catálogo; encabezado = CSV semilla           │
+│  PARTE_OPERADORES   operador·partes_ult_4_meses·activo                                     │
+│  PARTE_CC           centro_coste·proyecto·descripcion_cc·usos_ult_4_meses·activo           │
+│                     (+ pseudo-CC Taller · Disponible · Domingo/Festivo)                    │
+│  PARTE_ACTIVIDADES  tipo_equipo·descripcion_trabajo·veces  (solo sugerencias)              │
+│  PARTE_BANDEJA      27 cols: id_registro·timestamp·estado·fecha·codigo·tipo·placa·medidor· │
+│                     reporte_num·inicial·final·total·inicial_modificado·horas_varada·       │
+│                     horas_lluvia·hora_de·hora_a·descripcion_trabajo·centro_coste·pr·uf·    │
+│                     operador·observaciones·alertas·revisado_por·revisado_ts·origen         │
+│                     NUNCA se borra una fila: cambia `estado` (pendiente|aprobado|descartado)│
+└─────────────────────────────────────┬────────────────────────────────────────────────────┘
+                                      │ «Copiar para Excel» → pegar en col B, primera fila libre
+                                      ▼
+   Partes_Diarios_de_Maquinaria_<periodo>.xlsx · hoja BASE MAQUINARIA (B→AR; el resto fórmula)
+```
+
+**Mapeo B→AR (`PARTE_EXCEL_MAPA`, verificar contra el Excel real antes de cerrarlo):** C fecha (dd/mm/aaaa) · E nº parte · F código · M/N inicial/final HORÓMETRO · Q/R horas varada/lluvia · V/W inicial/final KM · AA descripción · AB CC · AD PR · AE UF · AL/AM hora de/a · AQ operador · AR observaciones. Las demás (B, D, G–L, O–P, S–U, X–Z, AC, AF–AK, AN–AP) van vacías: son fórmulas/VLOOKUP desde `EQUIPOS 2` (TOTAL, TIPO, MARCA, consecutivo…). Decimales con coma (convención de `jefe.html`/`digitadora.html`).
+
+**Puesta en marcha:** (1) pegar `backend/CodigoParte.gs` en el proyecto de Apps Script de obra y aplicar las 2 líneas de `Codigo.gs`; (2) `setupParte()`; (3) importar los 4 CSV de `backend/seeds/parte/` (Archivo → Importar → Reemplazar hoja actual); (4) `setupParte()` otra vez; (5) redesplegar (misma URL, nueva versión); (6) `python3 tools/generar_qr.py` con la URL base confirmada → imprimir `qr/etiquetas.pdf` (adhesivo, 7×7 cm) y pegar en cabina; (7) opcional: fila `parte_maquinaria` en `USUARIOS` con `redirige=revision-maquinaria.html`. **Pruebas:** `node backend/pruebas/verificar_v301_parte_digital.js` (backend) y `NODE_PATH=/opt/node22/lib/node_modules node backend/pruebas/verificar_v301_pantallas.js` (Chromium contra el backend en `vm`).
