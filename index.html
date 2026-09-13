@@ -7,10 +7,11 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#f5a623">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TM2 Sur">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&family=Red+Hat+Display:wght@900&display=swap" rel="stylesheet">
 <script src="auth.js"></script>
 <script src="offline.js"></script>
 <link rel="stylesheet" href="tema.css">
@@ -36,7 +37,13 @@
   .card{background:var(--card-velada);border:1px solid var(--border);border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:var(--card-sombra);}
   .panel-titulo{display:none;}
   .logo{text-align:center;margin-bottom:32px;}
-  .logo-icon{font-size:48px;margin-bottom:12px;}
+  /* Marca Galca (identidad visual, turno 5e). El símbolo va EN LÍNEA, no como <img>: así viaja con
+     index.html en el precache y el login sin señal no queda sin marca. Hereda --text en oscuro
+     (blanco: dentro de la app la marca va en blanco); en claro toma el azul profundo de marca. */
+  .galca{width:48px;height:48px;display:block;margin:0 auto 10px;color:var(--text);}
+  .galca-nombre{font-family:'Red Hat Display',sans-serif;font-weight:900;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  :root[data-tema="claro"] .galca{color:#0b1f3a;}
+  @media (prefers-color-scheme: light){ :root:not([data-tema="oscuro"]) .galca{color:#0b1f3a;} }
   .logo h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);}
   .logo p{font-size:13px;color:var(--muted);margin-top:4px;}
   .field{margin-bottom:16px;}
@@ -66,6 +73,12 @@
     .velo{width:55%;background:var(--velo-ancha);}
     .marca{display:block;position:fixed;top:44px;left:48px;z-index:2;max-width:340px;}
     .marca .m-sello{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+    /* Pantalla ancha: logotipo horizontal Galca sobre el sello TM2 SUR */
+    .marca .m-galca{display:flex;align-items:center;gap:8px;margin-bottom:22px;}
+    .marca .m-galca .galca{width:22px;height:22px;margin:0;}
+    .marca .m-galca span{font-family:'Red Hat Display',sans-serif;font-weight:900;font-size:20px;letter-spacing:-0.03em;color:var(--text);line-height:1;}
+    :root[data-tema="claro"] .marca .m-galca span{color:#0b1f3a;}
+    @media (prefers-color-scheme: light){ :root:not([data-tema="oscuro"]) .marca .m-galca span{color:#0b1f3a;} }
     .marca h2{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:var(--text);margin-top:8px;}
     .marca p{font-size:14px;color:var(--muted);margin-top:10px;line-height:1.5;}
     .panel{margin-left:55%;width:45%;padding:48px;}
@@ -140,6 +153,7 @@
 </div>
 <div class="velo" aria-hidden="true"></div>
 <div class="marca">
+  <div class="m-galca"><svg class="galca" viewBox="0 0 100 100" aria-hidden="true"><path d="M63 20.56A34 34 0 1 0 80 50L98 50" fill="none" stroke="currentColor" stroke-width="15"/><polygon points="74,24 96,24 85,42.5" fill="currentColor"/></svg><span>Galca</span></div>
   <div class="m-sello">TM2 Sur</div>
   <h2>Reporte de Obra</h2>
   <p>Partes diarios, asistencia y maquinaria &mdash; con se&ntilde;al o sin ella.</p>
@@ -151,7 +165,8 @@
     <p>Ingresa tus credenciales para continuar</p>
   </div>
   <div class="logo">
-    <div class="logo-icon">🚜</div>
+    <svg class="galca" viewBox="0 0 100 100" aria-hidden="true"><path d="M63 20.56A34 34 0 1 0 80 50L98 50" fill="none" stroke="currentColor" stroke-width="15"/><polygon points="74,24 96,24 85,42.5" fill="currentColor"/></svg>
+    <div class="galca-nombre">Galca</div>
     <h1>Reporte de Obra</h1>
     <p>Ingresa tus credenciales para continuar</p>
   </div>
