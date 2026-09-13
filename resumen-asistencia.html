@@ -416,7 +416,6 @@ function precargarExportables(){
   alOcioso(function(){ ensureXLSX().catch(function(){}); }, 4000);
 }
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 // Mostrar/ocultar una lista larga por su id (puro DOM, sin re-render → no borra nada que se esté llenando).
 // Render progresivo: si la lista aún no se ha armado (`LAZY[id]`), se arma en el momento de abrirla —
 // así el resumen pinta primero KPIs y cuadrillas, y el HTML pesado solo se paga si se pide.
@@ -1668,7 +1667,7 @@ function renderAusResultados(){
     + `<div class="kpi"><div class="k-val">${Object.keys(personas).length}</div><div class="k-lbl">Personas</div></div>`
     + `<div class="kpi"><div class="k-val">${Object.keys(dias).length}</div><div class="k-lbl">Días con ausencias</div></div>`
     + '</div>';
-  h+=`<p style="font-size:11px;color:var(--muted);margin:2px 0 12px;">Rango ${esc(a.data.desde)} → ${esc(a.data.hasta)} (${a.data.dias} día(s)). `
+  h+=`<p style="font-size:11px;color:var(--muted);margin:2px 0 12px;">Rango ${esc(a.data.desde)} → ${esc(a.data.hasta)} (${esc(a.data.dias)} día(s)). `
     + `${a.data.filas.length} ausencia(s) con motivo`
     + (a.incluirSinRep ? ` · ${(a.data.sinReportar||[]).length} día(s)-persona no reportados` : '')
     + '.</p>';
@@ -1805,7 +1804,7 @@ function proyectoMayoritario(filas){
 function proyectosDelAreaHtml(){
   const ps=proyectosDelArea();
   if(!ps.length) return '<p style="font-size:12.5px;color:var(--muted);margin:0;">No hay centros de costo cargados para esta área, así que no se puede saber qué proyecto exportar. Revisa la hoja <b>CC_USADOS</b>.</p>';
-  return ps.map(p=>`<button class="btn" onclick="generarExcel('${p}')">Excel ${p} →</button>`).join('');
+  return ps.map(p=>`<button class="btn" onclick="generarExcel('${esc(String(p).replace(/'/g,"\\'"))}')">Excel ${esc(p)} →</button>`).join('');
 }
 function onTplFile(ev){
   const file=ev.target.files[0]; if(!file) return;
@@ -2070,10 +2069,10 @@ async function generarExcel(proyecto){
     const extrasDia=(data.extrasAdmin||[]).filter(ex=>String(ex.proyecto||'')===proyecto);
     if(!filasProyecto.length && !(extrasDia.length && adminRecurso)){
       if(extrasDia.length && !adminRecurso){
-        msg.innerHTML='<div class="aviso">⚠️ Tienes extras registradas para el proyecto '+proyecto+' este día, pero falta configurar <b>admin_recurso</b> en CONFIG para exportarlas.</div>';
+        msg.innerHTML='<div class="aviso">⚠️ Tienes extras registradas para el proyecto '+esc(proyecto)+' este día, pero falta configurar <b>admin_recurso</b> en CONFIG para exportarlas.</div>';
         return;
       }
-      msg.innerHTML='<div class="aviso">No hay filas para el proyecto '+proyecto+' en esta fecha.</div>';
+      msg.innerHTML='<div class="aviso">No hay filas para el proyecto '+esc(proyecto)+' en esta fecha.</div>';
       return;
     }
     let hayAvisoGN=false; const overExtra=[]; const sinCodigo=[]; const recorte10=[];
@@ -2119,7 +2118,7 @@ async function generarExcel(proyecto){
 
     const nombre=`Parte_${proyecto}_${STATE.fecha}.xlsx`;
     XLSX.writeFile(wb, nombre);
-    let out=`<div class="aviso" style="color:var(--success-txt);border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.08);">✓ Generado <b>${nombre}</b> (${aoa.length} fila(s)).</div>`;
+    let out=`<div class="aviso" style="color:var(--success-txt);border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.08);">✓ Generado <b>${esc(nombre)}</b> (${aoa.length} fila(s)).</div>`;
     if(adminAgregadas) out+='<div class="aviso" style="color:var(--success-txt);border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.08);">✓ Incluida(s) '+adminAgregadas+' fila(s) de tus horas extra (admin) en este archivo.</div>';
     if(avisoAdminSinRecurso) out+='<div class="aviso">⚠️ Hay extras del admin para este proyecto pero <b>admin_recurso</b> está vacío en CONFIG: no se agregaron. Configúralo para exportarlas.</div>';
     if(adminDomFest.length) out+='<div class="aviso" style="color:var(--success-txt);border-color:rgba(46,204,113,0.3);background:rgba(46,204,113,0.08);">ℹ️ Extra del admin en domingo/festivo el <b>'+adminDomFest.map(esc).join(', ')+'</b>: se reportó en <b>D Horas ordinarias dom/fest</b> (tope 7h), no en extras.</div>';

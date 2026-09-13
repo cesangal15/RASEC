@@ -196,8 +196,8 @@ const MOTIVOS = ['Mantenimiento','Sin operador','Falla mecánica','Lluvia / clim
 // `actual` se conserva SIEMPRE como opción aunque ya no esté en la flota del día: si al recargar la
 // lista desapareciera la máquina ya elegida, se borraría el dato sin que la chequeadora lo note.
 function maqOptions(actual){
-  const extra = (actual && MAQUINAS.indexOf(actual)<0) ? '<option value="'+actual+'" selected>'+actual+' (fuera de la flota del día)</option>' : '';
-  return '<option value="">— Máquina —</option>'+extra+MAQUINAS.map(m=>'<option'+(m===actual?' selected':'')+'>'+m+'</option>').join('');
+  const extra = (actual && MAQUINAS.indexOf(actual)<0) ? '<option value="'+esc(actual)+'" selected>'+esc(actual)+' (fuera de la flota del día)</option>' : '';
+  return '<option value="">— Máquina —</option>'+extra+MAQUINAS.map(m=>'<option'+(m===actual?' selected':'')+'>'+esc(m)+'</option>').join('');
 }
 /* D138 — excavadoras vigentes en la fecha del reporte, de la hoja MAQUINAS. Mismo patrón que
  * `cargarCubicaje` (D82 §2.7): con señal se refresca y se guarda copia; sin señal se usa la copia. */
@@ -214,7 +214,7 @@ function refrescarFlota(){
       if(t) TM2Offline.bannerCatalogoViejo(document.querySelector('.container'), t);
     });
 }
-function motivoOptions(){ return '<option value="">— Motivo —</option>'+MOTIVOS.map(m=>'<option>'+m+'</option>').join(''); }
+function motivoOptions(){ return '<option value="">— Motivo —</option>'+MOTIVOS.map(m=>'<option>'+esc(m)+'</option>').join(''); }
 let maqIdx = 0;
 
 let lineaIdx = 0;
@@ -287,10 +287,10 @@ function onOrigen(){
   pill.style.display='block';
   // La excavación se acumula al PK del origen (Problema 2.12); para Masivo/Diviso es fijo.
   const pkFijo=ORIGEN_PK[o];
-  pill.innerHTML='→ genera: <b>'+ORIGENES[o].item+'</b>'+(pkFijo?(' · excavación al <b>pk '+pkFijo+'</b>'):' · excavación al PK que teclees');
+  pill.innerHTML='→ genera: <b>'+esc(ORIGENES[o].item)+'</b>'+(pkFijo?(' · excavación al <b>pk '+esc(pkFijo)+'</b>'):' · excavación al PK que teclees');
 }
 
-function tipoOptions(){ return TIPOS.map(t=>'<option>'+t+'</option>').join(''); }
+function tipoOptions(){ return TIPOS.map(t=>'<option>'+esc(t)+'</option>').join(''); }
 
 function addLinea(){
   const i=lineaIdx++;
@@ -317,8 +317,6 @@ function addLinea(){
 }
 function delLinea(i){ const el=document.getElementById('linea_'+i); if(el) el.remove(); renumber(); refresh(); }
 function renumber(){ document.querySelectorAll('#lineasContainer .linea').forEach((el,k)=>{ el.querySelector('.linea-num').textContent='PK #'+(k+1); }); }
-
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* Parser del bloque estilo WhatsApp.
  * Por renglón: viajes = 1-2 dígitos tras el último guion al final de la línea.
@@ -359,10 +357,10 @@ function onLinea(i){
     // placa válida pero sin cubicaje en el catálogo -> naranja + aviso (se tomó el factor)
     let sinCub=0;
     const chips=placas.map(p=>{
-      if(!p.ok) return '<span class="placa-chip bad" title="No calza el patrón de placa">⚠ '+escapeHtml(p.raw)+'</span>';
+      if(!p.ok) return '<span class="placa-chip bad" title="No calza el patrón de placa">⚠ '+esc(p.raw)+'</span>';
       if(CUBMAP[normPlaca(p.placa)]==null){ sinCub++;
-        return '<span class="placa-chip bad" title="No registrada en CUBICAJE, se tomó '+factor+' m³/viaje">'+p.placa+' <span class="v">×'+p.viajes+'</span> ⚠</span>'; }
-      return '<span class="placa-chip">'+p.placa+' <span class="v">×'+p.viajes+'</span></span>';
+        return '<span class="placa-chip bad" title="No registrada en CUBICAJE, se tomó '+factor+' m³/viaje">'+esc(p.placa)+' <span class="v">×'+p.viajes+'</span> ⚠</span>'; }
+      return '<span class="placa-chip">'+esc(p.placa)+' <span class="v">×'+p.viajes+'</span></span>';
     }).join('');
     prev.innerHTML='<div class="placas-chips">'+chips+'</div>'
       +'<div class="placas-total"><b>'+validas.length+'</b> placa(s) · total <b>'+total+'</b> viajes · <b>'+m3real.toLocaleString('es-CO')+'</b> m³</div>'
@@ -570,7 +568,7 @@ function mostrarExito(modo, msg){
   const ico=document.getElementById('successIco'), h2=document.getElementById('successTitle'), p=document.getElementById('successMsg');
   if(modo==='cola'){
     ico.textContent='📥'; h2.textContent='Guardado en el teléfono'; h2.style.color='var(--accent)';
-    p.innerHTML='<b style="color:var(--accent-txt)">Se enviará solo cuando vuelva la señal.</b><br>'+msg;
+    p.innerHTML='<b style="color:var(--accent-txt)">Se enviará solo cuando vuelva la señal.</b><br>'+esc(msg);
   } else {
     ico.textContent='✅'; h2.textContent='Reporte enviado'; h2.style.color='';
     p.textContent=msg;

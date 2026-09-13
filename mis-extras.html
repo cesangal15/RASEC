@@ -90,7 +90,6 @@ window.onload = function(){
   cargar();
 };
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function proyectoFromCC(cc){ const m=String(cc||'').match(/^(\d{4})/); return m?m[1]:''; }
 
 // Reusa el endpoint `roster` (admin) para traer en una sola llamada: CONFIG (admin_recurso), FESTIVOS y

@@ -145,7 +145,7 @@ window.onload = function(){
     bm.onclick=function(){location.href='menu.html';};
     document.querySelector('.header-user').prepend(bm);
     document.getElementById('tiles').innerHTML = ADMIN_TILES.map(t=>
-      `<a class="tile" href="${t.href}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${t.t}</h2><p>${t.p}</p></div><div class="arrow">→</div></a>`
+      `<a class="tile" href="${esc(t.href)}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${esc(t.t)}</h2><p>${esc(t.p)}</p></div><div class="arrow">→</div></a>`
     ).join('');
     return;
   }
@@ -163,7 +163,7 @@ window.onload = function(){
      && usuario!=='albert'
      && rol!=='residente_odt' && rol!=='residente_odl' && rol!=='residente_dren') tiles.push(ASISTENCIA_TILE);
   document.getElementById('tiles').innerHTML = tiles.map(t=>
-    `<a class="tile" href="${t.href}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${t.t}</h2><p>${t.p}</p></div><div class="arrow">→</div></a>`
+    `<a class="tile" href="${esc(t.href)}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${esc(t.t)}</h2><p>${esc(t.p)}</p></div><div class="arrow">→</div></a>`
   ).join('');
 };
 function logout(){

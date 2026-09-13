@@ -298,8 +298,6 @@
     pintarEstado();
   }
 
-  function escUI(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-
   function pintarEstado(sincronizando){
     if (!_chip) return;
     var st = getEstado();
@@ -313,6 +311,12 @@
     pintarPanel();
   }
 
+  // Escape de HTML: usa el `esc()` compartido de tema.js (D166). Resuelto en cada llamada y con
+  // respaldo idéntico, para que el panel de la cola no dependa del orden de carga de los scripts.
+  function escUI(s){
+    if (typeof esc === 'function') return esc(s);
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+  }
   function pintarPanel(){
     if (!_panel) return;
     var cola = leerCola();
@@ -324,8 +328,8 @@
         + '<div class="d">'+escUI(it.usuario||'')+' · guardado '+escUI((it.creado||'').replace('T',' ').slice(0,16))+' · '+(it.intentos||0)+' intento'+(it.intentos===1?'':'s')+'</div>'
         + ((it.ultimo_error)?('<div class="e">Último error: '+escUI(it.ultimo_error)+'</div>'):'')
         + '<div class="acc">'
-        + '<button class="tm2off-btn" onclick="TM2Offline._copiarItem(\''+it.id+'\')">Copiar texto</button>'
-        + '<button class="tm2off-btn peligro" onclick="TM2Offline._descartarItem(\''+it.id+'\')">Descartar</button>'
+        + '<button class="tm2off-btn" onclick="TM2Offline._copiarItem(\''+escUI(String(it.id).replace(/'/g,"\\'"))+'\')">Copiar texto</button>'
+        + '<button class="tm2off-btn peligro" onclick="TM2Offline._descartarItem(\''+escUI(String(it.id).replace(/'/g,"\\'"))+'\')">Descartar</button>'
         + '</div></div>';
     });
     html += '<div class="acc" style="display:flex;gap:8px;margin-top:4px;">'

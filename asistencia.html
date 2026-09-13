@@ -144,7 +144,6 @@ function logout(){
   window.location.href='index.html';
 }
 
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function pid(p){ return p._pid; }
 
 /* ---------- CAPATAZ: CC propio de supervisión (no va a bloques de actividad) ----------
@@ -401,7 +400,7 @@ function renderCCResults(b){
   const cont=document.getElementById('cc-results-'+b.id); if(!cont) return;
   const all=resultadosCC(b), CAP=60, res=all.slice(0,CAP);
   let inner = res.length
-    ? res.map(cc=>`<div class="cc-opt" onclick="elegirCC(${b.id},'${esc(cc).replace(/'/g,"\\'")}')">${esc(cc)}</div>`).join('')
+    ? res.map(cc=>`<div class="cc-opt" onclick="elegirCC(${b.id},'${esc(String(cc).replace(/'/g,"\\'"))}')">${esc(cc)}</div>`).join('')
     : '<div class="cc-opt">Sin resultados</div>';
   if(all.length>CAP) inner += `<div class="cc-opt" style="color:var(--muted);cursor:default;">…y ${all.length-CAP} más · escribe para filtrar</div>`;
   cont.innerHTML=inner;

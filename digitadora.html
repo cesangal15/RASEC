@@ -208,7 +208,6 @@ function ccDe(t, pkDestM){
   if(n==='puente') return '3701.11.03';  // fijo (confirmado por el usuario)
   return '';                              // UF3 / ODL / ODT / Botadero: CC en blanco, lo pone la digitadora
 }
-function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtNum(n){ if(n==null||n==='') return ''; const x=Number(n); if(isNaN(x)) return ''; return String(x).replace('.', ','); }
 function fechaExcel(iso){ const p=String(iso||'').slice(0,10).split('-'); if(p.length<3) return ''; return p[2]+'/'+p[1]+'/'+p[0]; } // dd/mm/yyyy
 
@@ -355,7 +354,7 @@ function renderExternos(){
 }
 function externoHTML(x){
   const ei=x.eid;
-  const tipoOpts=TIPOS.map(t=>'<option'+(t===x.tipo_destino?' selected':'')+'>'+t+'</option>').join('');
+  const tipoOpts=TIPOS.map(t=>'<option'+(t===x.tipo_destino?' selected':'')+'>'+esc(t)+'</option>').join('');
   return '<div class="tbl-row" id="ext_'+ei+'">'
     +'<input type="text" value="'+esc(x.placa)+'" placeholder="ABC123" oninput="setExt('+ei+',\'placa\',this.value)">'
     +'<input type="text" value="'+esc(x.origen)+'" placeholder="19+800 / Masivo 2" oninput="setExt('+ei+',\'origen\',this.value)">'

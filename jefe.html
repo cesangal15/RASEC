@@ -246,7 +246,6 @@ function syncRango(){
 function col(name){ const c=STATE.cols; return (c && c[name]!=null) ? c[name] : COLS_DEFAULT[name]; }
 function num(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 async function consultar(){
   const desde=document.getElementById('desde').value, hasta=document.getElementById('hasta').value;
@@ -492,7 +491,7 @@ function bloqueCopiado(){
   dias.forEach(d=>{
     const n=pool.filter(r=>String(r[cF]||'')===d).length;
     const cl=climaSello(d);   // D131: el rango del bloque depende de si el día trae clima
-    btns+=`<button class="btn-copy" onclick="copiarDia('${d}',this)">Copiar ${esc(d)}${esc(tag)}`
+    btns+=`<button class="btn-copy" onclick="copiarDia('${esc(String(d).replace(/'/g,"\\'"))}',this)">Copiar ${esc(d)}${esc(tag)}`
        + `<small>${n} fila${n!==1?'s':''} · ${cl?'A:S · con clima':'A:O'}</small></button>`;
   });
   return '<div class="copy-card">'

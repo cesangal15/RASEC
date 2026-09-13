@@ -241,7 +241,6 @@ function buildElemento(pki,pkf){
   const b=pkNorm(fin); return b? ('tm2 pk '+a+' - '+b) : ('tm2 pk '+a);
 }
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO'); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function numH(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
 function esNoche(c){ return String(c.turno_noche||'').toUpperCase()==='SI' || c.turno_noche===true; }
 function nombreArea(ar){ return (ar==='odt')?'Drenaje Transversal (ODT)':'Drenaje Longitudinal (ODL)'; }
@@ -423,8 +422,8 @@ function lineaHtml(c, idx){
   return `<div class="linea-item ${c._inc?'':'off'}" id="li_${idx}">
     <button class="tog ${c._inc?'on':'no'}" onclick="toggleInc(${idx})">${c._inc?'✓':'✕'}</button>
     <div class="li-main"><div class="li-act">${esc(ubicTxt(c))}</div>
-    <div class="li-sub"><span class="src ${c.rol==='encargado'||String(c.rol||'').indexOf('residente')===0?'enc':'cap'}">${esc(c.rol||'?')}·${esc(c.reporta||'?')}</span>${areaBadge}${uf?` <span class="badge ${uf.toLowerCase()}">${esc(uf)}</span>`:''} ${esc(c.centro_costo||'')}</div>
-    ${pers?`<div class="li-pers">👷 ${pers}</div>`:''}
+    <div class="li-sub"><span class="src ${c.rol==='encargado'||String(c.rol||'').indexOf('residente')===0?'enc':'cap'}">${esc(c.rol||'?')}·${esc(c.reporta||'?')}</span>${areaBadge}${uf?` <span class="badge ${esc(uf.toLowerCase())}">${esc(uf)}</span>`:''} ${esc(c.centro_costo||'')}</div>
+    ${pers?`<div class="li-pers">👷 ${esc(pers)}</div>`:''}
     ${nota?`<div class="li-nota">📝 ${esc(nota)}</div>`:''}</div>
     <div class="li-largo"><input type="number" step="any" value="${c.largo}" onchange="editLargo(${idx},this.value)"></div>
     <div class="li-unit">${esc(c.unidad||'')}</div>

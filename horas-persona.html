@@ -155,7 +155,6 @@ const PERSONA_ADMIN = { _admin:true, codigo:'', cedula:'', nombre:'Mis horas ext
   cargo:'Canal propio del administrador (D73)', cuadrilla:'', estado:'' };
 
 /* ---------- utilidades ---------- */
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fmtH(n){ return (Math.round((n||0)*100)/100).toString(); }
 // D50: SIEMPRE hora de Bogotá (UTC−5), nunca toISOString (de noche devolvía el día siguiente).
 function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
@@ -542,7 +541,7 @@ function resultadoHtml(d){
           + (p.fecha_ingreso?`<br>Ingreso: ${esc(p.fecha_ingreso)}`:'')
           + (p.fecha_retiro?` · <span style="color:var(--accent-txt)">Retiro: ${esc(p.fecha_retiro)}</span> <small>(primer día que ya no trabaja)</small>`:''))
    + '</div>'
-   + `<div class="meta" style="margin-top:8px;color:var(--accent-txt);">📅 ${esc(etiquetaPeriodo(d.desde, d.hasta))} · ${d.dias} día(s) · ${(d.filas||[]).length} registro(s)</div>`
+   + `<div class="meta" style="margin-top:8px;color:var(--accent-txt);">📅 ${esc(etiquetaPeriodo(d.desde, d.hasta))} · ${esc(d.dias)} día(s) · ${(d.filas||[]).length} registro(s)</div>`
    + '</div>';
   // D142: al eventual (D85) no se le esperan días, y decirlo aquí evita que "0 días sin reporte" se lea
   // como que faltó información. Al admin se le explica de dónde salen sus filas.

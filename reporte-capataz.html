@@ -288,14 +288,14 @@ function actividadOptions(){
   const groups={}, order=[];
   ACTIVIDADES.forEach(x=>{ if(!groups[x.g]){groups[x.g]=[];order.push(x.g);} groups[x.g].push(x); });
   let html='<option value="">— Selecciona actividad —</option>';
-  order.forEach(g=>{ html+='<optgroup label="'+g+'">'; groups[g].forEach(x=>{ html+='<option value="'+x.a.replace(/"/g,'&quot;')+'">'+x.a+'</option>'; }); html+='</optgroup>'; });
+  order.forEach(g=>{ html+='<optgroup label="'+esc(g)+'">'; groups[g].forEach(x=>{ html+='<option value="'+esc(x.a)+'">'+esc(x.a)+'</option>'; }); html+='</optgroup>'; });
   return html;
 }
 // `actual` se conserva SIEMPRE como opción aunque ya no esté en la flota del día: si al recargar la
 // lista desapareciera la máquina que el capataz ya eligió, se le borraría el dato sin que lo note.
 function maqOptions(actual){
-  const extra = (actual && MAQUINAS.indexOf(actual)<0) ? '<option value="'+actual+'" selected>'+actual+' (fuera de la flota del día)</option>' : '';
-  return '<option value="">— Máquina —</option>'+extra+MAQUINAS.map(m=>'<option'+(m===actual?' selected':'')+'>'+m+'</option>').join('');
+  const extra = (actual && MAQUINAS.indexOf(actual)<0) ? '<option value="'+esc(actual)+'" selected>'+esc(actual)+' (fuera de la flota del día)</option>' : '';
+  return '<option value="">— Máquina —</option>'+extra+MAQUINAS.map(m=>'<option'+(m===actual?' selected':'')+'>'+esc(m)+'</option>').join('');
 }
 /* D138 — recarga la flota vigente para la fecha del reporte y repinta los desplegables de equipo ya
  * puestos, conservando lo elegido. Se llama al abrir y al cambiar la fecha (una máquina que hoy está
@@ -310,7 +310,7 @@ function refrescarFlota(){
       if(av){ av.textContent=t; av.style.display=t?'block':'none'; }
     });
 }
-function motivoOptions(){ return '<option value="">— Motivo —</option>'+MOTIVOS.map(m=>'<option>'+m+'</option>').join(''); }
+function motivoOptions(){ return '<option value="">— Motivo —</option>'+MOTIVOS.map(m=>'<option>'+esc(m)+'</option>').join(''); }
 
 function addLinea(){
   const i=lineaIdx++;
@@ -365,10 +365,10 @@ function renderProd(i, x){
       +'</div>'
       +'<div class="item-hint" id="desmDeriv_'+i+'" style="display:block;font-size:11px;color:var(--muted);margin-top:6px;"></div>';
   } else {
-    const lbl = x.medida==='ha' ? 'Producción (Ha)' : (x.medida==='directo' ? ('Cantidad ('+x.uni+')') : 'Producción (m³)');
+    const lbl = x.medida==='ha' ? 'Producción (Ha)' : (x.medida==='directo' ? ('Cantidad ('+esc(x.uni)+')') : 'Producción (m³)');
     cont.innerHTML=
       '<div class="field" style="margin:0;"><label>'+lbl+' <span class="req">*</span></label>'
-      +'<div class="largo-wrap"><input type="number" step="any" class="l-prod" placeholder="0" oninput="refreshAll()"><span class="largo-unit">'+x.uni+'</span></div></div>';
+      +'<div class="largo-wrap"><input type="number" step="any" class="l-prod" placeholder="0" oninput="refreshAll()"><span class="largo-unit">'+esc(x.uni)+'</span></div></div>';
   }
 }
 function recalcM2(i){
@@ -388,14 +388,14 @@ function onActChange(i){
   hint.style.display='block';
   if(x.medida==='apoyo'){
     meta.style.display='none';
-    hint.innerHTML='→ <b>'+x.a+'</b> · actividad de apoyo · no va a DATA';
+    hint.innerHTML='→ <b>'+esc(x.a)+'</b> · actividad de apoyo · no va a DATA';
     pkfOpt.textContent='(opcional)';
     document.getElementById('prod_'+i).innerHTML='';
     refreshAll();
     return;
   }
   meta.style.display='flex';
-  hint.innerHTML = x.data ? ('→ ítem: <b>'+x.item+'</b>') : '→ <b>'+x.item+'</b> · solo maquinaria (no va a DATA)';
+  hint.innerHTML = x.data ? ('→ ítem: <b>'+esc(x.item)+'</b>') : '→ <b>'+esc(x.item)+'</b> · solo maquinaria (no va a DATA)';
   const uniB=document.getElementById('uniBadge_'+i); uniB.textContent=(x.medida==='m2_desmonte')?'m² → Ha':x.uni; uniB.className='badge unidad';
   pkfOpt.textContent = (x.medida==='m2_via') ? '(requerido)' : '(opcional)';
   renderProd(i, x);
@@ -467,7 +467,7 @@ function refreshDuplicates(){
       full.style.display='none'; mot.style.display='none'; prog.style.display='none'; diff.style.display='none';
       const ref=seen[id];
       dup.style.display='block';
-      dup.innerHTML='↪ '+(ref.op?'<b>'+ref.op+'</b> · ':'')+fmtH(ref.hrs)+' · ya registradas en <b>'+ref.actLabel+'</b>'+(ref.pkTxt?' · '+ref.pkTxt:'')
+      dup.innerHTML='↪ '+(ref.op?'<b>'+esc(ref.op)+'</b> · ':'')+fmtH(ref.hrs)+' · ya registradas en <b>'+esc(ref.actLabel)+'</b>'+(ref.pkTxt?' · '+esc(ref.pkTxt):'')
         +'<br><span class="eq-dup-note">Aquí solo cuenta la producción de esta actividad.</span>';
     } else {
       eq.classList.remove('is-dup');
@@ -599,7 +599,7 @@ function updateResumen(){
       prodHtml='';
     } else if(x.medida==='m2_via'){
       const m2=b.querySelector('.l-m2disp'); const val=m2?m2.value:'';
-      prodHtml=val?'<div class="resumen-prod">'+val+' m²</div>':'';
+      prodHtml=val?'<div class="resumen-prod">'+esc(val)+' m²</div>':'';
     } else if(x.medida==='m2_desmonte'){
       const m2El=b.querySelector('.l-m2');
       if(m2El && m2El.value){ const v=desmonteVals(b, x);
@@ -607,7 +607,7 @@ function updateResumen(){
           +'<div class="resumen-pk" style="color:var(--muted)">+ no aprovechable '+fmtNum(v.m3)+' m³ → ZODME '+fmtNum(v.m3)+' m³ · máquina '+fmtNum(v.prodMaq)+' '+v.maqU+'</div>';
       } else { prodHtml='<div class="resumen-warn">⚠ sin producción</div>'; warnings++; sinProd=true; }
     } else if(prodEl && prodEl.value){
-      prodHtml='<div class="resumen-prod">'+prodEl.value+' '+x.uni+'</div>';
+      prodHtml='<div class="resumen-prod">'+esc(prodEl.value)+' '+esc(x.uni)+'</div>';
     } else {
       prodHtml='<div class="resumen-warn">⚠ sin producción</div>'; warnings++; sinProd=true;
     }
@@ -617,12 +617,12 @@ function updateResumen(){
     b.querySelectorAll('.eq-item').forEach(r=>{
       const rawId=r.querySelector('.e-id').value; if(!rawId) return;
       const e=byEq[r.id], isDup=r.classList.contains('is-dup');
-      eqsHtml+='<span class="resumen-eq'+(isDup?' sin-op':'')+'"><b>'+rawId+'</b> · '+fmtH(e?e.horas:0)+(e&&e.op?' · '+e.op:'')+(isDup?' ↪':'')+'</span>';
+      eqsHtml+='<span class="resumen-eq'+(isDup?' sin-op':'')+'"><b>'+esc(rawId)+'</b> · '+fmtH(e?e.horas:0)+(e&&e.op?' · '+esc(e.op):'')+(isDup?' ↪':'')+'</span>';
     });
     const incompleto=(!pki && x.medida!=='apoyo')||sinProd;
     html+='<div class="resumen-row'+(incompleto?' incompleto':'')+'">'
-      +'<div class="resumen-act">'+a+'</div>'
-      +(pkTxt?'<div class="resumen-pk">📍 '+pkTxt+'</div>':'')
+      +'<div class="resumen-act">'+esc(a)+'</div>'
+      +(pkTxt?'<div class="resumen-pk">📍 '+esc(pkTxt)+'</div>':'')
       +prodHtml
       +(eqsHtml?'<div class="resumen-eqs">'+eqsHtml+'</div>':'<div class="resumen-warn">⚠ sin equipos</div>')
       +'</div>';
@@ -633,15 +633,15 @@ function updateResumen(){
       const g=map[id], multi=g.appearances.length>1;
       if(g.muertasTotal>0.01 && !g.motivo) warnings++;
       html+='<div class="maq-group">'
-        +'<div class="maq-head"><span class="maq-id">'+id+'</span>'
-        +(g.operador?'<span class="maq-op">'+g.operador+'</span>':'')
+        +'<div class="maq-head"><span class="maq-id">'+esc(id)+'</span>'
+        +(g.operador?'<span class="maq-op">'+esc(g.operador)+'</span>':'')
         +(multi?'<span class="maq-op">· '+g.appearances.length+' actividades</span>':'')+'</div>'
         +'<div class="maq-hours">total <b>'+fmtH(g.totalHours)+'</b> / prog '+fmtH(g.programmed)
-        +(g.muertasTotal>0.01?(' · muertas <b>'+fmtH(g.muertasTotal)+'</b>'+(g.motivo?' ('+g.motivo+')':' <span style="color:var(--accent-txt)">⚠ sin motivo</span>')):'')
+        +(g.muertasTotal>0.01?(' · muertas <b>'+fmtH(g.muertasTotal)+'</b>'+(g.motivo?' ('+esc(g.motivo)+')':' <span style="color:var(--accent-txt)">⚠ sin motivo</span>')):'')
         +'</div>';
       g.appearances.forEach(ap=>{
-        const prodTxt=(ap.prod!=null)?(fmtNum(ap.prod)+(ap.unidad?' '+ap.unidad:'')):'sin prod. num.';
-        html+='<div class="maq-act">• '+ap.actLabel+(ap.pkTxt?' · '+ap.pkTxt:'')+' — '+prodTxt+(multi?' — <b>'+fmtH(ap.horas)+'</b>':'')+'</div>';
+        const prodTxt=(ap.prod!=null)?(fmtNum(ap.prod)+(ap.unidad?' '+esc(ap.unidad):'')):'sin prod. num.';
+        html+='<div class="maq-act">• '+esc(ap.actLabel)+(ap.pkTxt?' · '+esc(ap.pkTxt):'')+' — '+prodTxt+(multi?' — <b>'+fmtH(ap.horas)+'</b>':'')+'</div>';
       });
       html+='</div>';
     });
@@ -773,7 +773,7 @@ function mostrarExito(modo, msg){
   const ico=document.getElementById('successIco'), h2=document.getElementById('successTitle'), p=document.getElementById('successMsg');
   if(modo==='cola'){
     ico.textContent='📥'; h2.textContent='Guardado en el teléfono'; h2.style.color='var(--accent)';
-    p.innerHTML='<b style="color:var(--accent-txt)">Se enviará solo cuando vuelva la señal.</b><br>'+msg;
+    p.innerHTML='<b style="color:var(--accent-txt)">Se enviará solo cuando vuelva la señal.</b><br>'+esc(msg);
   } else {
     ico.textContent='✅'; h2.textContent='Reporte enviado'; h2.style.color='';
     p.textContent=msg;

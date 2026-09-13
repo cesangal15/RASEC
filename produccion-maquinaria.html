@@ -309,7 +309,6 @@ function verTab(cual){
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
 function fmt(n){ return (Math.round((parseFloat(n)||0)*100)/100).toLocaleString('es-CO'); }
 function ufLabel(p){ return p==='3701'?'UF1':p==='3702'?'UF2':(p||'—'); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function motivoOpts(sel){ return MOTIVOS.map(m=>'<option value="'+esc(m)+'"'+(m===sel?' selected':'')+'>'+(m===''?'— motivo —':esc(m))+'</option>').join(''); }
 function progOf(id){ return MAQPROG[id]; }
 // El motivo solo aplica si la máquina trabajó MENOS que lo programado (D62)
@@ -396,20 +395,20 @@ function render(){
   if(STATE.frentes.length){
     html+='<div class="section-title">Frentes ajustables (excavación · terraplén · ZODME)</div>';
     STATE.frentes.forEach(f=>{
-      const key=frenteKey(f);
+      const key=frenteKey(f), keyA=esc(key), keyJs=esc(String(key).replace(/'/g,"\\'"));
       const pend=STATE.nuevas.map((n,i)=>({n,i})).filter(o=>o.n.frenteKey===key && !o.n._faltante);
       const orphan=(f.n_maquinas===0 && pend.length===0);
       const pkOfi=(f.pk_oficial&&f.pk_oficial.length)?('<span class="pkofi">PK ofi: '+f.pk_oficial.map(esc).join(' · ')+'</span>'):'';
       html+='<div class="frente'+(orphan?' orphan':'')+'">';
       html+='<div class="frente-head">'+
-              '<span class="frente-cc">'+f.cc+'</span>'+
+              '<span class="frente-cc">'+esc(f.cc)+'</span>'+
               '<span class="badge '+(f.proyecto==='3701'?'uf1':'uf2')+'">'+ufLabel(f.proyecto)+'</span>'+
               '<span class="frente-lbl">'+esc(f.label)+'</span>'+
               (orphan?'<span class="sinmaq">sin máquina · redirige</span>':'')+
               '<span class="frente-ofi">Oficial DATA <b>'+fmt(f.oficial)+'</b> m³ · '+f.n_maquinas+' máq.'+pkOfi+'</span>'+
             '</div>';
       // barra de balance (repartido / restante), viva
-      html+='<div class="balbar'+(((f.oficial-frenteSum(f))<-0.01)?' over':'')+'" id="bal_'+key+'">'+balInner(f)+'</div>';
+      html+='<div class="balbar'+(((f.oficial-frenteSum(f))<-0.01)?' over':'')+'" id="bal_'+keyA+'">'+balInner(f)+'</div>';
       f.filas.forEach(r=>{
         const multi=(r.otras_actividades&&r.otras_actividades.length)?'<span class="pill multi">también: '+r.otras_actividades.map(esc).join(' · ')+'</span>':'';
         const orig=(r.produccion_orig!==''&&r.produccion_orig!=null)?'<span class="pill orig">orig. capataz: '+fmt(r.produccion_orig)+'</span>':'';
@@ -424,7 +423,7 @@ function render(){
                   ? '<div class="edits"><span class="pill">sugerido: '+(r._val===''?'—':fmt(r._val))+'</span></div>'
                   : '<div class="edits"><div class="mini"><label>Producción</label>'+
                     '<input type="number" step="0.01" inputmode="decimal" value="'+esc(r._val)+'" '+
-                      'oninput="setFila(\''+r.id_registro+'\',this.value); recalcBal(\''+key+'\')"></div></div>')+
+                      'oninput="setFila(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\',this.value); recalcBal(\''+keyJs+'\')"></div></div>')+
               '</div>';
       });
       pend.forEach(o=>{
@@ -433,7 +432,7 @@ function render(){
                 '<div class="maq-info"><div class="maq-act">'+esc(f.label)+' <span class="pill new">redirigido</span></div>'+
                   '<div class="maq-sub">se creará una fila nueva en MAQUINARIA</div></div>'+
                 '<div class="edits">'+
-                  '<div class="mini"><label>Producción</label><input type="number" step="0.01" value="'+esc(o.n.produccion)+'" oninput="setNueva('+o.i+',\'produccion\',this.value); recalcBal(\''+key+'\')"></div>'+
+                  '<div class="mini"><label>Producción</label><input type="number" step="0.01" value="'+esc(o.n.produccion)+'" oninput="setNueva('+o.i+',\'produccion\',this.value); recalcBal(\''+keyJs+'\')"></div>'+
                   '<div class="mini"><label>Horas</label><input type="number" step="0.1" value="'+esc(o.n.horas)+'" oninput="setNueva('+o.i+',\'horas\',this.value); toggleMot(\'pnmw_'+o.i+'\',this.value,\''+esc(o.n.id_maquina)+'\')"></div>'+
                   '<span class="mini wide" id="pnmw_'+o.i+'" style="'+motStyle(o.n.horas,o.n.id_maquina)+'"><label>Motivo</label><select onchange="setNueva('+o.i+',\'motivo\',this.value)">'+motivoOpts(o.n.motivo||'')+'</select></span>'+
                   '<button class="rm" title="Quitar" onclick="removeNueva('+o.i+')">✕</button>'+
@@ -442,14 +441,14 @@ function render(){
       });
       if(!SOLO_LECTURA){
       const opts='<option value="">— redirigir a máquina —</option>'+STATE.flota.map(c=>
-        '<option value="'+c.id_maquina+'">'+c.id_maquina+(c.reportada?' · reportada':'')+'</option>').join('');
+        '<option value="'+esc(c.id_maquina)+'">'+esc(c.id_maquina)+(c.reportada?' · reportada':'')+'</option>').join('');
       html+='<div class="add-wrap"><div class="alabel">Redirigir producción a una máquina (crea su fila)</div>'+
               '<div class="add-inputs">'+
-                '<select class="sel-main" id="sel_'+key+'" onchange="onRedir(\''+key+'\')">'+opts+'</select>'+
-                '<div class="mini"><label>Producción</label><input type="number" step="0.01" id="np_'+key+'"></div>'+
-                '<div class="mini"><label>Horas</label><input type="number" step="0.1" id="nh_'+key+'" oninput="onRedir(\''+key+'\')"></div>'+
-                '<span class="mini wide" id="nmw_'+key+'" style="display:none"><label>Motivo</label><select id="nm_'+key+'">'+motivoOpts('')+'</select></span>'+
-                '<button class="btn-add" onclick="addMaquina(\''+key+'\')">➕ Añadir</button>'+
+                '<select class="sel-main" id="sel_'+keyA+'" onchange="onRedir(\''+keyJs+'\')">'+opts+'</select>'+
+                '<div class="mini"><label>Producción</label><input type="number" step="0.01" id="np_'+keyA+'"></div>'+
+                '<div class="mini"><label>Horas</label><input type="number" step="0.1" id="nh_'+keyA+'" oninput="onRedir(\''+keyJs+'\')"></div>'+
+                '<span class="mini wide" id="nmw_'+keyA+'" style="display:none"><label>Motivo</label><select id="nm_'+keyA+'">'+motivoOpts('')+'</select></span>'+
+                '<button class="btn-add" onclick="addMaquina(\''+keyJs+'\')">➕ Añadir</button>'+
               '</div></div>';
       }
       html+='</div>';
@@ -478,8 +477,8 @@ function render(){
   const pendFalt=STATE.nuevas.map((n,i)=>({n,i})).filter(o=>o.n._faltante);
   if(STATE.faltantes.length){
     html+='<div class="section-title">'+(SOLO_LECTURA?'Máquinas sin reporte ese día':'Máquinas faltantes · asígnalas o registra horas')+'</div><div class="falt-card">';
-    let dstFrentes=''; STATE.frentes.forEach(f=>{ dstFrentes+='<option value="F|'+frenteKey(f)+'">'+f.cc+' · '+esc(f.label)+' · '+ufLabel(f.proyecto)+'</option>'; });
-    let dstComplem=COMPLEM.map(x=>'<option value="A|'+x.c+'">'+esc(x.l)+'</option>').join('');
+    let dstFrentes=''; STATE.frentes.forEach(f=>{ dstFrentes+='<option value="F|'+esc(frenteKey(f))+'">'+esc(f.cc)+' · '+esc(f.label)+' · '+ufLabel(f.proyecto)+'</option>'; });
+    let dstComplem=COMPLEM.map(x=>'<option value="A|'+esc(x.c)+'">'+esc(x.l)+'</option>').join('');
     const dstOpts='<option value="">— elegir destino —</option>'+
       (dstFrentes?('<optgroup label="Frentes del día (con producción)">'+dstFrentes+'</optgroup>'):'')+
       '<optgroup label="Complementaria (sin producción)">'+dstComplem+'</optgroup>'+
@@ -490,11 +489,11 @@ function render(){
                 '<span class="falt-tipo">'+esc(m.tipo||'')+' · prog '+esc(m.prog)+' h</span><span class="badge falta">FALTA</span></div>'+
               (SOLO_LECTURA ? '' :
               '<div class="falt-ctrls">'+
-                '<select class="sel-dst" id="dst_'+m.id_maquina+'">'+dstOpts+'</select>'+
-                '<div class="mini"><label>Horas oper.</label><input type="number" step="0.1" id="hf_'+m.id_maquina+'" oninput="toggleMot(\'mfw_'+esc(m.id_maquina)+'\',this.value,\''+esc(m.id_maquina)+'\')"></div>'+
-                '<span class="mini wide" id="mfw_'+m.id_maquina+'" style="display:none"><label>Motivo</label><select id="mf_'+m.id_maquina+'">'+motivoOpts('')+'</select></span>'+
+                '<select class="sel-dst" id="dst_'+esc(m.id_maquina)+'">'+dstOpts+'</select>'+
+                '<div class="mini"><label>Horas oper.</label><input type="number" step="0.1" id="hf_'+esc(m.id_maquina)+'" oninput="toggleMot(\'mfw_'+esc(m.id_maquina)+'\',this.value,\''+esc(m.id_maquina)+'\')"></div>'+
+                '<span class="mini wide" id="mfw_'+esc(m.id_maquina)+'" style="display:none"><label>Motivo</label><select id="mf_'+esc(m.id_maquina)+'">'+motivoOpts('')+'</select></span>'+
                 (sinProduccion(m.tipo) ? '<span class="mini wide" style="opacity:.7">sin producción propia</span>'
-                                       : '<div class="mini"><label>Prod. (si frente)</label><input type="number" step="0.01" id="pf_'+m.id_maquina+'"></div>')+
+                                       : '<div class="mini"><label>Prod. (si frente)</label><input type="number" step="0.01" id="pf_'+esc(m.id_maquina)+'"></div>')+
                 '<button class="btn-add" onclick="addFaltante(\''+esc(m.id_maquina)+'\')">➕ Asignar</button>'+
               '</div>')+
             '</div>';
@@ -669,7 +668,7 @@ function flToggleHist(id){ FL.hist[id]=!FL.hist[id]; renderFlotaLista(); }
 
 function flSelTipo(){
   return '<select onchange="flSet(\'tipo\',this.value)"><option value="">— tipo —</option>'+
-    flTipos().map(function(t){ return '<option value="'+t+'"'+(t===FL.vals.tipo?' selected':'')+'>'+t+'</option>'; }).join('')+
+    flTipos().map(function(t){ return '<option value="'+esc(t)+'"'+(t===FL.vals.tipo?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
     '</select>';
 }
 function flSelProp(){
@@ -950,7 +949,7 @@ function flFila(e, puede, modo, ls){
                '<span class="cmut">'+esc(x.propiedad||'—')+'</span>'+
                '<span class="cmut">'+esc(x.prog)+' h</span>'+
                '<span class="cfecha">'+esc(x.fecha_ingreso)+' → '+esc(x.fecha_retiro||'sigue en obra')+'</span>'+
-               '<span class="cnota" title="'+esc(x.notas||'')+'">'+esc(x.notas||'')+' <span class="cmut">fila '+x.fila+'</span></span>'+
+               '<span class="cnota" title="'+esc(x.notas||'')+'">'+esc(x.notas||'')+' <span class="cmut">fila '+esc(x.fila)+'</span></span>'+
                '<span class="cacts">'+(puede&&!esta?'<button class="btn-mini" onclick="flAbrir(\'corregir\',\''+esc(id)+'\',\''+esc(x.fecha_ingreso)+'\')">Corregir</button>':'')+'</span>'+
              '</div>';
     }).join('');
@@ -958,11 +957,11 @@ function flFila(e, puede, modo, ls){
   // Formulario abierto sobre ESTA estancia.
   if(FL.clave && FL.clave.id_maquina===id && FL.clave.fecha_ingreso===e.fecha_ingreso){
     const obj=flEstancia(id, e.fecha_ingreso);
-    if(obj) html+='<div class="tr form">'+((FL.op==='baja')?flFormBaja(obj):flFormDatos('Corregir la estancia de '+id+' · '+flVentana(obj)))+'</div>';
+    if(obj) html+='<div class="tr form">'+((FL.op==='baja')?flFormBaja(obj):flFormDatos('Corregir la estancia de '+esc(id)+' · '+esc(flVentana(obj))))+'</div>';
   }else if(FL.clave && FL.clave.id_maquina===id && FL.op==='corregir' && nEst>1 && FL.hist[id]){
     // corrección abierta sobre una estancia del historial de esta máquina
     const obj=flEstancia(FL.clave.id_maquina, FL.clave.fecha_ingreso);
-    if(obj) html+='<div class="tr form">'+flFormDatos('Corregir la estancia de '+id+' · '+flVentana(obj))+'</div>';
+    if(obj) html+='<div class="tr form">'+flFormDatos('Corregir la estancia de '+esc(id)+' · '+esc(flVentana(obj)))+'</div>';
   }
   return html;
 }

@@ -1088,9 +1088,9 @@ function cadena(sel_p){
   if(!B.m){
     nota.textContent='';
     const v=el('div','nota');
-    v.innerHTML='Sin partes de maquinaria para '+eti(sel_p.p)+(uf==='Todo'?'':' en '+uf)+
+    v.innerHTML='Sin partes de maquinaria para '+esc(eti(sel_p.p))+(uf==='Todo'?'':' en '+esc(uf))+
       '. Los partes diarios cubren de <b>'+
-      eti(TM2.maq_periodos[0])+'</b> a <b>'+eti(TM2.maq_periodos[TM2.maq_periodos.length-1])+
+      esc(eti(TM2.maq_periodos[0]))+'</b> a <b>'+esc(eti(TM2.maq_periodos[TM2.maq_periodos.length-1]))+
       '</b>; fuera de ahí sólo hay producción, así que la cadena no se puede calcular.';
     v.style.padding='18px 0';c.appendChild(v);
     return;
@@ -1307,7 +1307,7 @@ function cadena(sel_p){
         'volquetas y la RT-02 quedan fuera: mueven obra, pero no producen estos m³.';
       if(m.grupos&&m.grupos.length){
         txt+='<br><br>El terraplén reparte la producción por grupo, cada uno contra SUS horas: '+
-          m.grupos.map(g=>'<b>'+g.tipo.toLowerCase()+'</b> '+pct(g.cuota)+' → '+f1(comp(g.mh))+' m³/h en '+
+          m.grupos.map(g=>'<b>'+esc(g.tipo.toLowerCase())+'</b> '+pct(g.cuota)+' → '+f1(comp(g.mh))+' m³/h en '+
           f1(g.horas)+' h').join(' · ')+'.';
       }
       /* Referencia para interpretar la cifra —salga alta o baja—: cuántas horas
@@ -1591,9 +1591,9 @@ function pintaEstado(){
   const prod = TM2.corte_prod || ultimaProd();
   const maq  = TM2.corte_horas || '';
   let s;
-  if(prod && maq) s='Producción actualizada al <b>'+prod+'</b> y maquinaria al <b>'+maq+'</b>';
-  else if(prod)   s='Producción actualizada al <b>'+prod+'</b>';
-  else            s='Datos de '+(TM2.generado?('<b>'+TM2.generado+'</b>'):'la copia incluida');
+  if(prod && maq) s='Producción actualizada al <b>'+esc(prod)+'</b> y maquinaria al <b>'+esc(maq)+'</b>';
+  else if(prod)   s='Producción actualizada al <b>'+esc(prod)+'</b>';
+  else            s='Datos de '+(TM2.generado?('<b>'+esc(TM2.generado)+'</b>'):'la copia incluida');
   estado(s,false);
   if(!$('btnAct')) return;        // solo lectura: los botones ni existen
   leeH('prod').then(h=>{
@@ -1645,14 +1645,14 @@ async function recalcular(oProd,oMaq){
     try{
       await publicar(d);
       estado('Actualizado en '+seg+' s · '+TM2.per.length+' períodos · horas hasta <b>'+
-        (TM2.corte_horas||'—')+'</b> · <b>publicado</b>: el jefe y los residentes ya lo ven',false);
+        esc(TM2.corte_horas||'—')+'</b> · <b>publicado</b>: el jefe y los residentes ya lo ven',false);
     }catch(err){
-      estado('Datos actualizados en tu pantalla, pero NO se pudieron publicar: '+err.message+
+      estado('Datos actualizados en tu pantalla, pero NO se pudieron publicar: '+esc(err.message)+
         '. Los demás siguen viendo la foto anterior. Vuelve a pulsar «Actualizar» '+
         'cuando haya conexión.',true);
     }
   }catch(err){
-    estado('No se pudo actualizar: '+err.message+
+    estado('No se pudo actualizar: '+esc(err.message)+
       '. Prueba con «Elegir archivos» — el resultado es el mismo.',true);
   }finally{
     if(bA) bA.disabled=false; if(bE) bE.disabled=false;
@@ -1789,7 +1789,7 @@ async function elegirRecordando(){
     await recalcular(await hp.getFile(), await hm.getFile());
   }catch(e){
     if(e && e.name==='AbortError'){ pintaEstado(); return; }
-    estado('No se pudieron abrir los archivos: '+e.message,true);
+    estado('No se pudieron abrir los archivos: '+esc(e.message),true);
   }
 }
 /* Releerlos sin preguntar nada. */
