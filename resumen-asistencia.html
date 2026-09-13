@@ -12,6 +12,7 @@
      bloqueaba el primer pintado con ~900 KB que solo hacen falta al pulsar "Excel 3701/3702" (ver
      ensureXLSX()). Misma librería y misma versión: no es una dependencia nueva. -->
 <link rel="stylesheet" href="tema.css">
+<script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -149,7 +150,7 @@
      que el Parte de Navision. Tiene que ir ANTES del script de la página. -->
 <script src="horas-nomina.js"></script>
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymgvQX03ZqS_YzIz5l6WVesasDUMYwGOFItrggTJCdsFhcjXQvDPVz03E7mNcZQ4Nq/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.asistencias;   // entorno.js (D168): producción o prueba
 
 /* ================= INSTRUMENTACIÓN DE RENDIMIENTO (temporal) =================
  * Para medir el antes/después con F12 → Console. Apagar poniendo DEBUG_PERF=false (una línea).

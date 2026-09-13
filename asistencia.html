@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TM2 Sur">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="entorno.js"></script>
 <script src="auth.js"></script>
 <script src="offline.js"></script>
 <link rel="stylesheet" href="tema.css">
@@ -122,7 +123,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymgvQX03ZqS_YzIz5l6WVesasDUMYwGOFItrggTJCdsFhcjXQvDPVz03E7mNcZQ4Nq/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.asistencias;   // entorno.js (D168): producción o prueba
 
 let STATE = { usuario:'', rol:'', fecha:'', cuadrillas:[], cuadrillaActual:'', personas:[], bloques:[],
   config:{}, festivos:[], jornada:{}, catCC:[], catCCUsados:[], catMotivos:[], recientesCC:{}, turnos:[], nota:'', nextBloqueId:1, enviando:false };

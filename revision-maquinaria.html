@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#f5a623">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="entorno.js"></script>
 <script src="auth.js"></script>
 <link rel="stylesheet" href="tema.css">
 <script src="tema.js"></script>
@@ -212,7 +213,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUEC1BVZc6K_IVsK-gjql7HD15sAJxDxwkmVIwz8j-gFLdoNht5IEb5fZY9Jduyac/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 const API = APPS_SCRIPT_URL + '?mod=parte';
 const ROLES = ['admin','encargado','residente','parte_maquinaria'];
 

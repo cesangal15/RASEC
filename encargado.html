@@ -7,6 +7,7 @@
 <title>Panel del Encargado</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
+<script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -178,7 +179,7 @@
 <script src="auth.js"></script>
 <script src="flota.js"></script>
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUEC1BVZc6K_IVsK-gjql7HD15sAJxDxwkmVIwz8j-gFLdoNht5IEb5fZY9Jduyac/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 // D84: `albert` y `ariel` salieron a UF3 (fuera de este sistema); dejaron de esperarse en la bandeja.
 // D145: `albert` VUELVE a tierras (UF1/UF2) y se vuelve a esperar su reporte del día. `ariel` sigue
 // fuera. Los días en que estuvo en UF3 no cambian: esto solo alimenta el aviso de "falta por reportar"
