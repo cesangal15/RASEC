@@ -164,7 +164,7 @@ console.log('\n3 · CR026 (HOROMETRO) con final < inicial: se bloquea');
   const g=post(ctx,{ mod:'parte', op:'reporte', codigo:'CR026', tramos:[ tramo({ inicial:1698, final:1700, fecha:'2026-13-40' }) ] });
   ok('fecha inválida se bloquea (D106)', g.ok===false && /fecha/.test(g.error));
   const z=post(ctx,{ mod:'parte', op:'reporte', codigo:'ZZZ9', tramos:[ tramo({ inicial:1, final:2 }) ] });
-  ok('código fuera del catálogo se bloquea', z.ok===false && /PARTE_EQUIPOS/.test(z.error));
+  ok('código fuera del catálogo se bloquea (D166: error genérico «equipo» + detalle)', z.ok===false && z.error==='equipo' && /PARTE_EQUIPOS/.test(z.detalle));
 }
 
 console.log('\n4 · Alertas');

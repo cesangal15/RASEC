@@ -25,7 +25,7 @@
 │  Admin: botón "← Menú" en toda pantalla interna vuelve a menu.html sin cerrar sesión.    │
 └────────────────────────────────────┬─────────────────────────────────────────────────--┘
 
-**Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta Apps Script; fuentes Google cache-first; subir `CACHE_V` solo si cambia la lista de precache), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
+**Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta Apps Script; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
 
 **Presentación (D150/D151/D153/D155).** Dos archivos compartidos que cuelgan de TODAS las pantallas:
 
@@ -43,6 +43,8 @@ tema.js    Bloqueante en el <head> a propósito: aplica data-tema ANTES del prim
            interruptor —UN botón que alterna— en #tm2-tema-slot si la pantalla lo
            declara, si no en .header-user, y como último recurso fijo abajo a la
            izquierda (arriba está ocupado: el chip de señal de offline.js).
+           D167: define además la global esc() (escape de HTML) — ver la sección
+           «D167 — Endurecimiento del frontend» al final.
 ```
 
 Los `:root` locales de las 18 pantallas DESAPARECIERON: la paleta vive solo en `tema.css`.
@@ -368,3 +370,57 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 **Mapeo B→AR (`PARTE_EXCEL_MAPA`, verificar contra el Excel real antes de cerrarlo):** C fecha (dd/mm/aaaa) · E nº parte · F código · M/N inicial/final HORÓMETRO · Q/R horas varada/lluvia · V/W inicial/final KM · AA descripción · AB CC · AD PR · AE UF · AL/AM hora de/a · AQ operador · AR observaciones. Las demás (B, D, G–L, O–P, S–U, X–Z, AC, AF–AK, AN–AP) van vacías: son fórmulas/VLOOKUP desde `EQUIPOS 2` (TOTAL, TIPO, MARCA, consecutivo…). Decimales con coma (convención de `jefe.html`/`digitadora.html`).
 
 **Puesta en marcha:** (1) pegar `backend/CodigoParte.gs` en el proyecto de Apps Script de obra y aplicar las 2 líneas de `Codigo.gs`; (2) `setupParte()`; (3) importar los 4 CSV de `backend/seeds/parte/` (Archivo → Importar → Reemplazar hoja actual); (4) `setupParte()` otra vez; (5) redesplegar (misma URL, nueva versión); (6) `python3 tools/generar_qr.py` con la URL base confirmada → imprimir `qr/etiquetas.pdf` (adhesivo, 7×7 cm) y pegar en cabina; (7) opcional: fila `parte_maquinaria` en `USUARIOS` con `redirige=revision-maquinaria.html`. **Pruebas:** `node backend/pruebas/verificar_v301_parte_digital.js` (backend) y `NODE_PATH=/opt/node22/lib/node_modules node backend/pruebas/verificar_v301_pantallas.js` (Chromium contra el backend en `vm`).
+
+## D166 — Endurecimiento de los dos Apps Script (sep-2026)
+
+Bloque gemelo «ENDURECIMIENTO DEL BACKEND» en `Codigo.gs` y `CodigoAsistencias.gs` (el Parte lo reutiliza). Sin cambios de contrato: mismos endpoints, mismos payloads, misma URL.
+
+```
+┌───────────────────────────────────────────────────────────────────────────────────────────────┐
+│  Petición ──► doGet/doPost: logIniciar_ ──► puerta_(e, body, action)                          │
+│                 ├─ sesion_ (D109) ──► inválido: {ok:false, auth:false, error:GENÉRICO}          │
+│                 │                       (causa exacta → LOG; excepción: AUTH_SECRETO ausente)   │
+│                 ├─ rateLimit_ usuario+action 60/min (login 10/min) ──► {ok:false,error:'rate_limit'}│
+│                 └─ validarPayload*_ (tipos·rangos·longitud·fecha no futura)                    │
+│                                        ──► {ok:false, error:'payload', campo, detalle}           │
+│               ──► action de siempre ──► finally: logEscribir_() = UNA appendRow en hoja LOG     │
+│  LOG          fecha_hora · usuario · rol · action · resultado(ok/rechazado/error) · motivo · ms  │
+│  Parte (QR)   identidad = código de equipo; 20 envíos/h por equipo, 200/h global; equipo debe   │
+│               existir en PARTE_EQUIPOS y estar activo → si no {ok:false, error:'equipo'}        │
+│  Respaldo     respaldoDiario() → Drive Galca_respaldos/TM2_Sur/<prefijo>_<yyyy-MM-dd>, poda 30 d │
+│               instalarTriggerRespaldo() → trigger diario 02:00 America/Bogota                    │
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Funciones a ejecutar una vez desde el editor** (en cada proyecto): `setupLog()` (obra) / `setupHojas()` (asistencias) · `respaldoDiario()` (la primera vez pide autorizar Drive) · `instalarTriggerRespaldo()`. Después, redesplegar editando la implementación existente. Verificación en banco: `backend/pruebas/verificar_d166_endurecimiento.js`.
+
+## D167 — Endurecimiento del frontend: CSP + `esc()` (sep-2026)
+
+Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exige redespliegue de Apps Script.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│  <meta http-equiv="Content-Security-Policy"> en las 23 pantallas + tablero/index.html         │
+│    default-src 'self'                                                                          │
+│    script-src  'self' 'unsafe-inline'      ← DEUDA (backlog 2.30): JS dentro del HTML y        │
+│    style-src   'self' 'unsafe-inline' fonts.googleapis.com     cientos de onclick=/style=      │
+│    font-src    'self' fonts.gstatic.com                                                        │
+│    img-src     'self' data:                ← flecha SVG de los <select> en tema.css            │
+│    connect-src 'self' script.google.com script.googleusercontent.com                           │
+│                (el POST al Apps Script redirige al segundo host; CSP valida la redirección)     │
+│    manifest-src/worker-src 'self' · base-uri 'self' · form-action 'self' · object-src 'none'   │
+│  Excepciones: resumen-asistencia.html (+cdn.jsdelivr.net) y Reparto_Produccion_Maquinaria.html │
+│    (+cdnjs.cloudflare.com) cargan SheetJS de un CDN. La página «Sin conexión» de sw.js lleva   │
+│    su CSP mínima. frame-ancestors/report-uri no existen en <meta> (GitHub Pages no da cabeceras)│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  esc(s)  en tema.js (global; & < > " ' → entidades). Copia idéntica en tablero-produccion.html │
+│          (no carga tema.js); offline.js la usa con respaldo local (escUI).                     │
+│  Regla:  todo texto de la API, de catálogos o tecleado pasa por esc() ANTES de innerHTML.      │
+│          Nunca en payloads, WhatsApp, CSV ni portapapeles. En onclick con cadena JS: primero   │
+│          replace(/'/g,"\\'") y luego esc(). Las 12 copias locales de esc/escapeHtml se borraron.│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  sw.js   CACHE_V = tm2-v8 (tema.js está en el precache y los HTML nuevos dependen de esc()).   │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Verificación: banco en Chromium con Apps Script simulado — 24 páginas sin violaciones de CSP ni errores, service worker con `tm2-v8`, cola offline encola sin señal y sincroniza al volver.

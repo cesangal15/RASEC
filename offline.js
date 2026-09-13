@@ -311,7 +311,7 @@
     pintarPanel();
   }
 
-  // Escape de HTML: usa el `esc()` compartido de tema.js (D166). Resuelto en cada llamada y con
+  // Escape de HTML: usa el `esc()` compartido de tema.js (D167). Resuelto en cada llamada y con
   // respaldo idéntico, para que el panel de la cola no dependa del orden de carga de los scripts.
   function escUI(s){
     if (typeof esc === 'function') return esc(s);

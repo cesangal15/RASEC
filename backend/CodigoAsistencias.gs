@@ -48,6 +48,12 @@
  *     (`leerFilasPorFecha_`); los dos cruces que necesitan todo el histórico se acotan por COLUMNAS
  *     (`leerColumnasDeHoja_`). Campo `_celdas` en toda respuesta. Ver el bloque grande de comentarios
  *     sobre `leerFilasPorFecha_` antes de tocar nada de esto.
+ *
+ * D166 — endurecimiento (ver el bloque «ENDURECIMIENTO DEL BACKEND» más abajo): hoja LOG (una fila por
+ *   petición en la puerta de D109), rate limit por usuario+action con CacheService (60/min), respuesta
+ *   genérica ante token inválido (salvo AUTH_SECRETO ausente, D109), validación de tipos/rangos/
+ *   longitudes/fechas por action de escritura ({ok:false, error:'payload', campo}) y respaldo diario a
+ *   Drive (respaldoDiario / instalarTriggerRespaldo). Contrato de endpoints y payloads INTACTO.
  */
 
 // El usuario reemplaza este placeholder si crea un Sheet nuevo; ya viene fijado al Sheet entregado.
@@ -259,7 +265,7 @@ function verificarToken_(tok){
 function sesion_(e, body){
   // Diagnóstico explícito: sin secreto configurado NADA validaría, y el error genérico («vuelve a
   // entrar») mandaría a todo el mundo a dar vueltas al login sin que nadie entienda qué pasa.
-  if(!authSecreto_()) return {ok:false, error:'El servidor no tiene configurado AUTH_SECRETO. '
+  if(!authSecreto_()) return {ok:false, sinSecreto:true, error:'El servidor no tiene configurado AUTH_SECRETO. '
     + 'Ejecuta mostrarSecretoAuth() en el Apps Script de obra y fijarSecretoAuth("…") en este.'};
   const tok = (body && body.token) || (e && e.parameter && e.parameter.token) || '';
   const r = tok ? verificarToken_(tok) : {ok:false, error:'Falta el token de sesión. Vuelve a entrar.'};
@@ -270,6 +276,325 @@ function sesion_(e, body){
     return {ok:true, usuario:'', rol:'', tolerado:true};
   }
   return r;
+}
+
+
+/* ============ D166 — ENDURECIMIENTO DEL BACKEND: LOG · RATE LIMIT · RESPUESTA GENÉRICA · VALIDACIÓN · RESPALDO ============
+ *
+ * Bloque GEMELO en los dos Apps Script (obra y asistencias; el Parte, que vive en el proyecto de obra,
+ * reutiliza estas mismas funciones). CONTRATO INTACTO: ningún endpoint cambia de nombre ni de payload y
+ * ninguna respuesta que hoy es `ok:true` deja de serlo por un payload legítimo — la cola offline (D82)
+ * reenvía payloads de hace días y tienen que seguir entrando. Lo único nuevo son rechazos ADICIONALES
+ * (`error:'rate_limit'` y `error:'payload'`), y con `ok:false` la cola conserva el ítem en el teléfono.
+ *
+ * 1) LOG — hoja `LOG` (la crea `setupLog()` o la primera petición). En la puerta única de D109 se
+ *    anota fecha-hora del servidor, usuario, rol, action, resultado (ok/rechazado/error + motivo) y ms.
+ *    UNA sola `appendRow` por petición, al FINAL de la ejecución (así `ms` es el tiempo total y el motivo
+ *    puede venir de la validación de payload). Envuelta en try/catch: si LOG falla, la petición NO falla.
+ *    El `usuario` de un `login` es el que el cliente DICE ser (no está autenticado todavía): sirve para
+ *    ver intentos, no para atribuir. `tablero` (lectura pública, D159) no pasa por la puerta y no se anota.
+ *    Un rechazo por rate limit se anota SOLO la primera vez en cada ventana: anotar cada uno convertiría
+ *    la propia protección en la forma de inflar la hoja.
+ * 2) RATE LIMIT — CacheService por `usuario+action` (ventana fija de 60 s): 60 peticiones/min; `login`
+ *    10/min por usuario. Al excederlo: `{ok:false, error:'rate_limit'}` SIN tocar el Sheet. Si la caché
+ *    no está disponible se deja pasar (fail-open): un fallo de Google no puede dejar la obra sin reportar.
+ * 3) RESPUESTA GENÉRICA — todo token inválido contesta `{ok:false, auth:false, error:AUTH_MSG_GENERICO}`;
+ *    la causa exacta (falta, firma mala, ilegible, versión) va al LOG. El cliente (`auth.js`) solo mira
+ *    `auth:false`, nunca el texto. La ÚNICA excepción explícita sigue siendo la del verificador sin
+ *    `AUTH_SECRETO` (D109): sin ella nadie entendería por qué el módulo entero manda al login.
+ * 4) VALIDACIÓN DE PAYLOAD — por action de escritura: tipos, rangos numéricos razonables, longitud
+ *    máxima de textos, fecha válida y no futura. Rechazo: `{ok:false, error:'payload', campo:'…'}` (+
+ *    `detalle` legible, campo ADICIONAL). Regla de retrocompatibilidad: se valida lo que VIENE; un campo
+ *    ausente sigue tratándose como antes (cada función ya tiene sus valores por defecto). Las fechas de
+ *    flota/personal (ingreso/retiro) admiten futuro acotado a propósito: «primer día que ya no estuvo»
+ *    puede ser mañana (D138).
+ * 5) RESPALDO — `respaldoDiario()` copia este Spreadsheet a Drive `Galca_respaldos/<obra>` con nombre
+ *    `<prefijo>_<fecha ISO>` y borra las copias de este prefijo con más de RESPALDO_DIAS días (por la
+ *    fecha del NOMBRE, no por la de creación). `instalarTriggerRespaldo()` crea el disparador diario de
+ *    las 02:00 (America/Bogota, explícita en el trigger). También poda la hoja LOG a LOG_RETENCION_DIAS.
+ */
+
+/* ---------- 1) LOG ---------- */
+const LOG_HOJA = 'LOG';
+const LOG_HEADERS = ['fecha_hora','usuario','rol','action','resultado','motivo','ms'];
+const LOG_RETENCION_DIAS = 30;      // filas de LOG más viejas que esto se podan en respaldoDiario()
+const LOG_MAX_MOTIVO = 200;
+var _log = null;                    // registro de la petición en curso; lo siembran doGet/doPost
+function logIniciar_(action){ _log = { usuario:'', rol:'', action:String(action||''), resultado:'', motivo:'', silencio:false }; }
+function logAction_(action){ if(_log) _log.action = String(action||''); }
+function logIdentidad_(usuario, rol){ if(_log){ _log.usuario = String(usuario||''); _log.rol = String(rol||''); } }
+function logSesion_(ses){ if(ses) logIdentidad_(ses.usuario, ses.rol); }
+function logMarcar_(resultado, motivo){
+  if(!_log) return;
+  _log.resultado = String(resultado||'');
+  if(motivo !== undefined) _log.motivo = String(motivo==null?'':motivo);
+}
+function logHoja_(){
+  const ss=ss_(); let sh=ss.getSheetByName(LOG_HOJA);
+  if(!sh){ sh=ss.insertSheet(LOG_HOJA); sh.appendRow(LOG_HEADERS); }
+  return sh;
+}
+// ÚNICA escritura de LOG: una appendRow al final de la petición. Nunca lanza.
+function logEscribir_(){
+  const l=_log; _log=null;
+  if(!l || l.silencio) return;
+  try{
+    const ms = (_t0 !== null) ? (Date.now() - _t0) : '';
+    logHoja_().appendRow([ new Date(), l.usuario, l.rol, l.action, l.resultado || 'ok',
+                           String(l.motivo||'').slice(0, LOG_MAX_MOTIVO), ms ]);
+  }catch(err){ try{ Logger.log('LOG no escrito: '+err); }catch(e2){} }
+}
+/* Se ejecuta UNA VEZ desde el editor (o no: la primera petición crea la hoja igual). Idempotente. */
+function setupLog(){
+  const sh=getSheet(LOG_HOJA, LOG_HEADERS);
+  Logger.log('Hoja LOG lista ('+Math.max(sh.getLastRow()-1,0)+' filas).');
+  return 'ok';
+}
+// Poda las filas de LOG más viejas que `dias` (la hoja es cronológica: se borra el tramo inicial).
+function podarLog_(dias){
+  try{
+    const sh=ss_().getSheetByName(LOG_HOJA); if(!sh) return 0;
+    const last=sh.getLastRow(); if(last<2) return 0;
+    const limite=Date.now() - (dias||LOG_RETENCION_DIAS)*86400000;
+    const fechas=leerRango_(sh, 2, 1, last-1, 1);
+    let n=0;
+    while(n<fechas.length){
+      const v=fechas[n][0];
+      const t = (v && typeof v==='object' && typeof v.getTime==='function') ? v.getTime() : Date.parse(String(v||''));
+      if(!(t<limite)) break;    // NaN o reciente: se para (nunca se borra lo que no se entiende)
+      n++;
+    }
+    if(n>0) sh.deleteRows(2, n);
+    return n;
+  }catch(err){ Logger.log('podarLog_: '+err); return 0; }
+}
+
+/* ---------- 2) RATE LIMIT ---------- */
+const RL_LIMITE       = 60;     // peticiones por usuario+action y minuto
+const RL_LIMITE_LOGIN = 10;     // intentos de login por usuario y minuto
+const RL_VENTANA_S    = 60;
+/* Ventana FIJA (contador por minuto de reloj): barato, sin lecturas del Sheet, y suficiente para lo que
+ * protege (un bucle roto o un script ajeno). Devuelve {ok, primero}: `primero` es true la PRIMERA vez que
+ * se rechaza en la ventana (para anotar una sola fila en LOG). Si la caché falla, deja pasar. */
+function rateLimit_(identidad, action, limite, ventanaS){
+  try{
+    if(typeof CacheService === 'undefined') return { ok:true };
+    const cache=CacheService.getScriptCache(); if(!cache) return { ok:true };
+    const v=ventanaS || RL_VENTANA_S;
+    const clave='rl:'+String(identidad||'anon').toLowerCase().slice(0,60)+':'+String(action||'').toLowerCase().slice(0,40)
+               +':'+Math.floor(Date.now()/(v*1000));
+    const n=Number(cache.get(clave) || 0);
+    cache.put(clave, String(n+1), Math.min(v*2, 21600));
+    if(n >= limite) return { ok:false, primero:(n===limite) };
+    return { ok:true };
+  }catch(err){ return { ok:true }; }
+}
+function respuestaRateLimit_(rl){
+  if(_log){ if(rl && rl.primero) logMarcar_('rechazado','rate_limit'); else _log.silencio=true; }
+  return json({ ok:false, error:'rate_limit', detalle:'Demasiadas peticiones seguidas. Espera un minuto y vuelve a intentar.' });
+}
+
+/* ---------- 3) PUERTA ÚNICA (envuelve a sesion_ de D109) ---------- */
+const AUTH_MSG_GENERICO = 'Sesión no válida. Vuelve a entrar.';
+/* La llaman doGet/doPost (y el enrutador del Parte para sus operaciones con token). Verifica el token
+ * con `sesion_`, anota la identidad en el LOG y aplica el rate limit por usuario+action.
+ * Devuelve {ok:true, ses} o {ok:false, respuesta} (la respuesta ya lista para devolver). */
+function puerta_(e, body, action){
+  const ses=sesion_(e, body);
+  if(!ses.ok){
+    logMarcar_('rechazado', 'token: '+String(ses.error||''));
+    const msg = ses.sinSecreto ? ses.error : AUTH_MSG_GENERICO;   // D109: única causa que se dice al cliente
+    return { ok:false, respuesta: json({ ok:false, auth:false, error:msg }) };
+  }
+  logSesion_(ses);
+  if(ses.tolerado) logMarcar_('ok', 'tolerado');
+  const rl=rateLimit_(ses.usuario || 'anon', action, RL_LIMITE);
+  if(!rl.ok) return { ok:false, respuesta: respuestaRateLimit_(rl) };
+  return { ok:true, ses:ses };
+}
+
+/* ---------- 4) VALIDACIÓN DE PAYLOAD ---------- */
+const VAL_TZ = 'America/Bogota';
+const VAL_MAX_TEXTO       = 500;     // textos normales (nombres, códigos, CC, observaciones de línea)
+const VAL_MAX_TEXTO_LARGO = 2000;    // notas libres / observación general
+const VAL_MAX_FILAS       = 1000;    // filas por envío (un día entero cabe de sobra)
+const VAL_MAX_HORAS       = 24;
+const VAL_MAX_CANTIDAD    = 1000000; // largo / producción / m³ por línea
+const VAL_DIAS_FUTURO_FLOTA = 366;   // ingreso/retiro programados (D138: «primer día que ya no estuvo»)
+var _valHoy = null;
+function valHoy_(){ if(!_valHoy) _valHoy = Utilities.formatDate(new Date(), VAL_TZ, 'yyyy-MM-dd'); return _valHoy; }
+function valFechaMasDias_(iso, dias){
+  const p=String(iso||'').split('-'); if(p.length<3) return '';
+  const dt=new Date(Number(p[0]), Number(p[1])-1, Number(p[2])); dt.setDate(dt.getDate()+(dias||0));
+  return dt.getFullYear()+'-'+('0'+(dt.getMonth()+1)).slice(-2)+'-'+('0'+dt.getDate()).slice(-2);
+}
+function rechazoPayload_(campo, detalle){
+  logMarcar_('rechazado', 'payload:'+campo+(detalle ? (' '+detalle) : ''));
+  return json({ ok:false, error:'payload', campo:String(campo||''), detalle:String(detalle||'') });
+}
+// Cada `val*_` devuelve '' si el valor es aceptable o el MOTIVO si no. Ausente/vacío = aceptable
+// (la obligatoriedad la decide cada función, como hasta ahora).
+function valTexto_(v, max){
+  if(v===null || v===undefined) return '';
+  if(typeof v==='object') return 'debe ser texto';
+  const s=String(v); const m=max||VAL_MAX_TEXTO;
+  if(s.length>m) return 'supera '+m+' caracteres';
+  if(/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(s)) return 'contiene caracteres de control';
+  return '';
+}
+function valNum_(v, min, max){
+  if(v===null || v===undefined || v==='') return '';
+  if(typeof v==='boolean' || typeof v==='object') return 'debe ser un número';
+  const n = (typeof v==='number') ? v : Number(String(v).trim().replace(/\s/g,'').replace(',','.'));
+  if(!isFinite(n)) return 'no es un número';
+  if(n<min || n>max) return 'fuera de rango ('+min+' a '+max+')';
+  return '';
+}
+function valEntero_(v, min, max){ const m=valNum_(v,min,max); if(m) return m; if(v===null||v===undefined||v==='') return ''; return Number(v)%1===0 ? '' : 'debe ser entero'; }
+function valBool_(v){
+  if(v===null || v===undefined || v==='') return '';
+  if(typeof v==='boolean') return '';
+  const s=String(v).trim().toLowerCase();
+  return (['si','sí','no','true','false','1','0'].indexOf(s)>=0) ? '' : 'debe ser Sí/No';
+}
+function valLista_(v, opciones){
+  if(v===null || v===undefined || v==='') return '';
+  return (opciones.indexOf(String(v).trim().toLowerCase())>=0) ? '' : 'valor no admitido';
+}
+// Fecha válida (yyyy-mm-dd o Date, por fdateValida_) y no futura (con `diasFuturo` días de margen).
+function valFecha_(v, diasFuturo){
+  if(v===null || v===undefined || v==='') return '';
+  const f=fdateValida_(v); if(!f) return 'fecha inválida';
+  if(f > valFechaMasDias_(valHoy_(), diasFuturo||0)) return 'fecha futura';
+  if(f < '2020-01-01') return 'fecha anterior a 2020';
+  return '';
+}
+function valHora_(v){
+  if(v===null || v===undefined || v==='') return '';
+  if(typeof v==='object' && typeof v.getHours==='function') return '';   // Date (duck-typing)
+  const s=String(v).trim(); if(s.length>12) return 'hora demasiado larga';
+  return /^\d{1,2}[:.]\d{2}/.test(s) ? '' : 'hora no válida (HH:MM)';
+}
+function valArray_(v, max){
+  if(v===null || v===undefined) return '';
+  if(!Array.isArray(v)) return 'debe ser una lista';
+  if(v.length>(max||VAL_MAX_FILAS)) return 'más de '+(max||VAL_MAX_FILAS)+' elementos';
+  return '';
+}
+/* Aplica un ESQUEMA {campo: regla} a un objeto. Regla: 't' texto(max) · 'tl' texto largo · 'n' número
+ * [min,max] · 'e' entero · 'b' booleano · 'f' fecha (dias futuro) · 'h' hora · 'l' lista (opciones) ·
+ * 'a' array (max). Devuelve {campo, motivo} del PRIMER fallo o null. `prefijo` compone el nombre del
+ * campo en la respuesta (`cantidades[3].largo`). */
+function valEsquema_(obj, esquema, prefijo){
+  if(obj===null || obj===undefined) return null;
+  if(typeof obj!=='object' || Array.isArray(obj)) return { campo:prefijo||'payload', motivo:'debe ser un objeto' };
+  const campos=Object.keys(esquema);
+  for(let i=0;i<campos.length;i++){
+    const k=campos[i], r=esquema[k], v=obj[k]; let m='';
+    switch(r[0]){
+      case 't':  m=valTexto_(v, r[1]||VAL_MAX_TEXTO); break;
+      case 'tl': m=valTexto_(v, VAL_MAX_TEXTO_LARGO); break;
+      case 'n':  m=valNum_(v, r[1], r[2]); break;
+      case 'e':  m=valEntero_(v, r[1], r[2]); break;
+      case 'b':  m=valBool_(v); break;
+      case 'f':  m=valFecha_(v, r[1]||0); break;
+      case 'h':  m=valHora_(v); break;
+      case 'l':  m=valLista_(v, r[1]); break;
+      case 'a':  m=valArray_(v, r[1]); break;
+    }
+    if(m) return { campo:(prefijo?prefijo+'.':'')+k, motivo:m };
+  }
+  return null;
+}
+// Lista de objetos con el mismo esquema: `nombre[i].campo`.
+function valListaDe_(arr, esquema, nombre, max){
+  const m=valArray_(arr, max); if(m) return { campo:nombre, motivo:m };
+  if(!arr) return null;
+  for(let i=0;i<arr.length;i++){
+    if(arr[i]===null || arr[i]===undefined) continue;
+    const f=valEsquema_(arr[i], esquema, nombre+'['+i+']'); if(f) return f;
+  }
+  return null;
+}
+
+/* ---------- 5) RESPALDO DIARIO ---------- */
+const RESPALDO_CARPETA  = 'Galca_respaldos';
+const RESPALDO_OBRA     = 'TM2_Sur';                 // subcarpeta <obra>
+const RESPALDO_PREFIJO  = 'Asistencias_TM2';    // nombre de la copia: <prefijo>_<yyyy-MM-dd>
+const RESPALDO_DIAS     = 30;
+const RESPALDO_HORA     = 2;                         // 02:00 (zona horaria del proyecto)
+function respaldoCarpeta_(){
+  const raiz=DriveApp.getRootFolder();
+  const buscar=function(padre, nombre){ const it=padre.getFoldersByName(nombre); return it.hasNext() ? it.next() : padre.createFolder(nombre); };
+  return buscar(buscar(raiz, RESPALDO_CARPETA), RESPALDO_OBRA);
+}
+// Copia UN spreadsheet a la carpeta y poda las copias viejas de ese prefijo. Devuelve el nombre creado.
+function respaldarSpreadsheet_(id, prefijo, carpeta){
+  const hoy=valHoy_(), nombre=prefijo+'_'+hoy;
+  const ya=carpeta.getFilesByName(nombre);
+  if(ya.hasNext()){ Logger.log('Respaldo ya existente hoy: '+nombre); }
+  else { DriveApp.getFileById(id).makeCopy(nombre, carpeta); Logger.log('Respaldo creado: '+nombre); }
+  const limite=valFechaMasDias_(hoy, -RESPALDO_DIAS);
+  const re=new RegExp('^'+prefijo.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'_(\\d{4}-\\d{2}-\\d{2})$');
+  const archivos=carpeta.getFiles(); let borradas=0;
+  while(archivos.hasNext()){
+    const f=archivos.next(), m=String(f.getName()).match(re);
+    if(m && m[1] < limite){ f.setTrashed(true); borradas++; }
+  }
+  if(borradas) Logger.log('Respaldos de más de '+RESPALDO_DIAS+' días enviados a la papelera: '+borradas);
+  return nombre;
+}
+/* Se ejecuta a diario por el trigger (o a mano desde el editor). Una copia por día: si ya existe la de
+ * hoy, no duplica. La primera ejecución pide autorizar Drive (alcance nuevo del proyecto). */
+function respaldoDiario(){
+  const carpeta=respaldoCarpeta_();
+  const hechos=[ respaldarSpreadsheet_(SHEET_ID, RESPALDO_PREFIJO, carpeta) ];
+  // Sheets adicionales de este proyecto (p. ej. el del Parte si algún día se separa del de obra).
+  const extra = (typeof respaldoIdsExtra_==='function') ? respaldoIdsExtra_() : [];
+  extra.forEach(function(x){ if(x && x.id && x.id!==SHEET_ID) hechos.push(respaldarSpreadsheet_(x.id, x.prefijo||(RESPALDO_PREFIJO+'_extra'), carpeta)); });
+  const podadas=podarLog_(LOG_RETENCION_DIAS);
+  Logger.log('respaldoDiario: '+hechos.join(', ')+' · LOG podado: '+podadas+' filas');
+  return hechos;
+}
+/* Se ejecuta UNA VEZ desde el editor: deja un solo trigger diario de respaldoDiario a las 02:00. */
+function instalarTriggerRespaldo(){
+  ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='respaldoDiario') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('respaldoDiario').timeBased().everyDays(1).atHour(RESPALDO_HORA).inTimezone(VAL_TZ).create();
+  Logger.log('Trigger diario de respaldoDiario instalado (~'+RESPALDO_HORA+':00 '+VAL_TZ+').');
+  return 'ok';
+}
+function quitarTriggerRespaldo(){
+  let n=0; ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='respaldoDiario'){ ScriptApp.deleteTrigger(t); n++; } });
+  Logger.log('Triggers de respaldoDiario eliminados: '+n); return n;
+}
+
+/* ---------- 4b) ESQUEMAS DE PAYLOAD — módulo de ASISTENCIAS (CodigoAsistencias.gs) ----------
+ * Se valida ANTES de tomar el cerrojo de D125 y de despachar la action, con la sesión ya verificada.
+ * Solo lo que viene; lo ausente lo resuelve cada función con sus defaults de siempre. Los mensajes de
+ * negocio existentes (ERROR_FECHA, cuadrilla de otra área, topes de extras desde CONFIG, «no
+ * autorizado»…) se conservan tal cual: esto es la red de TIPOS/RANGOS/LONGITUDES que faltaba debajo. */
+const VAL_ASIS_FILA = {
+  codigo:['t',50], cedula:['t',50], nombre:['t',200], cargo:['t',100], cuadrilla:['t',100], cc:['t',100], proyecto:['t',20],
+  hora_entrada:['h'], hora_salida:['h'], presente:['t',10], motivo_ausencia:['t',200], observacion:['tl'], turno:['t',50]
+};
+const VAL_ASIS_REPORTE    = { fecha:['f',0], cuadrilla:['t',100], reporta:['t',100], nota:['tl'], filas:['a'] };
+const VAL_ASIS_INDIVIDUAL = { fecha:['f',0], filas:['a'] };
+const VAL_ASIS_PERSONAL   = { op:['l',['alta','retiro','mover','reactivar']], codigo:['t',50], cedula:['t',50], nombre:['t',200],
+                              cargo:['t',100], cuadrilla:['t',100], fecha_ingreso:['f',VAL_DIAS_FUTURO_FLOTA],
+                              fecha_retiro:['f',VAL_DIAS_FUTURO_FLOTA], _row:['e',1,10000000] };
+const VAL_ASIS_EXTRAS     = { fecha:['f',0], cc:['t',100], horas:['n',0,VAL_MAX_HORAS], tipo:['l',['diurna','nocturna','domfest']] };
+const VAL_ASIS_EXTRAS_DEL = { fecha:['f',0] };
+
+// Devuelve la RESPUESTA de rechazo (lista para `return`) o null si el payload pasa.
+function validarPayloadAsistencias_(body){
+  const a=String(body.action||'');
+  let f=null;
+  if(a==='reporte_asistencia')         f = valEsquema_(body, VAL_ASIS_REPORTE, '')    || valListaDe_(body.filas, VAL_ASIS_FILA, 'filas');
+  else if(a==='asistencia_individual') f = valEsquema_(body, VAL_ASIS_INDIVIDUAL, '') || valListaDe_(body.filas, VAL_ASIS_FILA, 'filas');
+  else if(a==='personal')              f = valEsquema_(body, VAL_ASIS_PERSONAL, '');
+  else if(a==='extras_admin')          f = valEsquema_(body, VAL_ASIS_EXTRAS, '');
+  else if(a==='extras_admin_delete')   f = valEsquema_(body, VAL_ASIS_EXTRAS_DEL, '');
+  return f ? rechazoPayload_(f.campo, f.motivo) : null;
 }
 
 /* ============ D106 — PORTERO DE FECHAS (incidente "reportes sin fecha", jul-2026) ============
@@ -1110,42 +1435,53 @@ function proyectoFromCC(cc){
 function doGet(e){
   _t0 = Date.now();   // D99: siembra el cronómetro de servidor (`_ms` en la respuesta)
   const a=((e.parameter.action)||'').toLowerCase();
-  // D109: puerta única. Aquí importa el doble que en obra, porque TODA la autorización de este módulo
-  // (áreas, cuadrillas permitidas, quién puede completar faltantes) se derivaba del `usuario` que
-  // mandaba el cliente. Ahora sale del token firmado y sobrescribe lo que venga en la petición.
-  const ses=sesion_(e, null);
-  if(!ses.ok) return json({ok:false, auth:false, error:ses.error});
-  if(ses.usuario) e.parameter.usuario = ses.usuario;
-  /* D142 — el ROL del token también viaja, en `_rol`. Hasta ahora las lecturas solo necesitaban el
-   * `usuario` (de ahí salen las áreas), pero `persona_admin` no se acota por área sino por PERSONA: es
-   * el canal privado del admin (EXTRAS_ADMIN, D73) y nadie más lo puede leer. Mismo patrón que D139
-   * usó en el Apps Script de obra con `body._rol` en las escrituras: el rol lo pone el SERVIDOR desde
-   * el token firmado, nunca el cliente — un `&_rol=admin` tecleado en la URL se sobrescribe aquí. */
-  e.parameter._rol = ses.rol || '';
-  if(a==='roster')     return roster(e);
-  if(a==='asistencia') return asistenciaDia(e);
-  if(a==='personal')   return personalCompleto(e);
-  if(a==='export')     return exportDia(e);
-  if(a==='ausencias')  return ausenciasRango(e);   // D94: seguimiento de ausencias por rango
-  if(a==='persona')    return horasPersona(e);     // D112: horas de UNA persona en un rango (solo lectura)
-  if(a==='persona_admin') return horasAdmin(e);   // D142: las horas del PROPIO admin (EXTRAS_ADMIN, D73)
-  // D99: refresco manual del caché de catálogos, para quien acaba de editar el Sheet a mano
-  // (CAT_CC, CAT_MOTIVOS, CC_USADOS, CONFIG, TURNOS, `estado`/`area` de CUADRILLAS…).
-  if(a==='cache_reset') return cacheReset(e);
-  // EXTRAS_ADMIN (D73): registro del día para prefill/edición en mis-extras.html; `extras_admin_dia`
-  // es alias (mismo handler) para el indicador del residente en resumen-asistencia.html.
-  if(a==='extras_admin' || a==='extras_admin_dia') return extrasAdminDia(e);
-  return json({ok:true, msg:'API Asistencias viva'});
+  logIniciar_(a||'ping');   // D166: una fila en LOG al terminar (finally), nunca hace fallar la petición
+  try{
+    // D109: puerta única. Aquí importa el doble que en obra, porque TODA la autorización de este módulo
+    // (áreas, cuadrillas permitidas, quién puede completar faltantes) se derivaba del `usuario` que
+    // mandaba el cliente. Ahora sale del token firmado y sobrescribe lo que venga en la petición.
+    // D166: `puerta_` envuelve a `sesion_` con LOG, rate limit (60/min por usuario+action) y respuesta
+    // genérica ante token inválido; el ÚNICO mensaje explícito que sobrevive es el de AUTH_SECRETO ausente.
+    const p=puerta_(e, null, a||'ping');
+    if(!p.ok) return p.respuesta;
+    const ses=p.ses;
+    if(ses.usuario) e.parameter.usuario = ses.usuario;
+    /* D142 — el ROL del token también viaja, en `_rol`. Hasta ahora las lecturas solo necesitaban el
+     * `usuario` (de ahí salen las áreas), pero `persona_admin` no se acota por área sino por PERSONA: es
+     * el canal privado del admin (EXTRAS_ADMIN, D73) y nadie más lo puede leer. Mismo patrón que D139
+     * usó en el Apps Script de obra con `body._rol` en las escrituras: el rol lo pone el SERVIDOR desde
+     * el token firmado, nunca el cliente — un `&_rol=admin` tecleado en la URL se sobrescribe aquí. */
+    e.parameter._rol = ses.rol || '';
+    if(a==='roster')     return roster(e);
+    if(a==='asistencia') return asistenciaDia(e);
+    if(a==='personal')   return personalCompleto(e);
+    if(a==='export')     return exportDia(e);
+    if(a==='ausencias')  return ausenciasRango(e);   // D94: seguimiento de ausencias por rango
+    if(a==='persona')    return horasPersona(e);     // D112: horas de UNA persona en un rango (solo lectura)
+    if(a==='persona_admin') return horasAdmin(e);   // D142: las horas del PROPIO admin (EXTRAS_ADMIN, D73)
+    // D99: refresco manual del caché de catálogos, para quien acaba de editar el Sheet a mano
+    // (CAT_CC, CAT_MOTIVOS, CC_USADOS, CONFIG, TURNOS, `estado`/`area` de CUADRILLAS…).
+    if(a==='cache_reset') return cacheReset(e);
+    // EXTRAS_ADMIN (D73): registro del día para prefill/edición en mis-extras.html; `extras_admin_dia`
+    // es alias (mismo handler) para el indicador del residente en resumen-asistencia.html.
+    if(a==='extras_admin' || a==='extras_admin_dia') return extrasAdminDia(e);
+    return json({ok:true, msg:'API Asistencias viva'});
+  }catch(err){ logMarcar_('error', String(err)); throw err; }   // mismo comportamiento de antes; queda anotado
+  finally{ logEscribir_(); }
 }
 function doPost(e){
   _t0 = Date.now();   // D99: cronómetro de servidor también en las escrituras
+  logIniciar_('POST');   // D166: una fila en LOG al terminar (finally), nunca hace fallar la petición
   try{
     const body=JSON.parse(e.postData.contents);
+    logAction_(String(body.action||'')||'?');
     // D109: identidad desde el token. Se sobrescriben `usuario` Y `reporta` porque en este módulo los
     // dos son el que está en sesión (el formulario manda su propio usuario en ambos) y de ellos
     // dependen `cuadrillaPermitidaPara` y el guard de "completar faltantes".
-    const ses=sesion_(e, body);
-    if(!ses.ok) return json({ok:false, auth:false, error:ses.error});
+    // D166: `puerta_` = sesion_ + LOG + rate limit (60/min por usuario+action) + respuesta genérica.
+    const p=puerta_(e, body, String(body.action||'')||'?');
+    if(!p.ok) return p.respuesta;
+    const ses=p.ses;
     if(ses.usuario){ body.usuario = ses.usuario; body.reporta = ses.usuario; }
     /* D125 — TODA escritura se serializa. Cada uno de estos endpoints es un LEE-MODIFICA-ESCRIBE sobre
      * la misma hoja (localiza las filas a pisar, las borra y anexa las nuevas). Sin bloqueo, dos
@@ -1167,6 +1503,9 @@ function doPost(e){
     const esEscritura = ['reporte_asistencia','asistencia_individual','personal','extras_admin','extras_admin_delete']
       .indexOf(body.action) >= 0;
     if(!esEscritura) return json({ok:false, error:'acción no reconocida'});
+    // D166: validación de tipos/rangos/longitudes/fechas del payload ANTES del cerrojo y del Sheet.
+    // Rechazo = {ok:false, error:'payload', campo}; con ok:false la cola offline conserva el ítem (D82).
+    const vp=validarPayloadAsistencias_(body); if(vp) return vp;
     const cerrojo = LockService.getScriptLock();
     try{
       cerrojo.waitLock(30000);
@@ -1184,7 +1523,8 @@ function doPost(e){
       // quedaría tomado hasta que Apps Script lo recicle y las escrituras siguientes se irían al error.
       cerrojo.releaseLock();
     }
-  }catch(err){ return json({ok:false, error:String(err)}); }
+  }catch(err){ logMarcar_('error', String(err)); return json({ok:false, error:String(err)}); }
+  finally{ logEscribir_(); }
 }
 
 /* ---------- CUADRILLAS: usuario -> cuadrillas que le corresponde reportar ---------- */
@@ -2142,6 +2482,7 @@ function responsableDeCuadrilla(cuadrilla){
  * a mano (catálogos de la plantilla Navision, no se inventan aquí). CONFIG/CUADRILLAS/FESTIVOS sí
  * llevan semilla fija porque el prompt las define explícitamente. */
 function setupHojas(){
+  getSheet('LOG', LOG_HEADERS);   // D166: registro de peticiones (la primera petición la crearía igual)
   getSheet('PERSONAL', PERSONAL_HEADERS);
   getSheet('ASISTENCIA', ASISTENCIA_HEADERS);
   getSheet('CAT_TRABAJADORES', CAT_TRABAJADORES_HEADERS);
