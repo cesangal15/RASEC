@@ -40,11 +40,14 @@
   /* Marca Galca (identidad visual, turno 5e). El símbolo va EN LÍNEA, no como <img>: así viaja con
      index.html en el precache y el login sin señal no queda sin marca. Hereda --text en oscuro
      (blanco: dentro de la app la marca va en blanco); en claro toma el azul profundo de marca. */
-  .galca{width:48px;height:48px;display:block;margin:0 auto 10px;color:var(--text);}
+  .galca{width:56px;height:56px;display:block;margin:0 auto 12px;color:var(--text);}
   .galca-nombre{font-family:'Red Hat Display',sans-serif;font-weight:900;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
   :root[data-tema="claro"] .galca{color:#0b1f3a;}
   @media (prefers-color-scheme: light){ :root:not([data-tema="oscuro"]) .galca{color:#0b1f3a;} }
-  .logo h1{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);}
+  /* 20px, no 22: en Syne (ancha) el título a 22px se parte en dos líneas en 390px y le roba
+     protagonismo al símbolo. A 20px cabe en una línea, como en la maqueta 5e; el 5.1vw lo
+     mantiene en una línea también en teléfonos de 360px. */
+  .logo h1{font-family:'Syne',sans-serif;font-size:min(20px,5.1vw);font-weight:800;color:var(--text);}
   .logo p{font-size:13px;color:var(--muted);margin-top:4px;}
   .field{margin-bottom:16px;}
   label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px;letter-spacing:0.5px;text-transform:uppercase;}
