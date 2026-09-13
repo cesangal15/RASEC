@@ -111,7 +111,7 @@ Invariantes obligatorias (no negociables):
 
 Crear `tools/generar_qr.py`:
 - Lee `PARTE_EQUIPOS_semilla.csv` (o exporta la hoja `PARTE_EQUIPOS`), filtra `activo=SI`.
-- Para cada equipo genera `qr/<codigo>.png` con la URL `https://<usuario>.github.io/<repo>/parte.html?eq=<codigo>` (URL base como constante al inicio del script; la confirma el usuario).
+- Para cada equipo genera `qr/<codigo>.png` con la URL `https://tm2.galca.app/parte.html?eq=<codigo>` (URL base como constante al inicio del script; la confirma el usuario).
 - Genera además `qr/etiquetas.pdf`: hoja carta con etiquetas de 7×7 cm, cada una con el QR, el código en grande (Syne bold), tipo y placa, fondo blanco con borde negro (van impresas en adhesivo y pegadas en cabina; deben ser legibles con mugre).
 - Dependencias: `qrcode[pil]`, `reportlab`. Incluir instrucción `pip install`.
 

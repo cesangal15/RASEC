@@ -3,7 +3,7 @@
 ## Componentes
 
 ```
-┌─────────────────────────── GITHUB PAGES (frontend estático) ───────────────────────────┐
+┌────────── GITHUB PAGES · https://tm2.galca.app/ (repo `galca`, frontend estático) ──────┐
 │  index.html ──login──> menu.html (admin)                                                │
 │                        ├── encargado.html      (encargado, admin)                       │
 │                        ├── reporte-capataz.html (capataz, encargado, admin)             │
@@ -19,8 +19,9 @@
 │                        │      área de cada línea por CC 06→ODT/07→ODL; campo areas D84)  │
 │                        └── residente-drenajes.html (residente_dren · residente_odt/odl   │
 │                                   · admin — bandeja combinada ODT+ODL, envío x área D84) │
-│  Sesión: localStorage {usuario, rol} (D82; antes sessionStorage). Credenciales hardcoded │
-│  en index.html.                                                                          │
+│  Sesión: localStorage {usuario, rol} (D82; antes sessionStorage). Login contra la hoja    │
+│  USUARIOS del Apps Script (D108) con token firmado HMAC-SHA256 (D109): index.html ya NO   │
+│  lleva credenciales.                                                                     │
 │  Admin: botón "← Menú" en toda pantalla interna vuelve a menu.html sin cerrar sesión.    │
 └────────────────────────────────────┬─────────────────────────────────────────────────--┘
 
@@ -156,7 +157,7 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 ## Módulo Asistencias (D69) — aislado, Sheet/Script propios
 
 ```
-┌── GITHUB PAGES (mismo repo, mismo login index.html) ──────────────────┐
+┌── tm2.galca.app (mismo repo `galca`, mismo login index.html) ─────────┐
 │  seleccion-reporte.html (capataces/mairy/jeisson/duvan: tiles x usuario)│
 │  asistencia.html         (responsable de cuadrilla + admin + duvan)   │
 │  resumen-asistencia.html (residente, admin, jeisson, duvan=ODT+ODL)   │
@@ -305,7 +306,7 @@ Captura_Diaria es una **tabla de Excel** (`fact_produccion`, A1:AA). Se pegan SO
 Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA/MAQUINARIA ni los formularios de capataz/chequeadora: convive con el flujo de obra por un canal aparte (con horómetro/kilometraje, porque replica el parte que se factura; la regla «horas directas» del capataz sigue intacta).
 
 ```
-┌──────────────── GITHUB PAGES ────────────────────────────────────────────────────────────┐
+┌──────────────── tm2.galca.app (GitHub Pages, repo `galca`) ──────────────────────────────┐
 │  parte.html?eq=<codigo>      PÚBLICO, sin login. La identidad es el EQUIPO (QR en cabina). │
 │      · cabecera fija: código · tipo · placa · medidor (HORÓMETRO | KM | sin medidor)       │
 │      · fecha (hoy/ayer) · nº parte físico · operador (buscador) · inicial PRECARGADO con   │

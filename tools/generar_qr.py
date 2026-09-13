@@ -19,7 +19,7 @@ Uso:
     pip install "qrcode[pil]" reportlab
     python3 tools/generar_qr.py                        # lee backend/seeds/parte/PARTE_EQUIPOS_semilla.csv
     python3 tools/generar_qr.py --csv PARTE_EQUIPOS.csv --salida qr --solo VOL048,CR026,EXC015
-    python3 tools/generar_qr.py --url-base https://usuario.github.io/repo
+    python3 tools/generar_qr.py --url-base https://tm2.galca.app
 
 Fuente de equipos: el CSV semilla o la hoja PARTE_EQUIPOS exportada como CSV (Archivo → Descargar →
 CSV). Solo se generan los de `activo = SI` (columna `activo`; vacía cuenta como activo).
@@ -30,9 +30,9 @@ import os
 import sys
 
 # ---------------------------------------------------------------------------
-# URL BASE — la confirma el usuario. Es la de GitHub Pages del repo (sin barra final).
+# URL BASE — la confirma el usuario. Es el dominio propio del sitio (sin barra final).
 # ---------------------------------------------------------------------------
-URL_BASE = "https://cesangal15.github.io/Ortiz-tm2-sur"
+URL_BASE = "https://tm2.galca.app"
 
 CSV_DEFECTO = os.path.join(os.path.dirname(__file__), "..", "backend", "seeds", "parte", "PARTE_EQUIPOS_semilla.csv")
 SALIDA_DEFECTO = os.path.join(os.path.dirname(__file__), "..", "qr")
@@ -164,7 +164,7 @@ def main():
     ap = argparse.ArgumentParser(description="Genera QR y etiquetas del Parte Digital de Maquinaria.")
     ap.add_argument("--csv", default=CSV_DEFECTO, help="CSV con las columnas codigo,tipo,placa,activo (semilla u hoja PARTE_EQUIPOS exportada)")
     ap.add_argument("--salida", default=SALIDA_DEFECTO, help="carpeta de salida (default: qr/)")
-    ap.add_argument("--url-base", default=URL_BASE, help="URL base de GitHub Pages, sin barra final")
+    ap.add_argument("--url-base", default=URL_BASE, help="URL base del sitio, sin barra final")
     ap.add_argument("--solo", default="", help="códigos separados por coma para generar solo esos (p. ej. VOL048,CR026)")
     args = ap.parse_args()
 
