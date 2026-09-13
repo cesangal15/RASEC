@@ -368,3 +368,26 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 **Mapeo B→AR (`PARTE_EXCEL_MAPA`, verificar contra el Excel real antes de cerrarlo):** C fecha (dd/mm/aaaa) · E nº parte · F código · M/N inicial/final HORÓMETRO · Q/R horas varada/lluvia · V/W inicial/final KM · AA descripción · AB CC · AD PR · AE UF · AL/AM hora de/a · AQ operador · AR observaciones. Las demás (B, D, G–L, O–P, S–U, X–Z, AC, AF–AK, AN–AP) van vacías: son fórmulas/VLOOKUP desde `EQUIPOS 2` (TOTAL, TIPO, MARCA, consecutivo…). Decimales con coma (convención de `jefe.html`/`digitadora.html`).
 
 **Puesta en marcha:** (1) pegar `backend/CodigoParte.gs` en el proyecto de Apps Script de obra y aplicar las 2 líneas de `Codigo.gs`; (2) `setupParte()`; (3) importar los 4 CSV de `backend/seeds/parte/` (Archivo → Importar → Reemplazar hoja actual); (4) `setupParte()` otra vez; (5) redesplegar (misma URL, nueva versión); (6) `python3 tools/generar_qr.py` con la URL base confirmada → imprimir `qr/etiquetas.pdf` (adhesivo, 7×7 cm) y pegar en cabina; (7) opcional: fila `parte_maquinaria` en `USUARIOS` con `redirige=revision-maquinaria.html`. **Pruebas:** `node backend/pruebas/verificar_v301_parte_digital.js` (backend) y `NODE_PATH=/opt/node22/lib/node_modules node backend/pruebas/verificar_v301_pantallas.js` (Chromium contra el backend en `vm`).
+
+## D166 — Endurecimiento de los dos Apps Script (sep-2026)
+
+Bloque gemelo «ENDURECIMIENTO DEL BACKEND» en `Codigo.gs` y `CodigoAsistencias.gs` (el Parte lo reutiliza). Sin cambios de contrato: mismos endpoints, mismos payloads, misma URL.
+
+```
+┌───────────────────────────────────────────────────────────────────────────────────────────────┐
+│  Petición ──► doGet/doPost: logIniciar_ ──► puerta_(e, body, action)                          │
+│                 ├─ sesion_ (D109) ──► inválido: {ok:false, auth:false, error:GENÉRICO}          │
+│                 │                       (causa exacta → LOG; excepción: AUTH_SECRETO ausente)   │
+│                 ├─ rateLimit_ usuario+action 60/min (login 10/min) ──► {ok:false,error:'rate_limit'}│
+│                 └─ validarPayload*_ (tipos·rangos·longitud·fecha no futura)                    │
+│                                        ──► {ok:false, error:'payload', campo, detalle}           │
+│               ──► action de siempre ──► finally: logEscribir_() = UNA appendRow en hoja LOG     │
+│  LOG          fecha_hora · usuario · rol · action · resultado(ok/rechazado/error) · motivo · ms  │
+│  Parte (QR)   identidad = código de equipo; 20 envíos/h por equipo, 200/h global; equipo debe   │
+│               existir en PARTE_EQUIPOS y estar activo → si no {ok:false, error:'equipo'}        │
+│  Respaldo     respaldoDiario() → Drive Galca_respaldos/TM2_Sur/<prefijo>_<yyyy-MM-dd>, poda 30 d │
+│               instalarTriggerRespaldo() → trigger diario 02:00 America/Bogota                    │
+└───────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Funciones a ejecutar una vez desde el editor** (en cada proyecto): `setupLog()` (obra) / `setupHojas()` (asistencias) · `respaldoDiario()` (la primera vez pide autorizar Drive) · `instalarTriggerRespaldo()`. Después, redesplegar editando la implementación existente. Verificación en banco: `backend/pruebas/verificar_d166_endurecimiento.js`.

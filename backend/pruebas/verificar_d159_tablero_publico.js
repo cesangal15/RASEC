@@ -139,8 +139,9 @@ console.log('\n5 · El arnés no es ciego (se rompe el código a propósito)');
      !(r && r.ok===true && r.foto), JSON.stringify(r).slice(0,90));
   // Si la puerta desapareciera del todo, el punto 2 fallaría.
   const sinPuerta=cargar(s=>s.replace(
-    'const ses=sesion_(e, null);\n  if(!ses.ok) return json({ok:false, auth:false, error:ses.error});',
-    'const ses={ok:true};'));
+    // D166: la puerta ahora es `puerta_` (sesion_ + LOG + rate limit); se anula igual que antes.
+    "const p=puerta_(e, null, a||'ping');\n    if(!p.ok) return p.respuesta;",
+    'const p={ok:true, ses:{ok:true}};'));
   const c=sinPuerta.doGet({ parameter:{ action:'consolidado' } });
   ok('sin la puerta, `consolidado` se abriría al público', !(c && c.ok===false && c.auth===false));
 }
