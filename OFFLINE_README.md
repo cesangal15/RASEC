@@ -11,7 +11,7 @@ resúmenes) **siguen necesitando conexión** — sin señal muestran un aviso, n
 
 ### Android (Chrome)
 
-1. Abrir `https://<usuario>.github.io/<repo>/` en **Chrome** (con señal).
+1. Abrir `https://tm2.galca.app/` en **Chrome** (con señal).
 2. Tocar el menú **⋮** (arriba a la derecha).
 3. Tocar **"Agregar a pantalla de inicio"** (en algunos teléfonos dice **"Instalar app"** o
    Chrome muestra solo un aviso de instalación).

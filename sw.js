@@ -1,7 +1,8 @@
 /**
  * TM2 Sur — Service worker (Nivel 3, D82 / backlog 2.9)
  *
- * Alcance: './' (rutas RELATIVAS — GitHub Pages sirve bajo /nombre-repo/).
+ * Alcance: './' (rutas RELATIVAS; el sitio se sirve en la raíz del dominio propio
+ *          https://tm2.galca.app/ — antes bajo /Ortiz-tm2-sur/ en github.io).
  * Estrategia:
  *   - Precache del shell + capturas en `install` (lista explícita abajo).
  *   - NETWORK-FIRST para todo documento/JS propio: con señal, los despliegues de GitHub Pages se

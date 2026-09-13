@@ -1,9 +1,9 @@
 {
-  "name": "TM2 Sur — Reporte de Obra",
-  "short_name": "TM2 Sur",
+  "name": "Galca",
+  "short_name": "Galca",
   "description": "Sistema de Reporte Diario de Obra TM2 Sur: reportes de capataz, chequeadora, drenajes y asistencia de personal, con modo sin conexión (D82).",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#f5a623",
