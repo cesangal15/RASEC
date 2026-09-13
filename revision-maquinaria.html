@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Revisión de Partes de Maquinaria</title>
 <meta name="theme-color" content="#f5a623">
@@ -225,7 +226,6 @@ function caducada(d){ if(window.TM2Auth && TM2Auth.caducada(d)){ alert('La sesi�
 
 /* ---------- utilidades ---------- */
 function hoy(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
 function fmt(n){ return n===null||n===''||n===undefined ? '' : (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
 function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.indexOf('3702')===0?'2':s.indexOf('3703')===0?'3':''; }
@@ -277,7 +277,7 @@ function pintarBandeja(){
   const rb=document.getElementById('revisadasBox'); rb.style.display= rv.length ? 'block' : 'none';
   document.getElementById('nRev').textContent=rv.length;
   document.getElementById('revisadas').innerHTML=rv.map(r=>filaHTML(r,true)).join('');
-  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+'</span><button class="btn mini" onclick="abrirManual('+JSON.stringify(q.codigo).replace(/"/g,'&quot;')+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+'</span><button class="btn mini" onclick="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
 }
 function opSelect(v, lista, extra){
   const vistos={}; let html='';
@@ -294,16 +294,16 @@ function ccSelect(v){
   return html;
 }
 function filaHTML(r, soloLectura){
-  const al=alertasDe(r), id=r.id_registro, d=dirty[id]||{};
+  const al=alertasDe(r), id=r.id_registro, d=dirty[id]||{}, idA=esc(id), idJs=esc(String(id).replace(/'/g,"\\'"));
   const v=k=> d.hasOwnProperty(k) ? d[k] : r[k];
   const tot = (num(v('inicial'))!==null && num(v('final'))!==null) ? Math.round((num(v('final'))-num(v('inicial')))*100)/100 : null;
-  const tope=TOPES[r.medidor], unidad=tope?tope.unidad:'';
+  const tope=TOPES[r.medidor], unidad=tope?esc(tope.unidad):'';
   const totCls = tot===null ? '' : tot<0 || (tope && tot>tope.bloquea) ? 'mal' : (tope && tot>tope.alerta) ? 'alto' : '';
   const ro = soloLectura ? ' disabled' : '';
-  const on = soloLectura ? '' : ' onchange="edit(\''+id+'\',this)"';
+  const on = soloLectura ? '' : ' onchange="edit(\''+idJs+'\',this)"';
   const inp=(k,tipo,extra)=>'<input type="'+tipo+'" data-k="'+k+'" value="'+esc(v(k))+'"'+(extra||'')+ro+on+'>';
-  return '<div class="fila'+(al.length?' con-alertas':'')+(Object.keys(d).length?' dirty':'')+(soloLectura?' done':'')+'" id="fila-'+id+'">'
-    +'<div class="fila-head"><span class="cod">'+esc(r.codigo)+'</span><span class="tipo">'+esc(r.tipo)+(r.placa?' · '+esc(r.placa):'')+' · '+(r.medidor||'sin medidor')+'</span>'
+  return '<div class="fila'+(al.length?' con-alertas':'')+(Object.keys(d).length?' dirty':'')+(soloLectura?' done':'')+'" id="fila-'+idA+'">'
+    +'<div class="fila-head"><span class="cod">'+esc(r.codigo)+'</span><span class="tipo">'+esc(r.tipo)+(r.placa?' · '+esc(r.placa):'')+' · '+esc(r.medidor||'sin medidor')+'</span>'
     +(r.origen==='manual'?'<span class="badge manual">manual</span>':'')
     +(/\[Reparto /.test(String(r.observaciones||''))?'<span class="badge manual" title="Parte de un reparto por porcentaje: el medidor y las horas vienen prorrateados">'+esc((String(r.observaciones).match(/\[Reparto [^\]]*\]/)||[''])[0].replace(/[\[\]]/g,''))+'</span>':'')
     +(r.inicial_modificado==='SI'?'<span class="badge alerta" title="El operador cambió el inicial precargado">inicial editado</span>':'')
@@ -311,9 +311,9 @@ function filaHTML(r, soloLectura){
     +al.map(a=>'<span class="badge alerta" title="'+esc(ALERTA_TXT[a]||a)+'">⚠ '+esc(a)+'</span>').join('')
     +'<span class="acciones">'
     +(soloLectura
-      ? '<button class="btn mini" onclick="revisar(\''+id+'\',\'pendiente\')">↩ Reabrir</button>'
-      : '<button class="btn mini ok" onclick="revisar(\''+id+'\',\'aprobado\')">✓ Aprobar</button><button class="btn mini mal" onclick="revisar(\''+id+'\',\'descartado\')">✕ Descartar</button>'
-        +'<button class="btn mini btn-guardar'+(Object.keys(d).length?'':' hidden')+'" onclick="revisar(\''+id+'\',\'\')">💾 Guardar</button>')
+      ? '<button class="btn mini" onclick="revisar(\''+idJs+'\',\'pendiente\')">↩ Reabrir</button>'
+      : '<button class="btn mini ok" onclick="revisar(\''+idJs+'\',\'aprobado\')">✓ Aprobar</button><button class="btn mini mal" onclick="revisar(\''+idJs+'\',\'descartado\')">✕ Descartar</button>'
+        +'<button class="btn mini btn-guardar'+(Object.keys(d).length?'':' hidden')+'" onclick="revisar(\''+idJs+'\',\'\')">💾 Guardar</button>')
     +'</span></div>'
     +'<div class="campos">'
     +'<div class="c"><label>Fecha</label>'+inp('fecha','date')+'</div>'
@@ -344,7 +344,7 @@ function edit(id, el){
     const r=(BAND.pendientes||[]).find(x=>x.id_registro===id)||{}, d=dirty[id];
     const a=num(d.hasOwnProperty('inicial')?d.inicial:r.inicial), b=num(d.hasOwnProperty('final')?d.final:r.final);
     const tot=(a!==null&&b!==null)?Math.round((b-a)*100)/100:null, tope=TOPES[r.medidor], box=f.querySelector('.tot');
-    if(box){ box.className='tot '+(tot===null?'':tot<0||(tope&&tot>tope.bloquea)?'mal':(tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?tope.unidad:'')+'</small>'; }
+    if(box){ box.className='tot '+(tot===null?'':tot<0||(tope&&tot>tope.bloquea)?'mal':(tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?esc(tope.unidad):'')+'</small>'; }
   }
   f.classList.add('dirty'); const g=f.querySelector('.btn-guardar'); if(g) g.classList.remove('hidden');
 }
@@ -461,7 +461,7 @@ function pintarBase(){
 }
 function filaBaseHTML(r){
   const al=alertasDe(r);
-  return '<tr'+(r.estado!=='aprobado'?' style="opacity:.6"':'')+'><td><button class="btn mini" onclick="editarBase(\''+r.id_registro+'\')">✎</button></td>'
+  return '<tr'+(r.estado!=='aprobado'?' style="opacity:.6"':'')+'><td><button class="btn mini" onclick="editarBase(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\')">✎</button></td>'
     +'<td>'+esc(r.fecha)+(r.estado!=='aprobado'?'<br><span class="badge estado-'+esc(r.estado)+'">'+esc(r.estado)+'</span>':'')+'</td><td>'+esc(r.reporte_num)+'</td><td><b>'+esc(r.codigo)+'</b><br><span style="color:var(--muted)">'+esc(r.tipo)+'</span></td><td>'+esc(r.medidor)+'</td>'
     +'<td class="num">'+fmt(r.inicial)+'</td><td class="num">'+fmt(r.final)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td><td class="num">'+fmt(r.horas_varada)+'</td><td class="num">'+fmt(r.horas_lluvia)+'</td>'
     +'<td>'+esc(r.hora_de)+'</td><td>'+esc(r.hora_a)+'</td><td class="desc">'+esc(r.descripcion_trabajo)+'</td><td>'+esc(r.centro_coste)+'</td><td class="num">'+esc(r.pr)+'</td><td>'+esc(r.uf)+'</td><td>'+esc(r.operador)+'</td><td class="desc">'+esc(r.observaciones)+'</td>'
@@ -469,7 +469,7 @@ function filaBaseHTML(r){
 }
 function filaEditHTML(r){
   const inp=(k,tipo,extra)=>'<input type="'+tipo+'" data-k="'+k+'" value="'+esc(r[k])+'"'+(extra||'')+'>';
-  return '<tr class="edit" id="edit-'+r.id_registro+'"><td><button class="btn mini ok" onclick="guardarBase(\''+r.id_registro+'\')">💾</button> <button class="btn mini" onclick="editando=null;pintarBase()">✕</button></td>'
+  return '<tr class="edit" id="edit-'+esc(r.id_registro)+'"><td><button class="btn mini ok" onclick="guardarBase(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\')">💾</button> <button class="btn mini" onclick="editando=null;pintarBase()">✕</button></td>'
     +'<td>'+inp('fecha','date')+'</td><td>'+inp('reporte_num','text')+'</td><td><b>'+esc(r.codigo)+'</b></td><td>'+esc(r.medidor)+'</td>'
     +'<td>'+inp('inicial','number',' step="0.1"')+'</td><td>'+inp('final','number',' step="0.1"')+'</td><td class="num">'+fmt(r.total)+'</td><td>'+inp('horas_varada','number',' step="0.5"')+'</td><td>'+inp('horas_lluvia','number',' step="0.5"')+'</td>'
     +'<td>'+inp('hora_de','time')+'</td><td>'+inp('hora_a','time')+'</td><td class="desc"><textarea rows="2" data-k="descripcion_trabajo">'+esc(r.descripcion_trabajo)+'</textarea></td>'

@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<!-- CSP: esta pantalla además carga SheetJS desde un CDN para generar el Excel; por eso su
+     script-src lleva ese host de más respecto de las otras pantallas (ver docs/PROJECT_CONTEXT.md). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reparto de producción de maquinaria — TM2 Sur</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
@@ -453,7 +456,7 @@ const ESTADO_DEFAULT = 'OPERANDO';
 function quitarTildes(s){ return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 function norm(s){ return quitarTildes(s).toUpperCase().replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim(); }
 function normHdr(s){ return norm(s).replace(/[.:]/g,'').replace(/\s+/g,' ').trim(); }
-function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escapeHtml(s){ return esc(s); }
 
 function isoLocal(d){ return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); }
 function serialToISO(n){
@@ -1663,7 +1666,7 @@ function render(){
       'Va a la columna <b>CLIMA</b> de <code>fact_jefe</code>, igual para todas las máquinas de ese día.'+
       (clima.sinClima.length
         ? ' <b>'+clima.sinClima.length+' día(s) con producción se quedaron sin clima</b> ('+
-          clima.sinClima.slice(0,10).map(fmtFecha).join(' · ')+(clima.sinClima.length>10?' …':'')+
+          clima.sinClima.slice(0,10).map(f=>escapeHtml(fmtFecha(f))).join(' · ')+(clima.sinClima.length>10?' …':'')+
           '): esas filas salen con la columna vacía.'
         : '')+'</div>');
   }
@@ -1691,7 +1694,7 @@ function render(){
         const dd=[...o.dias.entries()].sort();
         return '<div style="margin-top:6px"><b>'+escapeHtml(c)+'</b> — '+o.filas+' fila(s), '+n1(o.horas)+' h: '+
           (dd.length? dd.slice(0,12).map(([f,h])=>'<span class="chip '+(finde(f)?'wa':'mu')+'">'+
-             escapeHtml(diaSemana(f))+' '+fmtFecha(f)+(h?' · '+n1(h)+' h':'')+'</span>').join(' ')+
+             escapeHtml(diaSemana(f))+' '+escapeHtml(fmtFecha(f))+(h?' · '+n1(h)+' h':'')+'</span>').join(' ')+
              (dd.length>12?' <span class="note">y '+(dd.length-12)+' más</span>':'')
            : '<span class="note">el parte no trae fecha por fila</span>')+'</div>';
       }).join('')+
@@ -1776,8 +1779,8 @@ function render(){
   /* --- Cuadre --- */
   let totL=0,totR=0;
   h='<div class="statline">'+
-    '<span>Corte <b>'+fmtFecha(P.desde)+' → '+fmtFecha(P.hasta)+'</b></span>'+
-    '<span>Días con producción <b>'+dsProd.dias.length+'</b> ('+(dsProd.primera?fmtFecha(dsProd.primera)+' → '+fmtFecha(dsProd.ultima):'—')+')</span>'+
+    '<span>Corte <b>'+escapeHtml(fmtFecha(P.desde))+' → '+escapeHtml(fmtFecha(P.hasta))+'</b></span>'+
+    '<span>Días con producción <b>'+dsProd.dias.length+'</b> ('+(dsProd.primera?escapeHtml(fmtFecha(dsProd.primera))+' → '+escapeHtml(fmtFecha(dsProd.ultima)):'—')+')</span>'+
     '<span>Días fuera del corte <b>'+dsProd.filasFuera+'</b></span>'+
     '<span>Hoja producción <b>'+escapeHtml(dsProd.hoja)+'</b></span>'+
     '<span>Hoja clima <b>'+escapeHtml(clima.hoja||'—')+'</b></span>'+
@@ -1838,7 +1841,7 @@ function render(){
     '<th class="num">Producción en el corte</th></tr></thead><tbody>';
   for(const c of dsProd.cols){
     if(!c.total) continue;
-    h+='<tr><td>'+escapeHtml(c.uf||'—')+(c.proyecto?' <span class="note">'+c.proyecto+'</span>':' <span class="chip wa">sin proyecto</span>')+'</td>'+
+    h+='<tr><td>'+escapeHtml(c.uf||'—')+(c.proyecto?' <span class="note">'+escapeHtml(c.proyecto)+'</span>':' <span class="chip wa">sin proyecto</span>')+'</td>'+
        '<td>'+escapeHtml(c.actividad)+'</td><td class="mono">'+(c.ccs.length?escapeHtml(c.ccs.join(' + ')):'<span class="chip wa">sin mapa</span>')+'</td>'+
        '<td class="num">'+n0(c.total)+'</td></tr>';
   }
@@ -1861,7 +1864,7 @@ function render(){
     '<th>Actividad</th><th>SUB ACTIVIDAD</th><th class="num">Horas</th><th class="num">Idle</th>'+
     '<th class="num">Producción</th><th>CC</th><th>Base</th></tr></thead><tbody>';
   for(const f of filas.slice(0,400)){
-    h+='<tr><td class="mono">'+fmtFecha(f.fecha)+'</td>'+
+    h+='<tr><td class="mono">'+escapeHtml(fmtFecha(f.fecha))+'</td>'+
        '<td class="note">'+escapeHtml(f.clima||'')+'</td><td class="mono">'+escapeHtml(f.proyecto)+'</td>'+
        '<td class="mono">'+escapeHtml(f.maquina)+'</td><td class="note">'+escapeHtml(f.tipo)+'</td>'+
        '<td>'+escapeHtml(f.actividad)+'</td><td>'+escapeHtml(f.sub)+'</td>'+

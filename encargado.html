@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panel del Encargado</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
@@ -259,7 +260,7 @@ function renderEnvio(){
   if(st.k==='vacio') return '';
   if(st.k==='err'){
     return '<div class="envio-estado err"><span class="ico">⚠️</span><span><b>NO se pudo enviar a DATA</b> — '+esc(STATE.envioError)
-      +'<span class="sub">El día '+STATE.fecha+' puede haber quedado sin actualizar en el maestro. Revisa la señal y vuelve a enviar: reenviar no duplica nada (el envío reemplaza el día).</span></span></div>';
+      +'<span class="sub">El día '+esc(STATE.fecha)+' puede haber quedado sin actualizar en el maestro. Revisa la señal y vuelve a enviar: reenviar no duplica nada (el envío reemplaza el día).</span></span></div>';
   }
   if(st.k==='sin'){
     return '<div class="envio-estado sin"><span class="ico">📤</span><span><b>Sin enviar a DATA</b> — '+st.inc+' fila(s) incluidas de '+STATE.cantidades.length
@@ -273,7 +274,7 @@ function renderEnvio(){
       +'<span class="sub">'+(det.join(' y ')||'lo que ves no es lo que está en DATA')+'. Vuelve a pulsar «Enviar a DATA» para que el maestro quede igual a lo que ves.</span></span></div>';
   }
   const n=(STATE.envioN!=null?STATE.envioN:(loc&&loc.n));
-  return '<div class="envio-estado ok"><span class="ico">✅</span><span><b>Enviado a DATA</b> — '+STATE.fecha+(n!=null?' · '+n+' fila(s)':'')
+  return '<div class="envio-estado ok"><span class="ico">✅</span><span><b>Enviado a DATA</b> — '+esc(STATE.fecha)+(n!=null?' · '+n+' fila(s)':'')
     +'<span class="sub">'+(cuando?'Último envío: '+cuando+'. ':'Enviado desde este u otro dispositivo. ')
     +'Ya puedes generar el WhatsApp. Si cambias algo, vuelve a enviar.</span></span></div>';
 }
@@ -483,7 +484,7 @@ function toggleTramo(idx){ const c=STATE.cantidades[idx]; c._tramoOpen=!c._tramo
 function opcionesTramo(c, actual){
   const auto=resolverSubtramo(c);
   const i=auto ? TRAMOS.indexOf(auto) : -1;
-  const val=t=>String(t.elemento).replace(/"/g,'&quot;');
+  const val=t=>esc(t.elemento);
   let html='';
   const sug=[];
   if(i>0) sug.push({t:TRAMOS[i-1], lbl:'anterior'});
@@ -491,11 +492,11 @@ function opcionesTramo(c, actual){
   if(i>=0 && i<TRAMOS.length-1) sug.push({t:TRAMOS[i+1], lbl:'siguiente'});
   if(sug.length){
     html+='<optgroup label="Sugeridos">';
-    sug.forEach(s=>{ html+=`<option value="${val(s.t)}">${s.t.pk} · ${s.lbl}</option>`; });
+    sug.forEach(s=>{ html+=`<option value="${val(s.t)}">${esc(s.t.pk)} · ${s.lbl}</option>`; });
     html+='</optgroup>';
   }
   html+='<optgroup label="Todos los subtramos">';
-  html+=TRAMOS.map(t=>`<option value="${val(t)}" ${normTramo(t.elemento)===normTramo(actual)?'selected':''}>${t.pk}</option>`).join('');
+  html+=TRAMOS.map(t=>`<option value="${val(t)}" ${normTramo(t.elemento)===normTramo(actual)?'selected':''}>${esc(t.pk)}</option>`).join('');
   html+='</optgroup>';
   return html;
 }
@@ -512,7 +513,7 @@ function renderTramo(c, idx){
   const pk=pkNorm(c.pk_inicial)+(c.pk_final?(' - '+pkNorm(c.pk_final)):'');
   const forzado=!!c.elemento_forzado;
   const destino = t
-    ? `<span class="${forzado?'forz':'res'}">${t.elemento}</span>${forzado?' <span class="auto">(corregido)</span>':''}`
+    ? `<span class="${forzado?'forz':'res'}">${esc(t.elemento)}</span>${forzado?' <span class="auto">(corregido)</span>':''}`
     : `<span class="forz">sin subtramo — el PK queda fuera del eje (irá como REVISAR)</span>`;
   const aviso=avisoSubtramo(c);
   const abierto = c._tramoOpen || !!aviso || forzado;
@@ -522,8 +523,8 @@ function renderTramo(c, idx){
       </select>${forzado?`<button class="tramo-link" onclick="setSubtramo(${idx},'')">volver al automático</button>`:''}</div>`
     : '';
   const link = (abierto||aviso) ? '' : `<button class="tramo-link" onclick="toggleTramo(${idx})">cambiar</button>`;
-  return `<div class="li-tramo">PK ${pk||'—'} → ${destino}${link}
-    ${aviso?`<span class="tramo-warn">${aviso}</span>`:''}${picker}</div>`;
+  return `<div class="li-tramo">PK ${esc(pk)||'—'} → ${destino}${link}
+    ${aviso?`<span class="tramo-warn">${esc(aviso)}</span>`:''}${picker}</div>`;
 }
 
 async function consultar(){
@@ -605,7 +606,6 @@ function tagMaterial(c){
 }
 const SPLIT_UF=['Terraplén','Subbase','Base / BTC'];
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO'); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function calcTotales(){
   const t={};
@@ -754,18 +754,18 @@ function render(){
   html+='<div class="pc-zona"><div class="pc-a">';   // D151: columna derecha (arriba)
   html+='<div class="section-title">Estado de reportes</div><div class="estado-grid">';
   html+='<div class="estado-box"><h3>Reportaron</h3><div class="chips">'+
-    ([...repC].length? [...repC].map(c=>`<span class="chip ok">✓ ${c}</span>`).join(''):'<span class="chip">—</span>')+'</div>'+
+    ([...repC].length? [...repC].map(c=>`<span class="chip ok">✓ ${esc(c)}</span>`).join(''):'<span class="chip">—</span>')+'</div>'+
     '<div class="mini-lbl">Capataces que faltan</div><div class="chips">'+
-    (faltC.length? faltC.map(c=>`<span class="chip no">${c}</span>`).join(''):'<span class="chip ok">Todos</span>')+'</div></div>';
+    (faltC.length? faltC.map(c=>`<span class="chip no">${esc(c)}</span>`).join(''):'<span class="chip ok">Todos</span>')+'</div></div>';
   html+='<div class="estado-box"><h3>Maquinaria sin reporte ('+faltM.length+')</h3><div class="chips">'+
-    (faltM.length? faltM.map(m=>`<span class="chip no">${m}</span>`).join(''):'<span class="chip ok">Todas reportadas</span>')+'</div></div>';
+    (faltM.length? faltM.map(m=>`<span class="chip no">${esc(m)}</span>`).join(''):'<span class="chip ok">Todas reportadas</span>')+'</div></div>';
   html+='</div>';
 
   html+='<div class="section-title">Totales del día (solo incluidos)</div><div class="totales">';
   let any=false;
   ORDEN_CAT.forEach(cat=>{ if(!tot[cat])return; any=true; const o=tot[cat];
     let split=''; if(SPLIT_UF.includes(cat)&&(o.uf1||o.uf2)) split=`<span class="uf-split"> · <span class="u1">UF1 ${fmt(o.uf1)}</span> · <span class="u2">UF2 ${fmt(o.uf2)}</span></span>`;
-    html+=`<div class="tot-row"><span class="cat">${cat}${split}${notaExtTot(o)}</span><span class="val">${fmt(o.total)} ${o.uni}</span></div>`;
+    html+=`<div class="tot-row"><span class="cat">${cat}${split}${notaExtTot(o)}</span><span class="val">${fmt(o.total)} ${esc(o.uni)}</span></div>`;
   });
   if(!any) html+='<div class="cat" style="color:var(--muted)">Sin cantidades incluidas</div>';
   html+='</div>';
@@ -780,8 +780,8 @@ function render(){
   if(obsConTexto.length){
     obsConTexto.forEach(o=>{
       html+='<div style="background:var(--input-bg);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:6px;">'
-        +'<span style="font-size:10px;font-weight:600;color:var(--accent-txt);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:3px;">'+(o.reporta||'?')+'</span>'
-        +'<span style="font-size:13px;color:var(--text);line-height:1.5;">'+o.observacion+'</span></div>';
+        +'<span style="font-size:10px;font-weight:600;color:var(--accent-txt);text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:3px;">'+esc(o.reporta||'?')+'</span>'
+        +'<span style="font-size:13px;color:var(--text);line-height:1.5;">'+esc(o.observacion)+'</span></div>';
     });
   } else {
     html+='<p style="font-size:12px;color:var(--muted);padding:4px 0;">Sin observaciones del día.</p>';
@@ -809,7 +809,7 @@ function render(){
   html+='<div class="card" style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">'+
     '<div class="section-title" style="margin-bottom:10px;">Clima del día <span style="color:var(--error-txt);">*</span></div>'+
     '<select id="clima" onchange="setClima(this.value)" style="width:100%;background:var(--input-bg);border:1px solid '+(STATE.clima?'var(--border)':'rgba(231,76,60,0.55)')+';border-radius:8px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:13px;padding:10px 12px;outline:none;">'+
-      CLIMA_OPS.map(o=>`<option value="${o}"${STATE.clima===o?' selected':''}>${o||'— Elige el clima —'}</option>`).join('')+
+      CLIMA_OPS.map(o=>`<option value="${esc(o)}"${STATE.clima===o?' selected':''}>${o?esc(o):'— Elige el clima —'}</option>`).join('')+
     '</select>'+
     '<p style="font-size:11px;color:var(--muted);margin-top:6px;">Obligatorio para enviar a DATA. Va al WhatsApp, al resumen del jefe y a la observación del reporte, de donde lo lee el Excel maestro.</p>'+
     '</div>';
@@ -878,20 +878,20 @@ function renderBandeja(){
       const pk=c.pk_inicial+(c.pk_final?(' - '+c.pk_final):'');
       const dp=dups[idx];
       const dupBadge = dp ? (dp.hard
-        ? `<span class="dup hard" title="Mismo PK reportado por: ${dp.exact.join(', ')}">⚠ duplicado: ${dp.exact.join(', ')}</span>`
+        ? `<span class="dup hard" title="Mismo PK reportado por: ${esc(dp.exact.join(', '))}">⚠ duplicado: ${esc(dp.exact.join(', '))}</span>`
         : `<span class="dup" title="Misma categoría reportada por capataz y chequeadora">⚠ posible duplicado (control vs oficial)</span>`) : '';
       const dupCls = dp ? (dp.hard?' dupmark hard':' dupmark') : '';
       if(c._nodata){
         html+=`<div class="linea-item off" id="li_${idx}" style="opacity:.65;border-style:dashed;">
           <div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🔧</div>
-          <div class="li-main"><div class="li-act">${c.actividad||c.descripcion||''} <span style="font-size:10px;color:var(--muted);font-weight:400;">(solo maquinaria)</span></div>
-          <div class="li-sub"><span class="src ${srcClass(c)}">${c.rol||'?'}·${c.reporta||'?'}</span> PK ${pk||'—'}${uf?` <span class="badge ${uf.toLowerCase()}">${uf}</span>`:''} · ${c.largo} ${c.unidad}</div></div>
+          <div class="li-main"><div class="li-act">${esc(c.actividad||c.descripcion||'')} <span style="font-size:10px;color:var(--muted);font-weight:400;">(solo maquinaria)</span></div>
+          <div class="li-sub"><span class="src ${srcClass(c)}">${esc(c.rol||'?')}·${esc(c.reporta||'?')}</span> PK ${esc(pk)||'—'}${uf?` <span class="badge ${esc(uf.toLowerCase())}">${esc(uf)}</span>`:''} · ${c.largo} ${esc(c.unidad)}</div></div>
         </div>`;
       } else {
         const ctrlTag = c._control ? `<span class="ctrl-tag">control · no suma</span>` : '';
         const ofiTag = (!c._control && c.rol==='chequeadora' && CAT_CONTROL_CAPATAZ.includes(cat)) ? `<span class="ofi-tag">oficial</span>` : '';
         const dest = destinosDe(c); // a dónde se envió el material excavado (indicativo, D67)
-        const destLine = dest ? `<div class="li-dest">→ ${dest}</div>` : '';
+        const destLine = dest ? `<div class="li-dest">→ ${esc(dest)}</div>` : '';
         // D103: la nota que escribió el capataz en esa actividad (sin los sellos automáticos), visible
         // en el panel y ahora también en el WhatsApp.
         const nota = notaManual(c);
@@ -905,10 +905,10 @@ function renderBandeja(){
             </select></div>` : '';
         html+=`<div class="linea-item ${c._inc?'':'off'}${c._control?' control':''}${dupCls}" id="li_${idx}">
           <button class="tog ${c._inc?'on':'no'}" onclick="toggleInc(${idx})">${c._inc?'✓':'✕'}</button>
-          <div class="li-main"><div class="li-act">${c.actividad||c.descripcion||''}${ofiTag}${ctrlTag}</div>
-          <div class="li-sub"><span class="src ${srcClass(c)}">${c.rol||'?'}·${c.reporta||'?'}</span> PK ${pk||'—'}${uf?` <span class="badge ${uf.toLowerCase()}">${uf}</span>`:''}${dupBadge}</div>${destLine}${notaLine}${confSel}${renderTramo(c,idx)}</div>
+          <div class="li-main"><div class="li-act">${esc(c.actividad||c.descripcion||'')}${ofiTag}${ctrlTag}</div>
+          <div class="li-sub"><span class="src ${srcClass(c)}">${esc(c.rol||'?')}·${esc(c.reporta||'?')}</span> PK ${esc(pk)||'—'}${uf?` <span class="badge ${esc(uf.toLowerCase())}">${esc(uf)}</span>`:''}${dupBadge}</div>${destLine}${notaLine}${confSel}${renderTramo(c,idx)}</div>
           <div class="li-largo"><input type="number" step="any" value="${c.largo}" onchange="editLargo(${idx},this.value)"></div>
-          <div class="li-unit">${c.unidad||''}</div>
+          <div class="li-unit">${esc(c.unidad||'')}</div>
         </div>`;
       }
     });
@@ -918,7 +918,7 @@ function renderBandeja(){
 function renderAddCard(){
   let opts='<option value="">— Actividad —</option>';
   const groups={},order=[]; ACTIVIDADES.forEach(x=>{if(!groups[x.g]){groups[x.g]=[];order.push(x.g);}groups[x.g].push(x);});
-  order.forEach(g=>{opts+=`<optgroup label="${g}">`+groups[g].map(x=>`<option value="${x.a.replace(/"/g,'&quot;')}">${x.a}</option>`).join('')+'</optgroup>';});
+  order.forEach(g=>{opts+=`<optgroup label="${esc(g)}">`+groups[g].map(x=>`<option value="${esc(x.a)}">${esc(x.a)}</option>`).join('')+'</optgroup>';});
   return `<div class="add-card"><div class="add-grid">
     <div><label>Agregar (encargado)</label><select id="addAct">${opts}</select></div>
     <div><label>PK inicial</label><input type="text" id="addPk" placeholder="14+635"></div>
@@ -939,8 +939,8 @@ function renderMaquinas(){
 function maqActLines(rows, multi){
   return rows.map(r=>{
     const m=r.m;
-    const prod = (m.produccion!==''&&m.produccion!=null) ? ` · ${m.produccion} ${m.unidad_prod||''}` : '';
-    return `${m.cap_actividad||m.actividad||'—'}${prod}${multi?` · ${fmt(numH(m.horas_operadas))}h`:''}`;
+    const prod = (m.produccion!==''&&m.produccion!=null) ? ` · ${esc(m.produccion)} ${esc(m.unidad_prod||'')}` : '';
+    return `${esc(m.cap_actividad||m.actividad||'—')}${prod}${multi?` · ${fmt(numH(m.horas_operadas))}h`:''}`;
   }).join('<br>');
 }
 // Grupo de un solo capataz: NO es duplicado (reparto multi-actividad D46). Horas muertas del
@@ -948,19 +948,19 @@ function maqActLines(rows, multi){
 function renderMaqGrupo(g){
   const first=g.rows[0].m;
   const r=maqResumen(g.rows);
-  const menos = r.muertas>0 ? ` · <span style="color:var(--error-txt)">${fmt(r.muertas)}h menos${r.motivo?(': '+r.motivo):''}</span>`:'';
-  const maqId=(first.id_maquina||'').replace(/"/g,'&quot;');
+  const menos = r.muertas>0 ? ` · <span style="color:var(--error-txt)">${fmt(r.muertas)}h menos${r.motivo?(': '+esc(r.motivo)):''}</span>`:'';
+  const maqId=esc(first.id_maquina||'');
   return `<div class="linea-item" style="opacity:1;">
     <span class="maq-id">${maqId}</span>
-    <div class="li-main"><div class="li-act"><span style="color:var(--muted);font-weight:400;font-size:11px;">${first.app_tipo_equipo||''}</span></div>
-    <div class="li-sub">${maqActLines(g.rows, g.rows.length>1)} · ${first.operador||'s/op'} · <span class="src ${first.reporta&&String(first.reporta).indexOf('cheq')===0?'cheq':'cap'}">${first.reporta||'?'}</span></div></div>
+    <div class="li-main"><div class="li-act"><span style="color:var(--muted);font-weight:400;font-size:11px;">${esc(first.app_tipo_equipo||'')}</span></div>
+    <div class="li-sub">${maqActLines(g.rows, g.rows.length>1)} · ${esc(first.operador||'s/op')} · <span class="src ${first.reporta&&String(first.reporta).indexOf('cheq')===0?'cheq':'cap'}">${esc(first.reporta||'?')}</span></div></div>
     <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;">${fmt(r.oper)}h${menos}</div></div>`;
 }
 // Grupo con ≥2 capataces: conflicto. Muestra la versión de cada capataz con el toggle ✓/✕
 // para incluir una y descartar las demás.
 function renderMaqConflict(g, reps){
-  const maqId=(g.id||'').replace(/"/g,'&quot;');
-  const tipo=g.rows[0].m.app_tipo_equipo||'';
+  const maqId=esc(g.id||'');
+  const tipo=esc(g.rows[0].m.app_tipo_equipo||'');
   let html=`<div class="maq-conflict">
     <div class="maq-conflict-head"><span class="maq-id">${maqId}</span>
       <span style="color:var(--muted);font-weight:400;font-size:11px;">${tipo}</span>
@@ -969,11 +969,11 @@ function renderMaqConflict(g, reps){
     const subRows=g.rows.filter(r=>(r.m.reporta||'').trim()===rep);
     const r=maqResumen(subRows);
     const inc=subRows.every(x=>x.m._inc!==false);
-    const menos = r.muertas>0 ? ` · <span style="color:var(--error-txt)">${fmt(r.muertas)}h menos${r.motivo?(': '+r.motivo):''}</span>`:'';
-    const op=subRows[0].m.operador||'s/op';
+    const menos = r.muertas>0 ? ` · <span style="color:var(--error-txt)">${fmt(r.muertas)}h menos${r.motivo?(': '+esc(r.motivo)):''}</span>`:'';
+    const op=esc(subRows[0].m.operador||'s/op');
     html+=`<div class="linea-item${inc?'':' off'}">
-      <button class="tog ${inc?'on':'no'}" onclick="toggleMaqReporter('${g.key}','${rep.replace(/'/g,"\\'")}')">${inc?'✓':'✕'}</button>
-      <div class="li-main"><div class="li-act"><span class="src cap">${rep}</span></div>
+      <button class="tog ${inc?'on':'no'}" onclick="toggleMaqReporter('${esc(String(g.key).replace(/'/g,"\\'"))}','${esc(String(rep).replace(/'/g,"\\'"))}')">${inc?'✓':'✕'}</button>
+      <div class="li-main"><div class="li-act"><span class="src cap">${esc(rep)}</span></div>
       <div class="li-sub">${maqActLines(subRows, subRows.length>1)} · ${op}</div></div>
       <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;">${fmt(r.oper)}h${menos}</div></div>`;
   });
@@ -1010,7 +1010,7 @@ function refreshTot(){ const tot=calcTotales(); const box=document.querySelector
   let html='',any=false;
   ORDEN_CAT.forEach(cat=>{ if(!tot[cat])return; any=true; const o=tot[cat];
     let split=''; if(SPLIT_UF.includes(cat)&&(o.uf1||o.uf2)) split=`<span class="uf-split"> · <span class="u1">UF1 ${fmt(o.uf1)}</span> · <span class="u2">UF2 ${fmt(o.uf2)}</span></span>`;
-    html+=`<div class="tot-row"><span class="cat">${cat}${split}${notaExtTot(o)}</span><span class="val">${fmt(o.total)} ${o.uni}</span></div>`; });
+    html+=`<div class="tot-row"><span class="cat">${cat}${split}${notaExtTot(o)}</span><span class="val">${fmt(o.total)} ${esc(o.uni)}</span></div>`; });
   if(!any) html='<div class="cat" style="color:var(--muted)">Sin cantidades incluidas</div>';
   box.innerHTML=html;
 }

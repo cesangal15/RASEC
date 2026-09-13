@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reporte Diario de Obra — Drenajes</title>
 <link rel="manifest" href="manifest.json">
@@ -271,7 +272,7 @@ async function cargarCatalogo(){
     cargarAcumulado();      // en paralelo; no bloquea el formulario si falla (offline: sin acumulado)
     addLinea();
   }catch(err){
-    document.getElementById('catLoading').innerHTML='⚠ No se pudo cargar el catálogo de la BASE ('+err.message+').<br>Si estás sin señal: necesitas abrir esta pantalla con señal al menos una vez para guardar una copia en el teléfono. <a href="#" onclick="cargarCatalogo();return false;" style="color:var(--accent-txt)">Reintentar</a>';
+    document.getElementById('catLoading').innerHTML='⚠ No se pudo cargar el catálogo de la BASE ('+esc(err.message)+').<br>Si estás sin señal: necesitas abrir esta pantalla con señal al menos una vez para guardar una copia en el teléfono. <a href="#" onclick="cargarCatalogo();return false;" style="color:var(--accent-txt)">Reintentar</a>';
   }
 }
 // Acumulado oficial (DATA) por marcador+CC del área. Best-effort: si falla, el formulario sigue
@@ -299,7 +300,6 @@ function buildElemento(pki,pkf){
 function ufFromMeters(m){ if(m==null) return ''; return m<=30000?'UF1':'UF2'; }
 function proyectoFromUf(uf){ return uf==='UF1'?'3701':uf==='UF2'?'3702':''; }
 function fmtNum(n){ if(n==null||isNaN(n)) return '0'; return ''+(Math.round(n*100)/100); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 /* ítems de las áreas habilitadas, deduplicados por CC corto + descripción (mismo ítem en 3701 y 3702).
  * D84: en modo multi-área devuelve los de TODAS las áreas de AREAS (06.* y 07.* en una sola lista). */
@@ -567,9 +567,9 @@ function updateResumen(){
     const sinUbicTxt = (lineArea==='odl') ? 'PK' : 'marcador';
     const row='<div class="resumen-row'+(inc?' incompleto':'')+'">'
       +'<div class="resumen-act">'+(it?esc(nombreAct(it)):'⚠ sin actividad')+'</div>'
-      +'<div class="resumen-pk">📍 '+(u.pkTxt?esc(u.pkTxt):'⚠ sin '+sinUbicTxt)+(u.uf?(' · '+u.uf):'')+'</div>'
+      +'<div class="resumen-pk">📍 '+(u.pkTxt?esc(u.pkTxt):'⚠ sin '+sinUbicTxt)+(u.uf?(' · '+esc(u.uf)):'')+'</div>'
       +(cant?('<div class="resumen-prod">'+esc(cant)+' '+(it?esc(it.unidad||''):'')+'</div>'):'<div class="resumen-warn">⚠ sin cantidad</div>')
-      +(persTxt?('<div class="resumen-pk">'+persTxt+'</div>'):'')
+      +(persTxt?('<div class="resumen-pk">'+esc(persTxt)+'</div>'):'')
       +(nota?('<div class="resumen-pk">📝 '+esc(nota)+'</div>'):'')
       +(eqsHtml?('<div class="resumen-eqs">'+eqsHtml+'</div>'):'')
       +'</div>';
@@ -670,7 +670,7 @@ function mostrarExito(modo, msg){
   const ico=document.getElementById('successIco'), h2=document.getElementById('successTitle'), p=document.getElementById('successMsg');
   if(modo==='cola'){
     ico.textContent='📥'; h2.textContent='Guardado en el teléfono'; h2.style.color='var(--accent)';
-    p.innerHTML='<b style="color:var(--accent-txt)">Se enviará solo cuando vuelva la señal.</b><br>'+msg;
+    p.innerHTML='<b style="color:var(--accent-txt)">Se enviará solo cuando vuelva la señal.</b><br>'+esc(msg);
   } else {
     ico.textContent='✅'; h2.textContent='Reporte enviado'; h2.style.color='';
     p.textContent=msg;

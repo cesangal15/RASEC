@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Parte de Maquinaria</title>
 <meta name="theme-color" content="#f5a623">
@@ -355,7 +356,6 @@ let intento = false;      // ya intentó enviar: se marcan en rojo los campos qu
 
 function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
 function ayer(f){ const d=new Date(f+'T12:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
 function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.indexOf('3702')===0?'2':s.indexOf('3703')===0?'3':''; }
@@ -491,7 +491,7 @@ function repartoHTML(t){
                +'<button type="button" class="btn-del" onclick="delRep(\''+t.id+'\','+j+')" title="Quitar">✕</button>' : '')
       +'<div class="pr"><label>PR</label><input type="number" inputmode="numeric" placeholder="ej. 14400 = PR14+400" value="'+esc(r.pr)+'" oninput="setRep(\''+t.id+'\','+j+',\'pr\',this.value)"></div>'
       +'</div>').join('')
-    +(varios ? '<div class="rep-sum'+(Math.abs(suma-100)>0.5?' mal':'')+'"><span>'+(tot!==null&&tope?rep.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+tope.unidad).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b></div>' : '')
+    +(varios ? '<div class="rep-sum'+(Math.abs(suma-100)>0.5?' mal':'')+'"><span>'+(tot!==null&&tope?rep.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b></div>' : '')
     +'<button type="button" class="btn-add mini" onclick="addRep(\''+t.id+'\')">+ '+(varios?'Otro centro de coste':'Fue a otro centro de coste también (se reparte por %)')+'</button>'
     +'</div>';
 }
@@ -500,7 +500,7 @@ function pintarRepSuma(t){
   const box=document.querySelector('#rep-'+t.id+' .rep-sum'); if(!box) return;
   const suma=t.reparto.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
   box.classList.toggle('mal', Math.abs(suma-100)>0.5);
-  box.innerHTML='<span>'+(tot!==null&&tope?t.reparto.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+tope.unidad).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b>';
+  box.innerHTML='<span>'+(tot!==null&&tope?t.reparto.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b>';
 }
 function addRep(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; t.reparto.push({ cc:'', pct:'', pr:'' }); repIguales(id); }
 function delRep(id,j){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||t.reparto.length<=1) return; t.reparto.splice(j,1); if(t.reparto.length===1) t.reparto[0].pct=100; else repIguales(id); render(); }
@@ -524,7 +524,7 @@ function setT(id, k, v){
 function totalDe(t){ const a=num(t.inicial), b=num(t.final); if(a===null||b===null) return null; return Math.round((b-a)*100)/100; }
 function pintarTotal(id){
   const t=tramos.find(x=>x.id===id), box=document.getElementById('total-'+id); if(!t||!box) return;
-  const tot=totalDe(t), tope=TOPES[EQ.medidor], unidad=tope?tope.unidad:'';
+  const tot=totalDe(t), tope=TOPES[EQ.medidor], unidad=tope?esc(tope.unidad):'';
   box.classList.remove('alto','mal');
   let txt='—';
   if(tot!==null){ txt=fmt(tot); if(tot<0) box.classList.add('mal'); else if(tope && tot>tope.bloquea) box.classList.add('mal'); else if(tope && tot>tope.alerta) box.classList.add('alto'); }
@@ -534,8 +534,8 @@ function pintarTotal(id){
     const i=tramos.indexOf(t);
     if(tot!==null && tot<0) h.innerHTML='<span class="err">El final es menor que el inicial: revisa los dos números.</span>';
     else if(i===0 && ULTIMO && num(t.inicial)!==null && Math.abs(num(t.inicial)-ULTIMO.final)>0.001)
-      h.innerHTML='El inicial cambió: el último registrado era <b>'+fmt(ULTIMO.final)+'</b>'+(ULTIMO.fecha?' ('+ULTIMO.fecha+')':'')+'. Se enviará marcado para revisión.';
-    else if(i===0 && ULTIMO) h.innerHTML='Inicial precargado del último parte'+(ULTIMO.fecha?' ('+ULTIMO.fecha+')':'')+'. Cámbialo solo si el parte físico dice otra cosa.';
+      h.innerHTML='El inicial cambió: el último registrado era <b>'+fmt(ULTIMO.final)+'</b>'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+'. Se enviará marcado para revisión.';
+    else if(i===0 && ULTIMO) h.innerHTML='Inicial precargado del último parte'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+'. Cámbialo solo si el parte físico dice otra cosa.';
     else h.innerHTML='';
   }
 }
@@ -568,7 +568,7 @@ function pintarPicker(){
   let html='';
   if(pickerCtx.tipo==='operador'){
     const items=OPERADORES.filter(o=>!q || norm(o).indexOf(q)>=0);
-    html=items.map(o=>'<button type="button" class="picker-item'+(o===operador?' sel':'')+'" onclick="elegir('+JSON.stringify(o).replace(/"/g,'&quot;')+')">'+esc(o)+'</button>').join('');
+    html=items.map(o=>'<button type="button" class="picker-item'+(o===operador?' sel':'')+'" onclick="elegir('+esc(JSON.stringify(o))+')">'+esc(o)+'</button>').join('');
     if(q && !items.some(o=>norm(o)===q)) html+='<button type="button" class="picker-item" onclick="elegir(document.getElementById(\'pickerBuscar\').value.trim())">➕ Usar «'+esc(document.getElementById('pickerBuscar').value.trim())+'» <small>nombre que no está en la lista (maquinaria lo revisa)</small></button>';
   } else {
     const t=tramos.find(x=>x.id===pickerCtx.tramoId);
@@ -576,7 +576,7 @@ function pintarPicker(){
     const items=CC.filter(c=>!q || norm(c.centro_coste+' '+c.descripcion_cc+' '+c.proyecto).indexOf(q)>=0);
     const reales=items.filter(c=>!c.pseudo), pseudo=items.filter(c=>c.pseudo);
     const frec=reales.slice(0, q?reales.length:12), resto=q?[]:reales.slice(12);
-    const item=c=>'<button type="button" class="picker-item'+(actual===c.centro_coste?' sel':'')+'" onclick="elegir('+JSON.stringify(c.centro_coste).replace(/"/g,'&quot;')+')"><b>'+esc(c.centro_coste)+'</b>'+(c.descripcion_cc?'<small>'+esc(c.descripcion_cc)+'</small>':'')+(c.proyecto?'<small>proyecto '+esc(c.proyecto)+' · UF'+ufDe(c.centro_coste)+'</small>':'')+'</button>';
+    const item=c=>'<button type="button" class="picker-item'+(actual===c.centro_coste?' sel':'')+'" onclick="elegir('+esc(JSON.stringify(c.centro_coste))+')"><b>'+esc(c.centro_coste)+'</b>'+(c.descripcion_cc?'<small>'+esc(c.descripcion_cc)+'</small>':'')+(c.proyecto?'<small>proyecto '+esc(c.proyecto)+' · UF'+ufDe(c.centro_coste)+'</small>':'')+'</button>';
     if(frec.length) html+='<div class="picker-grp">'+(q?'Centros de coste':'Más usados')+'</div>'+frec.map(item).join('');
     if(resto.length) html+='<div class="picker-grp">Todos</div>'+resto.map(item).join('');
     if(pseudo.length) html+='<div class="picker-grp">Sin operación</div>'+pseudo.map(item).join('');
@@ -651,11 +651,11 @@ function pintarResumen(){
   tramos.forEach((t,i)=>{
     const tot=totalDe(t);
     const rep=t.reparto||[], varios=rep.length>1;
-    let cc = rep.length ? rep.map(r=>(r.cc?esc(ccTexto(r.cc)):'<span style="color:var(--error-txt)">sin centro de coste</span>')+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+tope.unidad+')':''):'')).join('<br>')
+    let cc = rep.length ? rep.map(r=>(r.cc?esc(ccTexto(r.cc)):'<span style="color:var(--error-txt)">sin centro de coste</span>')+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)+')':''):'')).join('<br>')
                         : '<span style="color:var(--error-txt)">sin centro de coste</span>';
     html+='<div class="r-row">'
       +'<b>'+esc(EQ.codigo)+'</b>'+((t.hora_de||t.hora_a)?' · '+esc(t.hora_de||'?')+'–'+esc(t.hora_a||'?'):'')
-      +(EQ.medidor?'<br>'+esc(t.inicial||'—')+' → '+esc(t.final||'—')+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?tope.unidad:'')+'</b>':'')
+      +(EQ.medidor?'<br>'+esc(t.inicial||'—')+' → '+esc(t.final||'—')+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?esc(tope.unidad):'')+'</b>':'')
       +'<br>'+cc
       +(t.desc?'<br><i>'+esc(t.desc)+'</i>':'')
       +'</div>';
@@ -709,7 +709,7 @@ async function enviar(){
     const partes = (t.reparto&&t.reparto.length>1) ? t.reparto : [null];
     return partes.map((p,j)=>{ const f=(data.filas||[])[k++]||{};
       const cc = p ? ccTexto(p.cc)+' · '+fmt(num(p.pct)||0)+' %'+(tot!==null&&tope?' = '+fmt(tot*(num(p.pct)||0)/100)+' '+tope.unidad:'') : ccTexto(t.reparto&&t.reparto[0]?t.reparto[0].cc:t.cc);
-      return '<div class="r-row"><b>'+(p?'Parte '+(j+1)+' de '+partes.length:esc(EQ.codigo))+'</b><br>'+esc(cc)+(!p&&EQ.medidor?'<br>'+esc(t.inicial)+' → '+esc(t.final)+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?tope.unidad:'')+'</b>':'')+(t.desc?'<br><i>'+esc(t.desc)+'</i>':'')
+      return '<div class="r-row"><b>'+(p?'Parte '+(j+1)+' de '+partes.length:esc(EQ.codigo))+'</b><br>'+esc(cc)+(!p&&EQ.medidor?'<br>'+esc(t.inicial)+' → '+esc(t.final)+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?esc(tope.unidad):'')+'</b>':'')+(t.desc?'<br><i>'+esc(t.desc)+'</i>':'')
         +((f.alertas&&f.alertas.length)?'<br><span style="color:var(--accent-txt)">Para revisión: '+esc(f.alertas.join(', '))+'</span>':'')+'</div>'; }).join(''); }).join('');
   document.getElementById('okMsg').innerHTML='<b>'+esc(EQ.codigo)+'</b> · '+esc(fecha)+' · parte nº '+esc(reporte)+' · '+esc(operador)+'<br>'
     +((data.guardadas||0)+(data.duplicadas||0))+' fila(s) registrada(s) como <b>pendiente</b> de revisión.'

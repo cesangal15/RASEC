@@ -26,6 +26,31 @@
  * es lo que queremos en obra. Muchos Android lo cambian solos con la luz
  * ambiente, así que quien sale al sol se lleva el claro sin tocar nada.
  * ==========================================================================*/
+/* ============================================================================
+ * esc() — ESCAPE DE HTML COMPARTIDO (endurecimiento del frontend, sep-2026)
+ *
+ * Todo texto que venga del Sheet (bandeja, DATA, roster, personal, usuarios…),
+ * de un catálogo vivo (flota, ítems de drenajes, tramos, CC) o de lo que la
+ * persona tecleó, pasa por aquí ANTES de meterse con `innerHTML`. Convierte
+ * & < > " ' en entidades: el navegador muestra EXACTAMENTE el mismo texto que
+ * antes (las entidades se decodifican al pintar), pero un valor con `<script>`
+ * o `onerror=` dentro deja de ser marcado y pasa a ser texto.
+ *
+ * Vive aquí y no en cada pantalla porque `tema.js` ya se carga BLOQUEANTE en
+ * el <head> de las 23 pantallas (D150) y está en el PRECACHE del service
+ * worker (funciona sin señal, D82). Antes había 12 copias locales con dos
+ * variantes (con y sin la comilla simple); esta es la unión de las dos.
+ *
+ * Es global a propósito (script clásico, sin módulo): las pantallas la llaman
+ * como `esc(x)` igual que llamaban a su copia local. NO se usa al armar
+ * payloads, WhatsApp, CSV ni portapapeles — solo al pintar HTML.
+ * ==========================================================================*/
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
 (function(){
   'use strict';
   var LLAVE = 'tm2_tema';   // 'claro' | 'oscuro' | ausente = lo que diga el teléfono

@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Asistencia de Personal — Responsable</title>
 <link rel="manifest" href="manifest.json">
@@ -143,7 +144,6 @@ function logout(){
   window.location.href='index.html';
 }
 
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function pid(p){ return p._pid; }
 
 /* ---------- CAPATAZ: CC propio de supervisión (no va a bloques de actividad) ----------
@@ -400,7 +400,7 @@ function renderCCResults(b){
   const cont=document.getElementById('cc-results-'+b.id); if(!cont) return;
   const all=resultadosCC(b), CAP=60, res=all.slice(0,CAP);
   let inner = res.length
-    ? res.map(cc=>`<div class="cc-opt" onclick="elegirCC(${b.id},'${esc(cc).replace(/'/g,"\\'")}')">${esc(cc)}</div>`).join('')
+    ? res.map(cc=>`<div class="cc-opt" onclick="elegirCC(${b.id},'${esc(String(cc).replace(/'/g,"\\'"))}')">${esc(cc)}</div>`).join('')
     : '<div class="cc-opt">Sin resultados</div>';
   if(all.length>CAP) inner += `<div class="cc-opt" style="color:var(--muted);cursor:default;">…y ${all.length-CAP} más · escribe para filtrar</div>`;
   cont.innerHTML=inner;

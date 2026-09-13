@@ -102,7 +102,9 @@ abrieron con señal**. Abrirlas con señal de vez en cuando mantiene esa copia a
 - **Service worker (`sw.js`):** network-first para lo propio; precache explícito del shell +
   capturas; fuentes de Google cache-first; **jamás** intercepta `script.google.com`. Subir
   `CACHE_V` **solo** cuando cambie la LISTA de precache (agregar/quitar archivo); los cambios de
-  contenido se refrescan solos con señal.
+  contenido se refrescan solos con señal. Excepción (D167, `tm2-v8`): si un archivo del precache
+  cambia de forma que los HTML nuevos DEPENDEN de él (p. ej. `esc()` en `tema.js`), también se sube,
+  para que un teléfono sin señal no mezcle HTML nuevo con JS viejo.
 - **Redeploy backend:** editar implementación → nueva versión (misma URL), como siempre. Los
   endpoints de recepción deben mantener **retrocompatibilidad de payload**: un envío encolado por
   una versión vieja del frontend debe seguir siendo aceptado (regla D82).

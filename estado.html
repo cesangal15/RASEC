@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Estado Maquinaria</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
@@ -175,11 +176,11 @@ function renderResultados(reportadas, fecha, proyecto) {
   </div>`;
 
   if (faltantes.length > 0) {
-    html += `<div class="section-title">❌ Sin reporte — ${fechaDisplay}</div><div class="maq-grid">`;
+    html += `<div class="section-title">❌ Sin reporte — ${esc(fechaDisplay)}</div><div class="maq-grid">`;
     faltantes.forEach(m => {
       html += `<div class="maq-item faltante">
-        <div class="maq-id">${m}</div>
-        <div class="maq-tipo">${TIPO_EQUIPO[m]||''}</div>
+        <div class="maq-id">${esc(m)}</div>
+        <div class="maq-tipo">${esc(TIPO_EQUIPO[m]||'')}</div>
         <span class="maq-badge no">FALTA</span>
       </div>`;
     });
@@ -194,10 +195,10 @@ function renderResultados(reportadas, fecha, proyecto) {
       if (vistas.has(r.id_maquina)) return;
       vistas.add(r.id_maquina);
       html += `<div class="maq-item reportada">
-        <div class="maq-id">${r.id_maquina}</div>
-        <div class="maq-tipo">${TIPO_EQUIPO[r.id_maquina]||''}</div>
+        <div class="maq-id">${esc(r.id_maquina)}</div>
+        <div class="maq-tipo">${esc(TIPO_EQUIPO[r.id_maquina]||'')}</div>
         <span class="maq-badge ok">✓ OK</span>
-        <div class="maq-capataz">${r.capataz||''}</div>
+        <div class="maq-capataz">${esc(r.capataz||'')}</div>
       </div>`;
     });
     html += `</div>`;

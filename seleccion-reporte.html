@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>¿Qué quieres reportar?</title>
 <link rel="manifest" href="manifest.json">
@@ -144,7 +145,7 @@ window.onload = function(){
     bm.onclick=function(){location.href='menu.html';};
     document.querySelector('.header-user').prepend(bm);
     document.getElementById('tiles').innerHTML = ADMIN_TILES.map(t=>
-      `<a class="tile" href="${t.href}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${t.t}</h2><p>${t.p}</p></div><div class="arrow">→</div></a>`
+      `<a class="tile" href="${esc(t.href)}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${esc(t.t)}</h2><p>${esc(t.p)}</p></div><div class="arrow">→</div></a>`
     ).join('');
     return;
   }
@@ -162,7 +163,7 @@ window.onload = function(){
      && usuario!=='albert'
      && rol!=='residente_odt' && rol!=='residente_odl' && rol!=='residente_dren') tiles.push(ASISTENCIA_TILE);
   document.getElementById('tiles').innerHTML = tiles.map(t=>
-    `<a class="tile" href="${t.href}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${t.t}</h2><p>${t.p}</p></div><div class="arrow">→</div></a>`
+    `<a class="tile" href="${esc(t.href)}"><div class="ico">${t.ico}</div><div class="t-main"><h2>${esc(t.t)}</h2><p>${esc(t.p)}</p></div><div class="arrow">→</div></a>`
   ).join('');
 };
 function logout(){
