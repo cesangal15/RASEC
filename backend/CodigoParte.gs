@@ -26,6 +26,20 @@
  *
  * Invariantes heredadas: fechas por duck-typing (fdate), nunca instanceof Date; POST text/plain;
  * toda escritura pasa por ensureRows_ (D93); toda lectura por leerRango_ (D107, `_celdas`).
+ *
+ * D166 — endurecimiento del módulo (reutiliza el bloque «ENDURECIMIENTO DEL BACKEND» de Codigo.gs):
+ *   · LOG: en las operaciones públicas la identidad es el CÓDIGO DE EQUIPO (rol `equipo`); en las de
+ *     revisión, el usuario del token. Una fila por petición, la escribe doGet/doPost de Codigo.gs.
+ *   · Rate limit del envío público (`op=reporte`): 20 envíos/hora por equipo y 200/hora global, ambos
+ *     con CacheService; al excederlo {ok:false, error:'rate_limit'} sin tocar el Sheet. Las operaciones
+ *     con token pasan por `puerta_` (60/min por usuario+action).
+ *   · Validación estricta: el código debe existir en PARTE_EQUIPOS y estar activo — si no,
+ *     {ok:false, error:'equipo'} (antes un equipo inactivo se guardaba con aviso). Tipos, rangos y
+ *     longitudes de cada tramo y de cada cambio de revisión: {ok:false, error:'payload', campo}.
+ *   · Respaldo: el Parte vive en el MISMO Sheet que la obra, así que `respaldoDiario()` ya lo cubre;
+ *     si algún día se separa, basta fijar la propiedad del script `PARTE_SHEET_ID` y `respaldoIdsExtra_`
+ *     lo añade a la misma corrida (misma carpeta, prefijo `Parte_TM2`).
+ *   · Sin token y sin cambios en el flujo del operador que escanea el QR: mismos campos, misma URL.
  */
 
 /* ---------- hojas ---------- */
@@ -63,6 +77,52 @@ const PARTE_TOPES = { HOROMETRO:{ bloquea:24, alerta:12, unidad:'h' }, KM:{ bloq
 const PARTE_DIAS_CC_RECIENTE = 30;    // ventana del historial para CC_INUSUAL
 const PARTE_MAX_DIAS_BASE   = 186;    // tope del rango de la vista Base (mismo que ausencias/persona)
 const PARTE_ESTADOS = ['pendiente','aprobado','descartado'];
+// D166 — rate limit del envío público (identidad = código de equipo; no hay usuario)
+const PARTE_RL_EQUIPO_HORA = 20;     // envíos por equipo y hora
+const PARTE_RL_GLOBAL_HORA = 200;    // envíos totales por hora (todos los equipos)
+const PARTE_RL_VENTANA_S   = 3600;
+// D166 — esquemas de payload (ver valEsquema_/valListaDe_ en Codigo.gs)
+const PARTE_VAL_MAX_MEDIDOR = 10000000;   // horómetro/odómetro absoluto (h o km)
+const PARTE_VAL_TRAMO = {
+  reporte_num:['t',30], operador:['t',100], inicial:['n',0,PARTE_VAL_MAX_MEDIDOR], final:['n',0,PARTE_VAL_MAX_MEDIDOR],
+  hora_de:['h'], hora_a:['h'], centro_coste:['t',100], pr:['n',0,1000000], uf:['t',5], descripcion_trabajo:['t',500],
+  horas_varada:['n',0,VAL_MAX_HORAS], horas_lluvia:['n',0,VAL_MAX_HORAS], observaciones:['t',1000],
+  inicial_modificado:['t',10], id_registro:['t',100], reparto:['a',10]
+};
+const PARTE_VAL_REPARTO = { centro_coste:['t',100], pct:['n',0,100], pr:['n',0,1000000], uf:['t',5] };
+const PARTE_VAL_REPORTE = { codigo:['t',50], origen:['t',20], tramos:['a',50] };
+const PARTE_VAL_CAMBIO  = { id_registro:['t',100], estado:['l',PARTE_ESTADOS] };
+const PARTE_VAL_CAMPOS  = {
+  fecha:['f',0], reporte_num:['t',30], inicial:['n',0,PARTE_VAL_MAX_MEDIDOR], final:['n',0,PARTE_VAL_MAX_MEDIDOR],
+  horas_varada:['n',0,VAL_MAX_HORAS], horas_lluvia:['n',0,VAL_MAX_HORAS], hora_de:['h'], hora_a:['h'],
+  descripcion_trabajo:['t',500], centro_coste:['t',100], pr:['n',0,1000000], uf:['t',5], operador:['t',100], observaciones:['t',1000]
+};
+function parteValidarReporte_(body){
+  let f=valEsquema_(body, PARTE_VAL_REPORTE, '');
+  if(!f && body.tramo!==undefined && !Array.isArray(body.tramos)) f=valEsquema_(body.tramo, PARTE_VAL_TRAMO, 'tramo');
+  if(!f) f=valListaDe_(body.tramos, PARTE_VAL_TRAMO, 'tramos', 50);
+  if(!f && Array.isArray(body.tramos)){
+    for(let i=0;i<body.tramos.length && !f;i++){ const t=body.tramos[i]; if(t) f=valListaDe_(t.reparto, PARTE_VAL_REPARTO, 'tramos['+i+'].reparto', 10); }
+  }
+  return f ? rechazoPayload_(f.campo, f.motivo) : null;
+}
+function parteValidarRevisar_(body){
+  let f=valListaDe_(body.cambios, PARTE_VAL_CAMBIO, 'cambios', 200);
+  if(!f && Array.isArray(body.cambios)){
+    for(let i=0;i<body.cambios.length && !f;i++){ const c=body.cambios[i]; if(c) f=valEsquema_(c.campos, PARTE_VAL_CAMPOS, 'cambios['+i+'].campos'); }
+  }
+  return f ? rechazoPayload_(f.campo, f.motivo) : null;
+}
+// Respaldo (D166): id extra si el Parte se separa algún día del Sheet de obra (propiedad PARTE_SHEET_ID).
+function respaldoIdsExtra_(){
+  try{ const id=String(PropertiesService.getScriptProperties().getProperty('PARTE_SHEET_ID')||'').trim();
+       return (id && id!==SHEET_ID) ? [{ id:id, prefijo:'Parte_TM2' }] : []; }
+  catch(err){ return []; }
+}
+function parteRechazoEquipo_(cod, detalle){
+  logMarcar_('rechazado', 'equipo: '+detalle);
+  return json({ ok:false, error:'equipo', detalle:'El código de equipo «'+cod+'» '+detalle+'. No se guardó nada. Elige tu equipo en la lista o avisa a maquinaria.' });
+}
 
 /* ---------- mapeo a BASE MAQUINARIA (Excel) ----------
  * La vista Base exporta EXACTAMENTE las columnas B→AR del Excel, con celda VACÍA donde va fórmula
@@ -278,6 +338,7 @@ function parteUltimoFinal_(equipo){
 // ?mod=parte&op=equipo&eq=CODIGO → todo lo que necesita parte.html en UNA llamada.
 function parteEquipo(e){
   const eq=parteTexto_(e.parameter.eq), mapa=parteEquipos_();
+  logIdentidad_(eq, 'equipo');   // D166: identidad pública = código de equipo
   const lista=parteEquiposActivos_().map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa }; });
   if(!eq) return json({ ok:true, equipo:null, equipos:lista, hoy:parteHoy_() });
   const q=mapa[parteNormCod_(eq)];
@@ -346,16 +407,29 @@ function parteExpandirReparto_(tramos){
  * sin sesión válida se fuerza `qr`. Cada tramo = 1 fila. Valida lo que bloquea (mismas reglas que el
  * cliente) y calcula total, uf (si viene vacía) y alertas. */
 function parteReporte(body, ses){
-  const mapa=parteEquipos_(), cod=parteTexto_(body.codigo);
+  const cod=parteTexto_(body.codigo);
+  logIdentidad_(cod, 'equipo');   // D166: identidad pública = código de equipo (no hay usuario)
+  // D166 — orden a propósito: rate limit (caché, sin Sheet) → tipos/rangos del payload (sin Sheet) →
+  // equipo existente y activo (lee PARTE_EQUIPOS) → reglas de negocio de siempre.
+  const rlG=rateLimit_('global', 'parte:reporte', PARTE_RL_GLOBAL_HORA, PARTE_RL_VENTANA_S);
+  if(!rlG.ok) return respuestaRateLimit_(rlG);
+  const rlE=rateLimit_('eq:'+(parteNormCod_(cod)||'sin-codigo'), 'parte:reporte', PARTE_RL_EQUIPO_HORA, PARTE_RL_VENTANA_S);
+  if(!rlE.ok) return respuestaRateLimit_(rlE);
+  const vp=parteValidarReporte_(body); if(vp) return vp;
+  const mapa=parteEquipos_();
   const q=mapa[parteNormCod_(cod)];
-  if(!q) return json({ ok:false, error:'El código de equipo «'+cod+'» no está en PARTE_EQUIPOS. No se guardó nada.' });
+  if(!q) return parteRechazoEquipo_(cod, 'no está en la hoja PARTE_EQUIPOS');
+  if(!q.activo) return parteRechazoEquipo_(cod, 'figura INACTIVO en PARTE_EQUIPOS');
+  // Los rechazos de negocio de abajo conservan su texto (lo muestra parte.html) y quedan en LOG.
+  const rechazo=function(msg){ logMarcar_('rechazado', msg); return json({ ok:false, error:msg }); };
   const crudos=Array.isArray(body.tramos) ? body.tramos : (body.tramo ? [body.tramo] : []);
-  if(!crudos.length) return json({ ok:false, error:'El parte llegó sin tramos. No se guardó nada.' });
+  if(!crudos.length) return rechazo('El parte llegó sin tramos. No se guardó nada.');
   const exp=parteExpandirReparto_(crudos);
-  if(exp.error) return json({ ok:false, error:exp.error });
+  if(exp.error) return rechazo(exp.error);
   const tramos=exp.tramos;
   const revisor = !!(ses && ses.ok && parteAutoriza_(ses));
   const origen = (parteTexto_(body.origen).toLowerCase()==='manual' && revisor) ? 'manual' : 'qr';
+  if(origen==='manual'){ logIdentidad_(ses.usuario, ses.rol); logMarcar_('ok', 'origen manual · equipo '+q.codigo); }   // D166
   const hoy=parteHoy_();
   const ccValidos={}; parteCC_().forEach(function(c){ ccValidos[normTexto(c.centro_coste)]=c; });
   const tope=PARTE_TOPES[q.medidor] || null;
@@ -378,20 +452,20 @@ function parteReporte(body, ses){
   for(let i=0;i<tramos.length;i++){
     const t=tramos[i]||{}, n=i+1;
     const fecha=fdateValida_(t.fecha);
-    if(!fecha) return json({ ok:false, error:'Tramo '+n+': la fecha llegó vacía o no se entiende. No se guardó nada.' });
-    if(fecha>hoy) return json({ ok:false, error:'Tramo '+n+': la fecha no puede ser futura. No se guardó nada.' });
+    if(!fecha) return rechazo('Tramo '+n+': la fecha llegó vacía o no se entiende. No se guardó nada.');
+    if(fecha>hoy) return rechazo('Tramo '+n+': la fecha no puede ser futura. No se guardó nada.');
     const reporte=parteTexto_(t.reporte_num), operador=parteTexto_(t.operador), cc=parteTexto_(t.centro_coste);
-    if(!reporte)  return json({ ok:false, error:'Tramo '+n+': falta el número del parte físico. No se guardó nada.' });
-    if(!operador) return json({ ok:false, error:'Tramo '+n+': falta el operador. No se guardó nada.' });
-    if(!cc)       return json({ ok:false, error:'Tramo '+n+': falta el centro de coste. No se guardó nada.' });
+    if(!reporte)  return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
+    if(!operador) return rechazo('Tramo '+n+': falta el operador. No se guardó nada.');
+    if(!cc)       return rechazo('Tramo '+n+': falta el centro de coste. No se guardó nada.');
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const sinMedidor = !q.medidor;
-    if(!sinMedidor && (ini===null || fin===null)) return json({ ok:false, error:'Tramo '+n+': faltan el medidor inicial o final. No se guardó nada.' });
+    if(!sinMedidor && (ini===null || fin===null)) return rechazo('Tramo '+n+': faltan el medidor inicial o final. No se guardó nada.');
     let total='';
     if(ini!==null && fin!==null){
-      if(fin<ini) return json({ ok:false, error:'Tramo '+n+': el medidor final ('+fin+') es menor que el inicial ('+ini+'). No se guardó nada.' });
+      if(fin<ini) return rechazo('Tramo '+n+': el medidor final ('+fin+') es menor que el inicial ('+ini+'). No se guardó nada.');
       total=parteRedondea_(fin-ini);
-      if(tope && total>tope.bloquea) return json({ ok:false, error:'Tramo '+n+': el total ('+total+' '+tope.unidad+') supera el máximo de '+tope.bloquea+' '+tope.unidad+' en un día. Revisa el medidor. No se guardó nada.' });
+      if(tope && total>tope.bloquea) return rechazo('Tramo '+n+': el total ('+total+' '+tope.unidad+') supera el máximo de '+tope.bloquea+' '+tope.unidad+' en un día. Revisa el medidor. No se guardó nada.');
     }
     const hDe=parteHoraStr_(t.hora_de), hA=parteHoraStr_(t.hora_a);
     const uf = parteTexto_(t.uf) || parteUF_(cc);
@@ -444,7 +518,7 @@ function parteAutoriza_(ses){
   if(ses.tolerado) return true;    // AUTH_ESTRICTO=false (D109)
   return PARTE_ROLES_REVISAN.indexOf(String(ses.rol||'').trim().toLowerCase())>=0;
 }
-function parteSinPermiso_(){ return json({ ok:false, error:'Tu usuario no revisa partes de maquinaria (roles: '+PARTE_ROLES_REVISAN.join(', ')+').' }); }
+function parteSinPermiso_(){ logMarcar_('rechazado','rol sin permiso de revisión'); return json({ ok:false, error:'Tu usuario no revisa partes de maquinaria (roles: '+PARTE_ROLES_REVISAN.join(', ')+').' }); }
 
 // ?mod=parte&op=bandeja&fecha= → {pendientes, revisadas, faltantes, listas}
 function parteBandeja(e){
@@ -473,6 +547,7 @@ const PARTE_CAMPOS_EDITABLES = ['fecha','reporte_num','inicial','final','horas_v
   'descripcion_trabajo','centro_coste','pr','uf','operador','observaciones'];
 function parteRevisar(body, ses){
   if(!parteAutoriza_(ses)) return parteSinPermiso_();
+  const vp=parteValidarRevisar_(body); if(vp) return vp;   // D166: tipos/rangos/longitudes/fecha
   const cambios=Array.isArray(body.cambios) ? body.cambios : [];
   if(!cambios.length) return json({ ok:false, error:'No llegó ningún cambio.' });
   const sh=getSheet('PARTE_BANDEJA', PARTE_BANDEJA_HEADERS);
@@ -551,9 +626,10 @@ function parteBase(e){
 /* ============ enrutado (lo llaman doGet/doPost de Codigo.gs) ============ */
 function parteDoGet_(e){
   const op=String(e.parameter.op||'').toLowerCase();
-  if(op==='equipo') return parteEquipo(e);                      // público
-  const ses=sesion_(e, null);                                   // D109
-  if(!ses.ok) return json({ ok:false, auth:false, error:ses.error });
+  if(op==='equipo') return parteEquipo(e);                      // público (LOG con el código del equipo)
+  const p=puerta_(e, null, 'parte:'+op);                        // D109 + D166 (LOG, rate limit, mensaje genérico)
+  if(!p.ok) return p.respuesta;
+  const ses=p.ses;
   if(!parteAutoriza_(ses)) return parteSinPermiso_();
   if(op==='bandeja') return parteBandeja(e);
   if(op==='base')    return parteBase(e);
@@ -567,8 +643,9 @@ function parteDoPost_(e, body){
     if(body.token){ ses=sesion_(e, body); if(ses.ok && ses.usuario) body.usuario=ses.usuario; }
     return parteReporte(body, ses);
   }
-  const ses=sesion_(e, body);
-  if(!ses.ok) return json({ ok:false, auth:false, error:ses.error });
+  const p=puerta_(e, body, 'parte:'+op);                        // D109 + D166
+  if(!p.ok) return p.respuesta;
+  const ses=p.ses;
   if(ses.usuario) body.usuario=ses.usuario;
   if(op==='revisar') return parteRevisar(body, ses);
   return json({ ok:false, error:'op desconocida: '+op });
