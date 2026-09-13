@@ -33,7 +33,11 @@
 // El tablero NO entra en la lista: son 400 KB y no pinta nada en el teléfono de un
 // capataz. Se cachea solo, en la primera visita, por la vía network-first de abajo —
 // que es justo lo que hace falta para proyectarlo en sala sin señal.
-const CACHE_V = 'tm2-v7';   // v7: seleccion-reporte con el tablero (D158)
+// v8 (sep-2026, endurecimiento del frontend): `tema.js` —que SÍ está en el precache— gana la
+// función compartida `esc()` que ahora usan las capturas para pintar texto del Sheet, y las
+// páginas precacheadas llevan la meta Content-Security-Policy. Sin subir la versión, un
+// teléfono sin señal serviría el tema.js viejo (sin `esc`) con un HTML nuevo que la llama.
+const CACHE_V = 'tm2-v8';   // v8: esc() compartido en tema.js + CSP en las páginas (endurecimiento)
 const FONT_CACHE = CACHE_V + '-fonts';
 
 // Lista explícita: shell + capturas + app. NO precachear las páginas fuera de alcance
@@ -60,6 +64,7 @@ const PRECACHE = [
 
 // Mini-página inline para navegaciones sin red a páginas fuera del precache (mismo tema oscuro).
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
+  + '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; style-src \'unsafe-inline\'; img-src \'self\' data:">'
   + '<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sin conexión — TM2 Sur</title>'
   + '<style>body{font-family:sans-serif;background:#0f1117;color:#e8eaf0;min-height:100vh;display:flex;'
   + 'align-items:center;justify-content:center;padding:20px;margin:0;}'
