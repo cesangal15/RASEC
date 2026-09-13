@@ -25,7 +25,7 @@
 │  Admin: botón "← Menú" en toda pantalla interna vuelve a menu.html sin cerrar sesión.    │
 └────────────────────────────────────┬─────────────────────────────────────────────────--┘
 
-**Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta Apps Script; fuentes Google cache-first; subir `CACHE_V` solo si cambia la lista de precache), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
+**Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta Apps Script; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
 
 **Presentación (D150/D151/D153/D155).** Dos archivos compartidos que cuelgan de TODAS las pantallas:
 
@@ -43,6 +43,8 @@ tema.js    Bloqueante en el <head> a propósito: aplica data-tema ANTES del prim
            interruptor —UN botón que alterna— en #tm2-tema-slot si la pantalla lo
            declara, si no en .header-user, y como último recurso fijo abajo a la
            izquierda (arriba está ocupado: el chip de señal de offline.js).
+           D167: define además la global esc() (escape de HTML) — ver la sección
+           «D167 — Endurecimiento del frontend» al final.
 ```
 
 Los `:root` locales de las 18 pantallas DESAPARECIERON: la paleta vive solo en `tema.css`.
@@ -391,3 +393,34 @@ Bloque gemelo «ENDURECIMIENTO DEL BACKEND» en `Codigo.gs` y `CodigoAsistencias
 ```
 
 **Funciones a ejecutar una vez desde el editor** (en cada proyecto): `setupLog()` (obra) / `setupHojas()` (asistencias) · `respaldoDiario()` (la primera vez pide autorizar Drive) · `instalarTriggerRespaldo()`. Después, redesplegar editando la implementación existente. Verificación en banco: `backend/pruebas/verificar_d166_endurecimiento.js`.
+
+## D167 — Endurecimiento del frontend: CSP + `esc()` (sep-2026)
+
+Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exige redespliegue de Apps Script.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│  <meta http-equiv="Content-Security-Policy"> en las 23 pantallas + tablero/index.html         │
+│    default-src 'self'                                                                          │
+│    script-src  'self' 'unsafe-inline'      ← DEUDA (backlog 2.30): JS dentro del HTML y        │
+│    style-src   'self' 'unsafe-inline' fonts.googleapis.com     cientos de onclick=/style=      │
+│    font-src    'self' fonts.gstatic.com                                                        │
+│    img-src     'self' data:                ← flecha SVG de los <select> en tema.css            │
+│    connect-src 'self' script.google.com script.googleusercontent.com                           │
+│                (el POST al Apps Script redirige al segundo host; CSP valida la redirección)     │
+│    manifest-src/worker-src 'self' · base-uri 'self' · form-action 'self' · object-src 'none'   │
+│  Excepciones: resumen-asistencia.html (+cdn.jsdelivr.net) y Reparto_Produccion_Maquinaria.html │
+│    (+cdnjs.cloudflare.com) cargan SheetJS de un CDN. La página «Sin conexión» de sw.js lleva   │
+│    su CSP mínima. frame-ancestors/report-uri no existen en <meta> (GitHub Pages no da cabeceras)│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  esc(s)  en tema.js (global; & < > " ' → entidades). Copia idéntica en tablero-produccion.html │
+│          (no carga tema.js); offline.js la usa con respaldo local (escUI).                     │
+│  Regla:  todo texto de la API, de catálogos o tecleado pasa por esc() ANTES de innerHTML.      │
+│          Nunca en payloads, WhatsApp, CSV ni portapapeles. En onclick con cadena JS: primero   │
+│          replace(/'/g,"\\'") y luego esc(). Las 12 copias locales de esc/escapeHtml se borraron.│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  sw.js   CACHE_V = tm2-v8 (tema.js está en el precache y los HTML nuevos dependen de esc()).   │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Verificación: banco en Chromium con Apps Script simulado — 24 páginas sin violaciones de CSP ni errores, service worker con `tm2-v8`, cola offline encola sin señal y sincroniza al volver.
