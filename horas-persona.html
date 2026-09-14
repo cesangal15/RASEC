@@ -2,11 +2,12 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Horas por persona — Asistencias</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
+<script src="auth.js"></script>
 <script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
@@ -92,7 +93,6 @@
   <div class="loading">⏳ Cargando…</div>
 </div>
 
-<script src="auth.js"></script>
 <!-- D112 — MISMO clasificador que genera el Excel del Parte de Navision (`resumen-asistencia.html` lo
      carga igual). No es una copia: es el archivo compartido. Es lo que garantiza que lo que se ve aquí
      y lo que se le pagó a la persona salgan del mismo cálculo. -->

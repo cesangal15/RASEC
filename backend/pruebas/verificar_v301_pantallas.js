@@ -3,7 +3,7 @@
  * Verificación V3-01 / D165 — las DOS pantallas del Parte Digital contra el backend REAL en banco.
  *
  * Chromium (Playwright) abre `parte.html` y `revision-maquinaria.html` servidos desde el repo y
- * cada llamada a script.google.com se desvía al Codigo.gs + CodigoParte.gs corriendo en un `vm`
+ * cada llamada a la API (api.galca.app, D169) se desvía al Codigo.gs + CodigoParte.gs corriendo en un `vm`
  * de Node con hojas falsas (el mismo arnés de verificar_v301_parte_digital.js). Así lo que se
  * prueba es el flujo completo del checklist §8 del prompt: formulario → filas pendientes → revisión
  * → Base → «Copiar para Excel», con el JS de verdad de las pantallas y sin tocar Google.
@@ -85,7 +85,7 @@ const server=http.createServer((req,res)=>{
     pg.on('pageerror',e=>errores.push(String(e))); pg.on('console',m=>{ if(m.type()==='error' && !/ERR_FAILED/.test(m.text())) errores.push(m.text()); });   // fuentes abortadas a propósito
     await pg.route(/fonts\.(googleapis|gstatic)\.com/, r=>r.abort());
     // la API: cada petición se atiende con el backend en banco
-    await pg.route(/script\.google\.com/, async r=>{
+    await pg.route(/api\.galca\.app/, async r=>{
       const u=new URL(r.request().url()); let out;
       if(r.request().method()==='POST') out=ctx.doPost({ postData:{ contents:r.request().postData()||'{}' } });
       else { const parameter={}; u.searchParams.forEach((v,k)=>parameter[k]=v); out=ctx.doGet({ parameter }); }
@@ -207,7 +207,7 @@ const server=http.createServer((req,res)=>{
     await pg.context().close();
     // modo demo: sin servidor
     const pd=await pagina({width:390,height:844});
-    await pd.route(/script\.google\.com/, r=>r.abort());   // en demo no debe salir ninguna llamada
+    await pd.route(/api\.galca\.app/, r=>r.abort());   // en demo no debe salir ninguna llamada
     await pd.goto(BASE+'/parte.html?demo=1'); await pd.waitForSelector('#formMain:not(.hidden)');
     ok('demo: carga sin servidor con VOL048 y la barra «MODO DE PRUEBA»', (await $(pd,'#hCodigo').textContent()).includes('VOL048') && !(await $(pd,'#demoBar').evaluate(e=>e.classList.contains('hidden'))));
     await $(pd,'#demoEq').selectOption('CR026'); await pd.waitForFunction(()=>document.getElementById('hCodigo').textContent.includes('CR026'));

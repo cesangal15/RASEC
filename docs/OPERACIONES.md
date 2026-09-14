@@ -1,15 +1,17 @@
-# OPERACIONES — entorno de PRUEBA (D168)
+# OPERACIONES — entorno de PRUEBA (D168) y Worker `api.galca.app` (D169)
 
-Cómo tener una segunda copia del sistema (Sheets + Apps Script) para ensayar cambios sin tocar los
-datos de la obra, y cómo hacer que el frontend hable con ella.
+Dos cosas: (§1–§6) cómo tener una segunda copia del sistema (Sheets + Apps Script) para ensayar
+cambios sin tocar los datos de la obra; (§7–§9) cómo desplegar el Worker de Cloudflare que está
+delante de los Apps Script, cómo darle el dominio `api.galca.app` y cómo volver atrás.
 
 ## 1. Cómo funciona
 
-- Las URLs de los dos Apps Script (**obra** y **asistencias**) viven en UN solo archivo del
-  frontend: **`entorno.js`**, en la variable global **`GALCA_ENV`**. Tiene dos juegos:
-  `produccion` (los despliegues de siempre) y `prueba` (los que se crean con esta guía). Cada
-  pantalla toma su URL de ahí (`GALCA_ENV.url.obra` / `GALCA_ENV.url.asistencias`); ya no hay URLs
-  cableadas en los HTML.
+- **Desde D169 el frontend no conoce ninguna URL de Google.** La única URL del frontend es la base
+  del Worker, `https://api.galca.app`, en **`auth.js`** (`TM2Auth.API_BASE`). `entorno.js` arma
+  sobre ella la global **`GALCA_ENV.url`** (`obra` / `asistencias` / `parte`) con dos juegos:
+  `produccion` (`/obra`, `/asistencias`, `/parte`) y `prueba` (`/prueba/obra`, …). Cada pantalla
+  toma su URL de ahí; ya no hay URLs cableadas en los HTML ni en `entorno.js`. Las URLs `/exec`
+  de Google —de producción y de prueba— son **secretos del Worker** (§7).
 - **Activar prueba:** abrir cualquier pantalla con `?env=prueba`, por ejemplo
   `https://tm2.galca.app/index.html?env=prueba`. Queda guardado en el navegador (localStorage
   `galca_env`), así que desde ahí TODAS las pantallas de ese navegador van contra prueba aunque
@@ -22,13 +24,14 @@ datos de la obra, y cómo hacer que el frontend hable con ella.
 - **Al cambiar de entorno se cierra la sesión** (`tm2_token`, `usuario`, `rol`, `areas`): cada
   backend firma sus tokens con su propio secreto, así que hay que volver a entrar. Es a propósito:
   un token de producción nunca sirve en prueba ni al revés.
-- **Si `entorno.js` no tiene URLs de prueba** (los dos campos de `prueba` vacíos), `?env=prueba`
-  se ignora con un aviso en la consola y se sigue en producción. Nadie puede quedar apuntando a
-  una URL vacía.
+- **Si el Worker no tiene los secretos de prueba** (`OBRA_PRUEBA_URL` / `ASISTENCIAS_PRUEBA_URL` /
+  `PARTE_PRUEBA_URL`), las rutas `/prueba/…` contestan `503 {ok:false, error:'no_configurado'}`:
+  la pantalla muestra error de servidor en vez de escribir en producción. (Solo si `auth.js` está
+  en rollback a Google, §9, `?env=prueba` se ignora con aviso en consola: sin base no hay `/prueba`.)
 - Producción no cambia: sin `?env=` y sin nada guardado, `entorno.js` no escribe en localStorage
-  y las pantallas usan exactamente las mismas URLs de antes. `auth.js` (pega el token por host
-  `script.google.com`), la CSP (mismos hosts) y el service worker (nunca intercepta el Apps
-  Script) sirven igual para las dos URLs.
+  y las pantallas usan las URLs de producción. `auth.js` (pega el token a todo lo que va bajo
+  `api.galca.app`), la CSP (mismo host) y el service worker (nunca intercepta la API) sirven igual
+  para los dos entornos.
 
 **Lo que comparten los dos entornos en un mismo navegador** (mismo dominio, mismo localStorage):
 
@@ -96,20 +99,19 @@ Para **cada** proyecto (obra y asistencias):
 6. Autorizar el proyecto la primera vez que se ejecute algo desde el editor (pedirá permisos de
    Sheets; Drive solo si se ejecuta `respaldoDiario()`, que en prueba no hace falta).
 
-## 4. Pegar las URLs en el frontend
+## 4. Darle las URLs de prueba al Worker (no al frontend)
 
-En `entorno.js`, bloque `prueba`:
+Desde D169 no se pega nada en el repo. En la carpeta `worker/`:
 
-```js
-prueba: {
-  obra:        'https://script.google.com/macros/s/<ID de la copia de obra>/exec',
-  asistencias: 'https://script.google.com/macros/s/<ID de la copia de asistencias>/exec'
-}
+```
+wrangler secret put OBRA_PRUEBA_URL          # pegar la URL /exec de la copia de obra
+wrangler secret put ASISTENCIAS_PRUEBA_URL   # la de la copia de asistencias
+wrangler secret put PARTE_PRUEBA_URL         # normalmente la MISMA de obra (el Parte vive en Codigo.gs)
 ```
 
-Subir a GitHub Pages. No hace falta subir `CACHE_V` en `sw.js` por cambiar estas cadenas: los
-archivos propios se sirven network-first y `entorno.js` se refresca con señal; solo se sube la
-versión cuando cambia la LISTA de precache (D82).
+Los secretos se aplican al instante; no hace falta `wrangler deploy` ni publicar Pages, ni subir
+`CACHE_V` en `sw.js`. Para quitar el entorno de prueba: `wrangler secret delete <nombre>` (las rutas
+`/prueba/…` vuelven a contestar 503).
 
 ## 5. Verificación (hacerla una vez, con datos de mentira)
 
@@ -134,4 +136,104 @@ versión cuando cambia la LISTA de precache (D82).
   `SHEET_ID` en las copias de Apps Script (y redesplegar), o vaciar y volver a pegar hojas.
 - **Usuarios de prueba:** editar la hoja `USUARIOS` del Sheet copia; no afecta a producción.
 - **El parte del operador (QR):** los QR llevan solo `?eq=CODIGO`. Para probar `parte.html` contra
-  la copia, abrir una vez `parte.html?eq=CODIGO&env=prueba` en ese navegador.
+  la copia, abrir una vez `parte.html?eq=CODIGO&env=prueba` en ese navegador (va por `/prueba/parte`).
+
+---
+
+## 7. Desplegar el Worker `api.galca.app` (D169)
+
+El Worker vive en `worker/` (`wrangler.toml` + `src/index.js`). Es un proxy: `/obra`, `/asistencias`
+y `/parte` reenvían a la URL `/exec` del Apps Script que corresponda, guardada como **secreto**. En
+`/obra` y `/asistencias` exige que la petición TRAIGA el token de sesión (D109) —salvo `action=login`
+y `action=tablero`—; `/parte` pasa sin token (formulario público por QR). Solo acepta CORS desde
+`https://tm2.galca.app` (y localhost) y corta a 120 peticiones/min por IP. **No verifica la firma
+del token:** eso lo siguen haciendo los Apps Script.
+
+Requisitos una sola vez: cuenta de Cloudflare con la zona **`galca.app`** (los DNS del dominio
+apuntando a Cloudflare) y Node ≥ 18. Wrangler viene declarado en `worker/package.json`: con
+`cd worker && npm install` queda instalado en esa carpeta y se usa con `npx wrangler …` (o los
+atajos `npm run login` · `npm run secrets` · `npm run deploy` · `npm run check`). No hace falta
+instalarlo global. `npm run check` (= `wrangler deploy --dry-run`) valida `wrangler.toml` y el
+código sin cuenta ni red: es lo primero que conviene correr.
+
+```
+cd worker
+npm install                                   # una vez: instala wrangler en worker/node_modules
+npx wrangler login                            # abre el navegador; autoriza la cuenta donde está galca.app
+
+npx wrangler secret put OBRA_URL              # pegar: https://script.google.com/macros/s/<ID obra>/exec
+npx wrangler secret put ASISTENCIAS_URL       # pegar: https://script.google.com/macros/s/<ID asistencias>/exec
+npx wrangler secret put PARTE_URL             # pegar la MISMA URL de obra (el Parte Digital está en Codigo.gs)
+                                              # (opcional, entorno de prueba: OBRA_PRUEBA_URL, ASISTENCIAS_PRUEBA_URL, PARTE_PRUEBA_URL — §4)
+
+npx wrangler deploy                           # publica el Worker y, por `custom_domain = true`, crea api.galca.app
+```
+
+Las URLs `/exec` son las que ya se usaban: las de producción que tenía `entorno.js` antes de D169
+(o *Implementar → Administrar implementaciones → URL de la aplicación web* en cada proyecto).
+`wrangler secret put` pide el valor por teclado y no lo deja en ningún archivo; para verlos después
+no hay forma (solo `wrangler secret list` da los nombres) — se vuelven a poner.
+
+**Comprobar** (desde cualquier terminal; sin `Origin` el Worker responde sin CORS):
+
+```
+curl -s "https://api.galca.app/obra?action=tablero"            # → {"ok":true, "foto":…}   (pública, sin token)
+curl -s "https://api.galca.app/obra?action=bandeja"            # → 401 {"ok":false,"auth":false,…} (sin token)
+curl -s "https://api.galca.app/asistencias?action=roster"      # → 401
+curl -s "https://api.galca.app/parte?mod=parte&op=equipo&eq=X" # → respuesta del Parte (sin token)
+curl -s -H "Origin: https://otro.example" "https://api.galca.app/obra?action=tablero"   # → 403
+```
+
+Después, **publicar Pages** (el frontend de este commit ya apunta a `api.galca.app`; el service
+worker sube a `tm2-v10`, así que los teléfonos instalados renuevan el precache con señal). En la
+app: entrar, abrir la bandeja del encargado y enviar un reporte de capataz; en la pestaña *Red* del
+navegador toda llamada debe ir a `api.galca.app`, ninguna a `script.google.com`.
+
+**Redesplegar el Worker** (cambio en `src/index.js` o en `wrangler.toml`): `wrangler deploy`. Los
+secretos se conservan. **Rotar una URL de Apps Script** (nueva implementación): `wrangler secret put
+<NOMBRE>` y listo, sin tocar el frontend. **Ver tráfico y errores:** `wrangler tail` o el panel
+*Workers & Pages → galca-api → Logs* (observabilidad activada en `wrangler.toml`).
+
+## 8. La ruta `api.galca.app` en Cloudflare
+
+`wrangler.toml` lleva `routes = [{ pattern = "api.galca.app", custom_domain = true }]`: al desplegar,
+Cloudflare crea solo el registro DNS (`api` → Worker, proxied) y el certificado TLS. No hay que crear
+el registro a mano; si ya existiera un `api` en la zona, borrarlo antes del primer `wrangler deploy`
+o el despliegue lo rechaza.
+
+Si se prefiere hacerlo desde el panel: *Workers & Pages → galca-api → Settings → Domains & Routes →
+Add → Custom domain → `api.galca.app`*. Equivale a lo anterior. En cualquiera de los dos casos, en
+*DNS* de la zona `galca.app` debe verse un registro `api` de tipo *Worker*.
+
+`workers_dev = false` en `wrangler.toml` apaga la URL `galca-api.<cuenta>.workers.dev`: la única
+puerta es `api.galca.app` (la CSP de las pantallas solo permite ese host).
+
+## 9. Rollback: volver a Google sin el Worker
+
+Si el Worker falla o Cloudflare tiene una caída y hay que salir del paso, el frontend vuelve a hablar
+directo con los Apps Script en UNA edición de `auth.js` y otra de la CSP:
+
+1. En `auth.js`, bloque `API`: `base: ''` y en `rutas` las tres URLs `/exec` completas:
+   ```js
+   var API = {
+     base: '',
+     rutas: {
+       obra:        'https://script.google.com/macros/s/<ID obra>/exec',
+       asistencias: 'https://script.google.com/macros/s/<ID asistencias>/exec',
+       parte:       'https://script.google.com/macros/s/<ID obra>/exec'
+     }
+   };
+   ```
+   `esAPI()` pasa a reconocer esas URLs y sigue pegando el token; `entorno.js` toma la producción
+   de ahí (el entorno de prueba queda sin efecto mientras dure el rollback).
+2. En las 21 pantallas y `tablero/index.html`, en la meta `Content-Security-Policy`, cambiar
+   `connect-src 'self' https://api.galca.app` por
+   `connect-src 'self' https://script.google.com https://script.googleusercontent.com`
+   (buscar y reemplazar; el POST a `/exec` redirige al segundo host y la CSP valida la redirección).
+3. Publicar Pages. No hace falta subir `CACHE_V`: los archivos propios se sirven network-first.
+
+La **cola offline** no necesita nada: al enviar, `offline.js` re-dirige por su `tipo` cualquier ítem
+guardado con una URL que ya no sea de la API activa (los que se encolaron contra `api.galca.app`
+suben a Google, y al deshacer el rollback, al revés). Los Apps Script no cambian en ningún momento:
+siguen validando el token como siempre. Para volver al Worker se revierte la edición (o se hace
+`git revert` del commit del rollback).

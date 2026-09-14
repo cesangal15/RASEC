@@ -1,16 +1,14 @@
 /**
- * TM2 Sur — ENTORNO: producción o prueba (D168)
+ * TM2 Sur — ENTORNO: producción o prueba (D168; URLs vía auth.js desde D169)
  *
- * ÚNICO sitio del frontend donde viven las URLs de los dos Apps Script (obra y asistencias). Cada
- * pantalla toma la suya de aquí (`GALCA_ENV.url.obra` / `GALCA_ENV.url.asistencias`) en vez de
- * llevarla cableada; antes había 17 copias de la misma cadena repartidas por los HTML.
- *
- * Hay DOS juegos de URLs:
- *   · `produccion` — los despliegues de siempre, contra los Sheets de la obra. Es lo que usa todo el
- *     mundo si no se pide otra cosa: sin `?env=` y sin nada guardado, este archivo ni escribe en
- *     localStorage ni cambia una coma de lo que ya hacían las pantallas.
- *   · `prueba` — una segunda copia de cada Apps Script apuntando a un Sheet COPIA, para ensayar
- *     cambios sin ensuciar los datos reales. Cómo crearlas: docs/OPERACIONES.md.
+ * Elige contra qué ENTORNO habla el frontend y expone `GALCA_ENV.url.obra` / `.asistencias` /
+ * `.parte`, que es lo que leen las pantallas. Desde D169 este archivo NO contiene ninguna URL: la
+ * base de la API vive SOLO en `auth.js` (`TM2Auth.API_BASE` = https://api.galca.app, el Worker de
+ * Cloudflare que reenvía a los Apps Script) y aquí solo se le antepone el prefijo del entorno:
+ *   · `produccion` → `TM2Auth.url` tal cual        (/obra · /asistencias · /parte)
+ *   · `prueba`     → `TM2Auth.API_BASE + '/prueba/…'` (/prueba/obra · …), que el Worker reenvía a las
+ *     copias de prueba si sus secretos están puestos; si no, contesta 503 `no_configurado`.
+ *     Cómo crear las copias y ponerle los secretos al Worker: docs/OPERACIONES.md.
  *
  * CÓMO SE ELIGE (el mismo teléfono/navegador puede ir y volver):
  *   · abrir cualquier pantalla con `?env=prueba`  → se guarda en localStorage (`galca_env`) y a
@@ -20,38 +18,42 @@
  *   · Al CAMBIAR de entorno se cierra la sesión (token, usuario, rol, áreas): el token lo firma cada
  *     backend con su propio secreto, así que el de un entorno no vale en el otro y lo honesto es
  *     mandar al login en vez de dejar que cada pantalla falle con «sesión caducada».
- *   · Si se pide `prueba` pero las URLs de prueba están vacías (todavía no se crearon los
- *     despliegues), se ignora la petición con un aviso en consola y se sigue en producción: mejor
- *     eso que una pantalla llamando a una URL vacía.
+ *   · Si `auth.js` está en rollback a Google (`API_BASE` vacía) no hay ruta /prueba/ posible: se
+ *     ignora la petición con un aviso en consola y se sigue en producción.
  *
  * INDICADOR: con `prueba` activo, un chip «PRUEBA» junto al título de la cabecera (dentro del `h1`
  * de `.header-left`, que existe en casi todas las pantallas) o, si la pantalla no tiene esa
  * cabecera (login, tablero, reparto), fijo arriba en el centro. Además el título de la pestaña
  * empieza por «PRUEBA · » y `<html>` lleva `data-entorno="prueba"` por si algún CSS lo necesita.
  *
- * SE CARGA EL PRIMERO en el <head> de todas las pantallas (antes que auth.js, offline.js y tema.js),
- * bloqueante como tema.js: son unas pocas líneas y las constantes de cada pantalla lo necesitan al
- * evaluarse. Está en el PRECACHE del service worker (funciona sin señal, D82).
+ * SE CARGA SEGUNDO en el <head> de todas las pantallas, justo después de auth.js (de donde toma la
+ * base) y antes de offline.js y tema.js, bloqueante como tema.js: son unas pocas líneas y las
+ * constantes de cada pantalla lo necesitan al evaluarse. Está en el PRECACHE del service worker
+ * (funciona sin señal, D82).
  *
- * LO QUE NO HACE: no toca auth.js (el token se pega por host `script.google.com`, así que sirve
- * igual para las dos URLs), ni la CSP (mismos hosts), ni el service worker (nunca intercepta el
- * Apps Script). La cola offline guarda la URL con cada ítem, así que un reporte capturado en prueba
- * sube a prueba aunque después se vuelva a producción — por eso conviene no cambiar de entorno con
+ * LO QUE NO HACE: no toca auth.js (el token se pega por base de la API, así que sirve igual para
+ * producción y prueba), ni la CSP (mismo host api.galca.app), ni el service worker (nunca intercepta
+ * la API). La cola offline guarda la URL con cada ítem, así que un reporte capturado en prueba sube
+ * a prueba aunque después se vuelva a producción — por eso conviene no cambiar de entorno con
  * envíos pendientes (ver OPERACIONES.md).
  */
 var GALCA_ENV = (function(){
   'use strict';
 
+  // D169: ninguna URL aquí. La base la da auth.js (cargado antes); prueba = misma base + /prueba.
+  var A = window.TM2Auth || null;
+  if(!A){ try{ console.error('[GALCA_ENV] auth.js no está cargado antes que entorno.js; sin URL de API.'); }catch(e){} }
+  var BASE = (A && A.API_BASE) || '';
   var URLS = {
     produccion: {
-      obra:        'https://script.google.com/macros/s/AKfycbyUEC1BVZc6K_IVsK-gjql7HD15sAJxDxwkmVIwz8j-gFLdoNht5IEb5fZY9Jduyac/exec',
-      asistencias: 'https://script.google.com/macros/s/AKfycbymgvQX03ZqS_YzIz5l6WVesasDUMYwGOFItrggTJCdsFhcjXQvDPVz03E7mNcZQ4Nq/exec'
+      obra:        (A && A.url.obra)        || '',
+      asistencias: (A && A.url.asistencias) || '',
+      parte:       (A && A.url.parte)       || ''
     },
-    // Pegar aquí las URLs `/exec` de las copias de PRUEBA (docs/OPERACIONES.md). Mientras estén
-    // vacías, `?env=prueba` no hace nada.
     prueba: {
-      obra:        'https://script.google.com/macros/s/AKfycbwpJn5bMqbzg_iAvdLfTM1OCU2UuHE-WGteeVpWNbWWJvCax_grUm0FzrkNoIeMrHFoTQ/exec',
-      asistencias: 'https://script.google.com/macros/s/AKfycbwxV2EzHtbpCDWlkwtwwoBfZomsuWnhdQDerLLPbmk_FQQl1TZbibXO7Y09NGTY0FaBwA/exec'
+      obra:        BASE ? BASE + '/prueba/obra'        : '',
+      asistencias: BASE ? BASE + '/prueba/asistencias' : '',
+      parte:       BASE ? BASE + '/prueba/parte'       : ''
     }
   };
 
@@ -86,7 +88,7 @@ var GALCA_ENV = (function(){
   var nombre = pedido || anterior;
 
   if(nombre === 'prueba' && !configurado){
-    try{ console.warn('[GALCA_ENV] Se pidió el entorno de prueba pero entorno.js no tiene sus URLs; se sigue en producción.'); }catch(e){}
+    try{ console.warn('[GALCA_ENV] Se pidió el entorno de prueba pero auth.js no tiene base de API (rollback a Google); se sigue en producción.'); }catch(e){}
     nombre = 'produccion';
   }
   if(pedido && nombre !== anterior){
@@ -132,9 +134,9 @@ var GALCA_ENV = (function(){
   return {
     nombre: nombre,               // 'produccion' | 'prueba'
     esPrueba: esPrueba,
-    url: URLS[nombre],            // { obra, asistencias } del entorno activo
+    url: URLS[nombre],            // { obra, asistencias, parte } del entorno activo
     urls: URLS,
-    configurado: configurado,     // ¿hay URLs de prueba pegadas?
+    configurado: configurado,     // ¿hay base de API para armar /prueba/…? (los secretos los decide el Worker)
     /** Cambia de entorno desde consola o desde un botón: GALCA_ENV.cambiar('prueba'). Recarga. */
     cambiar: function(n){
       var d = ALIAS[String(n || '').toLowerCase()] || 'produccion';

@@ -1,0 +1,15 @@
+{
+  "name": "galca-api",
+  "private": true,
+  "description": "TM2 Sur — Worker de Cloudflare api.galca.app (D169). Proxy delante de los Apps Script.",
+  "scripts": {
+    "login": "wrangler login",
+    "secrets": "wrangler secret put OBRA_URL && wrangler secret put ASISTENCIAS_URL && wrangler secret put PARTE_URL",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run --outdir dist",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.131.1"
+  }
+}

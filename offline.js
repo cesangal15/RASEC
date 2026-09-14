@@ -133,6 +133,21 @@
   }
 
   /**
+   * D169: la URL a la que sube un ítem sale de auth.js (`TM2Auth`), no de lo que se guardó al
+   * encolar. Un ítem guardado con la URL actual de la API se respeta (así lo capturado en prueba
+   * sube a prueba, D168); uno guardado con una URL de OTRA base —la de Google, de antes del Worker,
+   * que la CSP ya no deja salir; o la del Worker, tras un rollback— se re-dirige por su `tipo` al
+   * entorno activo. Nada se descarta: como mucho cambia el destino, nunca el payload.
+   */
+  function urlDeEnvio(it){
+    var A = window.TM2Auth;
+    if (!A || !A.esAPI) return it.url;
+    if (A.esAPI(it.url)) return it.url;
+    var u = (window.GALCA_ENV && GALCA_ENV.url) || A.url || {};
+    return (it.tipo === 'asistencia' ? u.asistencias : u.obra) || it.url;
+  }
+
+  /**
    * Recorre la cola en orden (FIFO) y reintenta cada envío. Solo elimina un ítem con éxito
    * CONFIRMADO del servidor (respuesta parseable con ok:true — mismo criterio que el envío
    * normal, D30). Un ítem que falla incrementa `intentos`, guarda `ultimo_error` y NO bloquea
@@ -154,7 +169,7 @@
       var it = leerCola().filter(function(x){ return x.id === ids[k]; })[0];
       if (!it) return paso(k+1);                              // otra pestaña ya lo subió/descartó
       refrescarCandado();
-      return fetchTimeout(it.url, {
+      return fetchTimeout(urlDeEnvio(it), {
         method:'POST',
         headers:{ 'Content-Type':'text/plain;charset=utf-8' },
         body: JSON.stringify(it.payload)

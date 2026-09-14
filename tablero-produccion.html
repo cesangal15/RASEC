@@ -2,9 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tablero TM2 Sur</title>
+<script src="auth.js"></script>
 <script src="entorno.js"></script>
 </head>
 <body>
@@ -1683,10 +1684,12 @@ async function recalcular(oProd,oMaq){
  * =========================================================================*/
 const API = GALCA_ENV.url.obra;   // entorno.js (D168): producción o prueba
 
-/* El token de sesión (D109) va a mano en la única llamada que lo necesita, en
-   vez de cargar `auth.js`: así el tablero sigue siendo UN archivo que se puede
-   abrir suelto. Es el mismo token firmado que emite el login; sin él el
-   servidor no deja PUBLICAR. Leer la foto no lo pide (D161): es público. */
+/* El token de sesión (D109) va a mano en la única llamada que lo necesita.
+   `auth.js` se carga desde D169 solo porque es el único sitio con la URL base
+   de la API (Worker api.galca.app), de la que entorno.js arma `GALCA_ENV.url`;
+   como el token ya va puesto, auth.js no lo duplica. Es el mismo token firmado
+   que emite el login; sin él el servidor no deja PUBLICAR. Leer la foto no lo
+   pide (D161): es público, y el Worker deja pasar `action=tablero` sin token. */
 function token(){ try{ return localStorage.getItem('tm2_token')||''; }catch(e){ return ''; } }
 
 /* Trae la foto publicada. Va SIN token: la lectura es pública (D161), porque el
