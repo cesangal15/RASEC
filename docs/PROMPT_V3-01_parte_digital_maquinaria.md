@@ -15,7 +15,7 @@ Columnas de entrada humana (en el orden del Excel, letra de columna entre parén
 | Campo | Col | Notas |
 |---|---|---|
 | FECHA | C | fecha del parte |
-| REPORTE | E | nº del parte físico (texto) — OBLIGATORIO |
+| REPORTE | E | nº del parte físico (texto) — OBLIGATORIO (excepto filas manuales de día sin operación con pseudo-CC creadas desde revisión, que pueden ir vacías; D172) |
 | COD. EQUIPO | F | viene de la URL |
 | INICIAL / FINAL (horómetro) | M / N | equipos con medidor HOROMETRO |
 | HORAS VARADA / HORAS LLUVIA | Q / R | opcionales |
