@@ -150,18 +150,23 @@ y `action=tablero`—; `/parte` pasa sin token (formulario público por QR). Sol
 del token:** eso lo siguen haciendo los Apps Script.
 
 Requisitos una sola vez: cuenta de Cloudflare con la zona **`galca.app`** (los DNS del dominio
-apuntando a Cloudflare), Node ≥ 18 y `npm i -g wrangler` (o `npx wrangler`).
+apuntando a Cloudflare) y Node ≥ 18. Wrangler viene declarado en `worker/package.json`: con
+`cd worker && npm install` queda instalado en esa carpeta y se usa con `npx wrangler …` (o los
+atajos `npm run login` · `npm run secrets` · `npm run deploy` · `npm run check`). No hace falta
+instalarlo global. `npm run check` (= `wrangler deploy --dry-run`) valida `wrangler.toml` y el
+código sin cuenta ni red: es lo primero que conviene correr.
 
 ```
 cd worker
-wrangler login                                # abre el navegador; autoriza la cuenta donde está galca.app
+npm install                                   # una vez: instala wrangler en worker/node_modules
+npx wrangler login                            # abre el navegador; autoriza la cuenta donde está galca.app
 
-wrangler secret put OBRA_URL                  # pegar: https://script.google.com/macros/s/<ID obra>/exec
-wrangler secret put ASISTENCIAS_URL           # pegar: https://script.google.com/macros/s/<ID asistencias>/exec
-wrangler secret put PARTE_URL                 # pegar la MISMA URL de obra (el Parte Digital está en Codigo.gs)
+npx wrangler secret put OBRA_URL              # pegar: https://script.google.com/macros/s/<ID obra>/exec
+npx wrangler secret put ASISTENCIAS_URL       # pegar: https://script.google.com/macros/s/<ID asistencias>/exec
+npx wrangler secret put PARTE_URL             # pegar la MISMA URL de obra (el Parte Digital está en Codigo.gs)
                                               # (opcional, entorno de prueba: OBRA_PRUEBA_URL, ASISTENCIAS_PRUEBA_URL, PARTE_PRUEBA_URL — §4)
 
-wrangler deploy                               # publica el Worker y, por `custom_domain = true`, crea api.galca.app
+npx wrangler deploy                           # publica el Worker y, por `custom_domain = true`, crea api.galca.app
 ```
 
 Las URLs `/exec` son las que ya se usaban: las de producción que tenía `entorno.js` antes de D169
