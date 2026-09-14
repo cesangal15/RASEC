@@ -65,8 +65,24 @@ function pintarBandeja(){
   const rb=document.getElementById('revisadasBox'); rb.style.display= rv.length ? 'block' : 'none';
   document.getElementById('nRev').textContent=rv.length;
   document.getElementById('revisadas').innerHTML=rv.map(r=>filaHTML(r,true)).join('');
-  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  // selección para «Día sin operación»: por defecto todos; se conserva lo desmarcado entre repintados
+  const vivos={}; falt.forEach(q=>{ vivos[q.codigo]=1; if(!selFalt.hasOwnProperty(q.codigo)) selFalt[q.codigo]=true; });
+  Object.keys(selFalt).forEach(c=>{ if(!vivos[c]) delete selFalt[c]; });
+  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt'+(selFalt[q.codigo]?' sel':'')+'"><input type="checkbox" aria-label="incluir '+esc(q.codigo)+'"'+(selFalt[q.codigo]?' checked':'')+' data-on-change="toggleFalt('+esc(JSON.stringify(q.codigo))+',this.checked)"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  document.getElementById('sinopBar').classList.toggle('hidden', !falt.length);
+  pintarSel();
 }
+let selFalt={};   // codigo → true/false (incluido en «Día sin operación»)
+function faltSeleccionados(){ return (BAND.faltantes||[]).filter(q=>selFalt[q.codigo]); }
+function pintarSel(){
+  const n=faltSeleccionados().length, tot=(BAND.faltantes||[]).length;
+  document.getElementById('nSel').textContent=n;
+  const t=document.getElementById('selTodos'); t.checked=(n===tot && tot>0); t.indeterminate=(n>0 && n<tot);
+  document.querySelectorAll('#sinopBar .motivos .btn').forEach(b=>b.disabled=!n);
+}
+function toggleFalt(codigo, on){ selFalt[codigo]=!!on; const el=[...document.querySelectorAll('#faltantes .falt')].find(f=>f.querySelector('.cod').textContent===codigo); if(el) el.classList.toggle('sel',!!on); pintarSel(); }
+function selFaltantes(on){ (BAND.faltantes||[]).forEach(q=>selFalt[q.codigo]=!!on); document.querySelectorAll('#faltantes .falt').forEach(f=>{ f.querySelector('input[type=checkbox]').checked=!!on; f.classList.toggle('sel',!!on); }); pintarSel(); }
+function irAFaltantes(){ verTab('pend'); const c=document.getElementById('cardFalt'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); }
 function opSelect(v, lista, extra){
   const vistos={}; let html='';
   (extra||[]).concat(lista).forEach(o=>{ if(vistos[o]) return; vistos[o]=1; html+='<option value="'+esc(o)+'"'+(o===v?' selected':'')+'>'+esc(o)+'</option>'; });
@@ -217,6 +233,75 @@ async function guardarManual(){
   if(caducada(d)) return;
   if(!d.ok){ toast(d.error||'No se guardó', true); return; }
   cerrarModal(); toast('Fila manual creada como pendiente'); cargarBandeja();
+}
+
+/* ---------- día sin operación (varios equipos sin parte) ----------
+ * Mismos motivos, descripción y pseudo-CC que «Día sin operación» de parte.html: una fila por equipo con
+ * inicial = final (último medidor) y origen=manual. Domingos, festivos, lluvia o taller casi nunca los
+ * reporta el operador desde la cabina: los cierra quien revisa los partes cada día. */
+const SINOP_MOTIVOS={
+  'Domingo':      { desc:'Domingo',                    cc:'Domingo/Festivo' },
+  'Festivo':      { desc:'Festivo',                    cc:'Domingo/Festivo' },
+  'Taller':       { desc:'Taller',                     cc:'Taller' },
+  'Disponible':   { desc:'Disponible',                 cc:'Disponible' },
+  'Lluvia':       { desc:'Disponible por lluvia',      cc:'Disponible' },
+  'Sin operador': { desc:'Disponible - Sin operador',  cc:'Disponible' }
+};
+let sinOpEquipos=[];
+function abrirSinOp(motivo){
+  const lista=faltSeleccionados(); if(!lista.length){ toast('Marca al menos un equipo de la lista', true); return; }
+  if(!SINOP_MOTIVOS[motivo]) return;
+  sinOpEquipos=lista;
+  document.getElementById('soTitulo').textContent='Día sin operación · '+motivo+' · '+lista.length+' equipo(s)';
+  document.getElementById('soCampos').innerHTML=
+     '<div class="c"><label>Fecha</label><input type="date" id="so_fecha" value="'+esc(document.getElementById('fecha').value)+'"></div>'
+    +'<div class="c w2"><label>Motivo</label><select id="so_motivo" data-on-change="pintarSinOpMotivo()">'+Object.keys(SINOP_MOTIVOS).map(m=>'<option value="'+esc(m)+'"'+(m===motivo?' selected':'')+'>'+esc(m)+' → '+esc(SINOP_MOTIVOS[m].cc)+'</option>').join('')+'</select></div>'
+    +'<div class="c w2"><label>Operador</label><select id="so_operador">'+opSelect('Sin operador', LISTAS.operadores||[], ['Sin operador'])+'</select></div>'
+    +'<div class="c"><label>Nº parte físico</label><input type="text" id="so_reporte" placeholder="vacío si no hay"></div>'
+    +'<div class="c w2"><label>Descripción</label><input type="text" id="so_desc" value="'+esc(SINOP_MOTIVOS[motivo].desc)+'"></div>'
+    +'<div class="c w3"><label>Observaciones</label><input type="text" id="so_obs" placeholder="opcional, va en todas las filas"></div>';
+  document.getElementById('soLista').innerHTML='<div class="so-cab"><span>Equipo</span><span>Medidor (sin cambio)</span></div>'+lista.map((q,i)=>{
+    const ult=q.ultimo&&q.ultimo.final!==''&&q.ultimo.final!==null&&q.ultimo.final!==undefined ? q.ultimo.final : '';
+    return '<div class="so-eq" id="so-eq-'+i+'"><span><b>'+esc(q.codigo)+'</b> <small>'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+'</small></span>'
+      +(q.medidor ? '<input type="number" step="0.1" id="so_med_'+i+'" value="'+esc(ult)+'" placeholder="'+(ult===''?'sin último final':'')+'" aria-label="medidor '+esc(q.codigo)+'">' : '<span class="so-nomed">sin medidor</span>')
+      +'<span class="so-res" id="so_res_'+i+'"></span></div>'; }).join('');
+  document.getElementById('soGuardar').disabled=false; document.getElementById('soGuardar').textContent='Crear '+lista.length+' fila(s)';
+  document.getElementById('modalSinOp').classList.remove('hidden');
+}
+function pintarSinOpMotivo(){ const m=document.getElementById('so_motivo').value, d=document.getElementById('so_desc'); if(SINOP_MOTIVOS[m]) d.value=SINOP_MOTIVOS[m].desc; }
+function cerrarSinOp(){ document.getElementById('modalSinOp').classList.add('hidden'); sinOpEquipos=[]; }
+function cerrarSinOpFondo(ev, el){ if(ev.target===el) cerrarSinOp(); }
+async function guardarSinOp(){
+  if(!sinOpEquipos.length) return;
+  const g=id=>{ const el=document.getElementById(id); return el?el.value:''; };
+  const fecha=g('so_fecha'), motivo=g('so_motivo'), operador=g('so_operador'), reporte=g('so_reporte').trim(), desc=g('so_desc').trim(), obs=g('so_obs').trim();
+  const cc=(SINOP_MOTIVOS[motivo]||{}).cc;
+  const errs=[]; if(!fecha) errs.push('fecha'); if(!cc) errs.push('motivo'); if(!operador) errs.push('operador'); if(!desc) errs.push('descripción');
+  const faltaMed=sinOpEquipos.filter((q,i)=>q.medidor && num(g('so_med_'+i))===null).map(q=>q.codigo);
+  if(faltaMed.length) errs.push('medidor de '+faltaMed.join(', ')+' (no hay último final: escríbelo o desmarca el equipo)');
+  if(errs.length){ alert('Falta: '+errs.join('; ')); return; }
+  const b=document.getElementById('soGuardar'); b.disabled=true;
+  const creadas=[], fallos=[];
+  for(let i=0;i<sinOpEquipos.length;i++){
+    const q=sinOpEquipos[i], med=q.medidor?num(g('so_med_'+i)):'';
+    b.textContent='Guardando '+(i+1)+' / '+sinOpEquipos.length+'…';
+    const t={ id_registro:uuid(), fecha:fecha, reporte_num:reporte, operador:operador, inicial:med, final:med, inicial_modificado:'NO', hora_de:'', hora_a:'',
+      centro_coste:cc, pr:'', uf:'', descripcion_trabajo:desc, horas_varada:'', horas_lluvia:'', observaciones:obs };
+    let d; try{ d=await api(null, { mod:'parte', op:'reporte', origen:'manual', codigo:q.codigo, tramos:[t] }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+    if(caducada(d)) return;
+    const res=document.getElementById('so_res_'+i);
+    if(d.ok && d.filas && d.filas[0] && !d.filas[0].duplicada){ creadas.push(d.filas[0].id_registro); if(res){ res.textContent='✓'; res.className='so-res ok'; } }
+    else { fallos.push(q.codigo+': '+(d.error||'no se guardó')); if(res){ res.textContent='✕ '+(d.error||'no se guardó'); res.className='so-res mal'; } }
+  }
+  let aprobadas=0;
+  if(creadas.length && document.getElementById('soAprobar').checked){
+    let d; try{ d=await api(null, { mod:'parte', op:'revisar', cambios:creadas.map(id=>({ id_registro:id, estado:'aprobado' })) }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+    if(caducada(d)) return;
+    if(d.ok) aprobadas=d.cambiadas||0; else fallos.push('aprobar: '+(d.error||'no se pudo'));
+  }
+  b.disabled=false; b.textContent='Crear '+sinOpEquipos.length+' fila(s)';
+  if(fallos.length){ toast('Creadas '+creadas.length+(aprobadas?' (aprobadas '+aprobadas+')':'')+' · con error: '+fallos.join(' · '), true); if(creadas.length) cargarBandeja(); return; }
+  cerrarSinOp(); toast(creadas.length+' fila(s) creada(s)'+(aprobadas?' y aprobada(s)':' como pendientes')); cargarBandeja();
 }
 
 /* ================= BASE ================= */

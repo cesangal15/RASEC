@@ -95,6 +95,7 @@ const server=http.createServer((req,res)=>{
     return pg;
   }
   const $=(pg,sel)=>pg.locator(sel);
+  const post=(c,b,token)=>c.doPost({ postData:{ contents:JSON.stringify(token?Object.assign({token:token},b):b) } });   // directo al backend en banco
 
   console.log('\n1 · parte.html?eq=VOL048 (390px): precarga y envío de 2 tramos');
   {
@@ -251,6 +252,32 @@ const server=http.createServer((req,res)=>{
     const fM=h._f[h._f.length-1];
     ok('fila manual creada pendiente con origen=manual y alerta SIN_MEDIDOR', col(fM,'origen')==='manual' && col(fM,'estado')==='pendiente' && col(fM,'alertas')==='SIN_MEDIDOR');
     ok('y WNW030 ya no está en faltantes', !(await $(pg,'#faltantes').textContent()).includes('WNW030'));
+    // «Día sin operación» desde Equipos sin parte: CR026 (descartada arriba) marcada como Domingo, sin nº de parte, aprobada de una vez
+    ok('la barra «Día sin operación» aparece con CR026 marcada (1 seleccionado)', !(await $(pg,'#sinopBar').evaluate(e=>e.classList.contains('hidden'))) && (await $(pg,'#nSel').textContent())==='1' && await $(pg,'#faltantes .falt input[type=checkbox]').first().isChecked());
+    // la misma barra en el teléfono (390px): sin desborde y con el modal abierto
+    {
+      const pm=await pagina({width:390,height:844}, { usuario:'admin', rol:'admin', tm2_token:tokenDe('admin','admin') });
+      await pm.goto(BASE+'/revision-maquinaria.html'); await pm.waitForSelector('#faltantes .falt');
+      await $(pm,'.kpi.link').click(); await pm.waitForTimeout(1200);
+      await pm.screenshot({ path:path.join(OUT,'revision_390_sinop_lista.png'), fullPage:false });
+      await $(pm,'#sinopBar .motivos button:has-text("Lluvia")').click(); await pm.waitForSelector('#modalSinOp:not(.hidden)');
+      await pm.screenshot({ path:path.join(OUT,'revision_390_sinop_modal.png'), fullPage:false });
+      const an=await pm.evaluate(()=>({ sw:document.documentElement.scrollWidth, w:window.innerWidth, mb:document.querySelector('#modalSinOp .modal-box').scrollWidth, mc:document.querySelector('#modalSinOp .modal-box').clientWidth }));
+      ok('390px: la barra y el modal «Día sin operación» no desbordan', an.sw<=an.w+1 && an.mb<=an.mc+1, JSON.stringify(an));
+      ok('390px: el motivo Lluvia precarga «Disponible por lluvia» → CC Disponible', await $(pm,'#so_desc').inputValue()==='Disponible por lluvia' && /Disponible$/.test(await $(pm,'#so_motivo option:checked').textContent()));
+      await pm.context().close();
+    }
+    await $(pg,'#sinopBar .motivos button:has-text("Domingo")').click(); await pg.waitForSelector('#modalSinOp:not(.hidden)');
+    ok('el modal precarga el medidor de CR026 con su último final (1698), operador «Sin operador» y CC Domingo/Festivo', await $(pg,'#so_med_0').inputValue()==='1698' && await $(pg,'#so_operador').inputValue()==='Sin operador' && /Domingo\/Festivo/.test(await $(pg,'#so_motivo option:checked').textContent()) && await $(pg,'#so_desc').inputValue()==='Domingo');
+    await pg.screenshot({ path:path.join(OUT,'revision_1440_sinop.png'), fullPage:true });
+    const antesSO=h._f.length;
+    await $(pg,'#soGuardar').click(); await pg.waitForFunction(()=>document.getElementById('modalSinOp').classList.contains('hidden') && document.querySelector('#faltantes .vacio'));
+    const fSO=h._f[antesSO];
+    ok('fila de CR026 creada con inicial = final = 1698, total 0, CC Domingo/Festivo, sin nº de parte y origen manual', h._f.length===antesSO+1 && col(fSO,'codigo')==='CR026' && col(fSO,'inicial')===1698 && col(fSO,'final')===1698 && col(fSO,'total')===0 && col(fSO,'centro_coste')==='Domingo/Festivo' && col(fSO,'reporte_num')==='' && col(fSO,'origen')==='manual' && col(fSO,'descripcion_trabajo')==='Domingo', JSON.stringify(fSO));
+    ok('y quedó aprobada de una vez por admin, sin alertas', col(fSO,'estado')==='aprobado' && col(fSO,'revisado_por')==='admin' && col(fSO,'alertas')==='');
+    ok('«Equipos sin parte» queda vacío y la KPI en 0', (await $(pg,'#kFalt').textContent())==='0' && (await $(pg,'#faltantes').textContent()).includes('Todos los equipos activos tienen parte'));
+    ok('el backend sigue exigiendo nº de parte a un envío QR', /parte físico/.test((post(ctx,{ mod:'parte', op:'reporte', codigo:'MO004', tramos:[{ fecha:HOY, reporte_num:'', operador:'Sin operador', inicial:2337, final:2337, centro_coste:'Domingo/Festivo', descripcion_trabajo:'Domingo' }] })).error||''));
+    ok('y a una fila manual con CC real', /parte físico/.test((post(ctx,{ mod:'parte', op:'reporte', origen:'manual', codigo:'MO004', tramos:[{ fecha:HOY, reporte_num:'', operador:'Nelson Rangel', inicial:2337, final:2340, centro_coste:'3701.02.11', descripcion_trabajo:'Cargue' }] }, tokenDe('admin','admin'))).error||''));
     // aprobar todo lo sin alertas (2: VOL048 12:00 y EXC015 domingo)
     pg.once('dialog', d=>d.accept());
     await $(pg,'#btnAprobarTodo').click(); await pg.waitForFunction(()=>document.querySelectorAll('#pendientes .fila').length===1);
@@ -258,12 +285,12 @@ const server=http.createServer((req,res)=>{
     // Base
     await $(pg,'#tabBase').click(); await pg.waitForSelector('#tbBase tr td b');
     const filasBase=await $(pg,'#tbBase tr').count();
-    ok('Base: 5 aprobadas en el rango', filasBase===5, String(filasBase));
+    ok('Base: 6 aprobadas en el rango (5 + el domingo de CR026)', filasBase===6, String(filasBase));
     await pg.screenshot({ path:path.join(OUT,'revision_1440_base.png'), fullPage:true });
     await $(pg,'#btnCopiar').click(); await pg.waitForTimeout(200);
     const tsv=await pg.evaluate(()=>navigator.clipboard.readText());
     const lineas=tsv.split('\n');
-    ok('«Copiar para Excel»: 5 líneas de 43 columnas (B→AR)', lineas.length===5 && lineas.every(l=>l.split('\t').length===43), lineas.map(l=>l.split('\t').length).join(','));
+    ok('«Copiar para Excel»: 6 líneas de 43 columnas (B→AR)', lineas.length===6 && lineas.every(l=>l.split('\t').length===43), lineas.map(l=>l.split('\t').length).join(','));
     const L=l=>{ let n=0; for(const ch of l) n=n*26+(ch.charCodeAt(0)-64); return n-2; };
     const vol=lineas.map(l=>l.split('\t')).find(c=>c[L('F')]==='VOL048' && c[L('AL')]==='07:00');
     const [d,m,y]=HOY.split('-').reverse();
