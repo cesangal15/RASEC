@@ -555,13 +555,9 @@ function maqGroups(){
 }
 // Resumen de horas de un conjunto de filas (mismo capataz, misma máquina): operadas = suma del
 // día; muertas = programadas − operadas (D46). prog/motivo se toman de la primera aparición.
-function maqResumen(rows){
-  const prog=numH(rows[0].m.app_horas_programadas);
-  const oper=rows.reduce((s,r)=>s+numH(r.m.horas_operadas),0);
-  const muertas=Math.max(0, Math.round((prog-oper)*100)/100);
-  const motivo=(rows.map(r=>r.m.motivo).find(x=>x)||'');
-  return {prog, oper, muertas, motivo};
-}
+// D171: la bandeja de equipos muestra SOLO el código (y su actividad/producción): horas, operador y
+// motivo ya no los captura el capataz —salen del Parte Digital y se revisan en revision-maquinaria.html—
+// así que las columnas de horas de MAQUINARIA llegan vacías (las filas viejas las traen, pero no se pintan).
 
 function render(){
   const cont=document.getElementById('resultados');
@@ -762,42 +758,36 @@ function maqActLines(rows, multi){
   return rows.map(r=>{
     const m=r.m;
     const prod = (m.produccion!==''&&m.produccion!=null) ? ` · ${esc(m.produccion)} ${esc(m.unidad_prod||'')}` : '';
-    return `${esc(m.cap_actividad||m.actividad||'—')}${prod}${multi?` · ${fmt(numH(m.horas_operadas))}h`:''}`;
+    return `${esc(m.cap_actividad||m.actividad||'—')}${prod}`;
   }).join('<br>');
 }
-// Grupo de un solo capataz: NO es duplicado (reparto multi-actividad D46). Horas muertas del
-// día = programadas − suma de operadas del grupo.
+// Grupo de un solo capataz: NO es duplicado (misma máquina en varias actividades). D171: sin horas.
 function renderMaqGrupo(g){
   const first=g.rows[0].m;
-  const r=maqResumen(g.rows);
-  const menos = r.muertas>0 ? ` · <span data-estilo="color:var(--error-txt)">${fmt(r.muertas)}h menos${r.motivo?(': '+esc(r.motivo)):''}</span>`:'';
   const maqId=esc(first.id_maquina||'');
-  return `<div class="linea-item" data-estilo="opacity:1;">
+  return `<div class="linea-item u-op1">
     <span class="maq-id">${maqId}</span>
-    <div class="li-main"><div class="li-act"><span data-estilo="color:var(--muted);font-weight:400;font-size:11px;">${esc(first.app_tipo_equipo||'')}</span></div>
-    <div class="li-sub">${maqActLines(g.rows, g.rows.length>1)} · ${esc(first.operador||'s/op')} · <span class="src ${first.reporta&&String(first.reporta).indexOf('cheq')===0?'cheq':'cap'}">${esc(first.reporta||'?')}</span></div></div>
-    <div data-estilo="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;">${fmt(r.oper)}h${menos}</div></div>`;
+    <div class="li-main"><div class="li-act"><span class="li-tipo">${esc(first.app_tipo_equipo||'')}</span></div>
+    <div class="li-sub">${maqActLines(g.rows, g.rows.length>1)} · <span class="src ${first.reporta&&String(first.reporta).indexOf('cheq')===0?'cheq':'cap'}">${esc(first.reporta||'?')}</span></div></div>
+    </div>`;
 }
 // Grupo con ≥2 capataces: conflicto. Muestra la versión de cada capataz con el toggle ✓/✕
-// para incluir una y descartar las demás.
+// para incluir una y descartar las demás. D171: sin horas ni operador.
 function renderMaqConflict(g, reps){
   const maqId=esc(g.id||'');
   const tipo=esc(g.rows[0].m.app_tipo_equipo||'');
   let html=`<div class="maq-conflict">
     <div class="maq-conflict-head"><span class="maq-id">${maqId}</span>
-      <span data-estilo="color:var(--muted);font-weight:400;font-size:11px;">${tipo}</span>
+      <span class="li-tipo">${tipo}</span>
       <span class="dup hard" title="Misma máquina reportada por ${reps.length} capataces distintos — incluye la correcta y descarta las demás">⚠ conflicto · ${reps.length} capataces</span></div>`;
   reps.forEach(rep=>{
     const subRows=g.rows.filter(r=>(r.m.reporta||'').trim()===rep);
-    const r=maqResumen(subRows);
     const inc=subRows.every(x=>x.m._inc!==false);
-    const menos = r.muertas>0 ? ` · <span data-estilo="color:var(--error-txt)">${fmt(r.muertas)}h menos${r.motivo?(': '+esc(r.motivo)):''}</span>`:'';
-    const op=esc(subRows[0].m.operador||'s/op');
     html+=`<div class="linea-item${inc?'':' off'}">
       <button class="tog ${inc?'on':'no'}" data-on-click="toggleMaqReporter('${esc(String(g.key).replace(/'/g,"\\'"))}','${esc(String(rep).replace(/'/g,"\\'"))}')">${inc?'✓':'✕'}</button>
       <div class="li-main"><div class="li-act"><span class="src cap">${esc(rep)}</span></div>
-      <div class="li-sub">${maqActLines(subRows, subRows.length>1)} · ${op}</div></div>
-      <div data-estilo="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;">${fmt(r.oper)}h${menos}</div></div>`;
+      <div class="li-sub">${maqActLines(subRows, subRows.length>1)}</div></div>
+      </div>`;
   });
   html+='</div>';
   return html;
@@ -970,10 +960,11 @@ function generarMensaje(){
   const maqInc=STATE.maquinas.filter(m=>m._inc!==false);
   if(maqInc.length){ msg+='\n*Equipos:*\n';
     const mg={}, mo=[];
+    // D171: solo el código y la actividad — sin horas ni operador (van por el Parte Digital).
     maqInc.forEach(m=>{ const k=(m.id_maquina||'').toUpperCase()+'|'+(m.reporta||'').trim();
-      if(!mg[k]){ mg[k]={id:m.id_maquina, op:m.operador, rows:[]}; mo.push(k); } mg[k].rows.push({m}); });
-    mo.forEach(k=>{ const grp=mg[k], r=maqResumen(grp.rows);
-      msg+=`- ${grp.id} (${grp.op||'s/op'}) ${fmt(r.oper)}h`+(r.muertas>0?` · ${fmt(r.muertas)}h menos: ${r.motivo||''}`:'')+'\n'; }); }
+      if(!mg[k]){ mg[k]={id:m.id_maquina, acts:[]}; mo.push(k); }
+      const a=(m.cap_actividad||m.actividad||'').trim(); if(a && mg[k].acts.indexOf(a)<0) mg[k].acts.push(a); });
+    mo.forEach(k=>{ const grp=mg[k]; msg+=`- ${grp.id}`+(grp.acts.length?` · ${grp.acts.join(' / ')}`:'')+'\n'; }); }
   const obsArr=(STATE.observaciones||[]).filter(o=>o.observacion);
   if(obsArr.length){ msg+='\n*OBSERVACIONES:*\n'; obsArr.forEach(o=>{ msg+=`${o.reporta||'?'}: ${o.observacion}\n`; }); }
   const inop=(document.getElementById('inoperativos').value||'').trim();

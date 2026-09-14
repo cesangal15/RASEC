@@ -137,3 +137,6 @@
 
   /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
   .u-w130{max-width:130px;}
+  /* D171: bandeja de equipos sin horas */
+  .linea-item.u-op1{opacity:1;}
+  .li-tipo{color:var(--muted);font-weight:400;font-size:11px;}

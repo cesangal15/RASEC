@@ -26,6 +26,11 @@
  * desplegable hasta que ese teléfono tenga señal una vez. Se prefiere eso a bloquear la captura.
  * Nunca se sirve una flota VACÍA: sin máquinas el capataz no podría reportar nada.
  *
+ * D171: el reporte del capataz ya no elige de la hoja MAQUINAS sino de PARTE_EQUIPOS (catálogo único
+ * de máquinas, el mismo del Parte Digital), que el mismo endpoint devuelve como `equipos`; ver
+ * `equiposCapataz`. `maquinas` (estancias de la hoja MAQUINAS) sigue sirviendo a la chequeadora, al
+ * panel del encargado y a produccion-maquinaria.html.
+ *
  * SOLO LECTURA. Este archivo no escribe nada en el servidor.
  */
 (function(){
@@ -67,7 +72,8 @@
       var pedir = function(){
         return fetch(url).then(function(r){ return r.json(); }).then(function(d){
           if(!d || !d.ok || !d.maquinas || !d.maquinas.length) throw new Error('sin flota');
-          return { maquinas:d.maquinas, fecha:d.fecha||fecha||'', fuente:d.fuente||'hoja', avisos:d.avisos||[] };
+          // D171: `equipos` = catálogo PARTE_EQUIPOS (activo=SI) para el reporte del capataz.
+          return { maquinas:d.maquinas, equipos:d.equipos||[], fecha:d.fecha||fecha||'', fuente:d.fuente||'hoja', avisos:d.avisos||[] };
         });
       };
       var conCache = (typeof TM2Offline !== 'undefined' && TM2Offline.catalogoCache)
@@ -78,11 +84,30 @@
         var d = r.data || r;
         // `fresco:false` = la copia local; la `fuente` que traía guardada ya no describe de dónde
         // salió AHORA, así que manda el estado de la caché.
-        return { maquinas:d.maquinas, fecha:d.fecha||'', avisos:d.avisos||[], guardado:r.guardado||'',
+        return { maquinas:d.maquinas, equipos:d.equipos||[], fecha:d.fecha||'', avisos:d.avisos||[], guardado:r.guardado||'',
                  fuente: (r.fresco===false ? 'cache' : (d.fuente||'hoja')) };
       }).catch(function(){
-        return { maquinas:desdeRespaldo(resp), fecha:fecha||'', fuente:'respaldo', guardado:'', avisos:[] };
+        return { maquinas:desdeRespaldo(resp), equipos:[], fecha:fecha||'', fuente:'respaldo', guardado:'', avisos:[] };
       });
+    },
+
+    /**
+     * D171 — catálogo de equipos del REPORTE DEL CAPATAZ: [{codigo,tipo,placa}] ordenado por tipo y
+     * código. La fuente única es la hoja PARTE_EQUIPOS (`activo=SI`), que el servidor devuelve dentro de
+     * `?action=maquinas` como `equipos`. Si la respuesta (o la copia en caché, o el respaldo) no lo trae
+     * —backend sin redesplegar, caché anterior a D171, teléfono sin señal—, se deriva de `maquinas`
+     * para que el capataz nunca se quede sin lista.
+     */
+    equiposCapataz: function(fl){
+      var eq = (fl && fl.equipos && fl.equipos.length) ? fl.equipos : (fl && fl.maquinas || []).map(function(m){
+        return { codigo:m.id_maquina, tipo:m.tipo||'', placa:'' };
+      });
+      return eq.map(function(q){ return { codigo:String(q.codigo||'').trim(), tipo:String(q.tipo||'').trim(), placa:String(q.placa||'').trim() }; })
+        .filter(function(q){ return q.codigo; })
+        .sort(function(a,b){
+          var ta=a.tipo.toUpperCase(), tb=b.tipo.toUpperCase();
+          return ta<tb?-1:ta>tb?1:(a.codigo<b.codigo?-1:a.codigo>b.codigo?1:0);
+        });
     },
 
     // Atajos para armar lo que las pantallas ya usaban (ids, id->tipo, id->horas programadas).

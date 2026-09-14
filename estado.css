@@ -49,3 +49,8 @@
   .loading{text-align:center;padding:30px;color:var(--muted);font-size:14px;}
 
   @media(max-width:400px){.resumen-grid{grid-template-columns:1fr 1fr;}.maq-grid{grid-template-columns:1fr 1fr;}}
+  /* D171: pantalla obsoleta — aviso que remite a la revisión del parte digital */
+  .aviso-obsoleto{background:rgba(245,166,35,0.10);border:1px solid rgba(245,166,35,0.45);border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;line-height:1.55;}
+  .aviso-obsoleto b{color:var(--accent-txt);}
+  .aviso-obsoleto a{color:var(--accent-txt);font-weight:600;}
+  .h1-obsoleto{font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0;}

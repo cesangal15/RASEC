@@ -75,13 +75,15 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │  GET  ?action=bandeja&fecha=…[&proyecto=…][&area=…] → crudo del día por área (D70)      │
 │  GET  ?action=consolidado&fecha=…            → lo ya enviado a DATA                     │
 │  GET  ?action=consolidado&desde=…&hasta=…    → filas A–T de DATA + climaPorDia (D65/D37)│
-│  GET  ?action=estado&fecha=…                 → máquinas reportadas (estado.html)        │
+│  GET  ?action=estado&fecha=…                 → máquinas reportadas (estado.html, OBSOLETO D171)│
+│  GET  ?action=maquinas&fecha=…               → flota MAQUINAS del día + `equipos` (PARTE_EQUIPOS, D171)│
 │  GET  ?action=debug&fecha=…                  → diagnóstico                              │
 │  GET  ?action=cubicaje                        → mapa placa→cubicaje (frontend, D53/2.10) │
 │  GET  ?action=volquetas&fecha=…               → filas VOLQUETAS del día (digitadora, D83) │
 │  GET  ?action=maquinaria_produccion&fecha=…  → frentes×oficial DATA + PK/horas/faltantes  │
 │  GET  ?action=drenajes                        → 147 marcadores ODT + ítems .06/.07 (D70)  │
 │  POST {reporte}                              → escribe BANDEJA + MAQUINARIA (+VOLQUETAS)  │
+│         (D171: equipos del capataz = solo código; horas/operador/motivo NO se escriben)  │
 │  POST {action:enviar_data, area}             → pisa DATA del día POR ÁREA + marca bandeja │
 │         (tierras/odt/odl derivada del CC con deriveArea; sin area = tierras — D70)       │
 │  POST {action:maquinaria_produccion}         → parcha col T + crea filas (redir/horas/compl, D60-62)│
@@ -99,6 +101,11 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │              `personal_ayudantes` · `turno_noche` · `nota_libre` (cols 25–28, D70)       │
 │  MAQUINARIA  equipos con producción individual (directo, sin aprobación); interno `area` │
 │              tras produccion_capataz_orig — drenajes = captura libre, a_captura=NO (D70) │
+│              D171: G operador · L horas_operadas · O horas_mantenimiento · R ESTADO ·     │
+│              app_horas_programadas · app_horas_muertas · motivo → VACÍAS desde D171      │
+│              (filas del capataz; layout intacto). Horas/operador/motivo → PARTE_BANDEJA. │
+│  PARTE_EQUIPOS · PARTE_BANDEJA · PARTE_* (D165): catálogo ÚNICO de máquinas y parte     │
+│              digital (ver módulo abajo). MAQUINAS (D138) = solo estancias con fechas.    │
 │  OBSERVACIONES nota GENERAL del día, 1 fila por envío (tierras y drenajes, D103); col   │
 │              `area` sellada con las áreas de las líneas del reporte (D86); no a DATA    │
 │  VOLQUETAS   desglose por placa de la chequeadora (1 fila/placa, informativo; no a DATA) │
@@ -110,18 +117,19 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 ┌──────────────────────────── EXCEL MAESTROS (fuera del app) ─────────────────────────────┐
 │  TM2_SUR_REPORTE_DIARIO_OBRA.xlsx   ← DATA (A:S del día)                                │
 │    └─ hoja DATA alimenta DATOS/TABLAS/GRAFICOS e informes                               │
-│  Modelo_Produccion_Maquinaria_v2.xlsx ← MAQUINARIA (mapeada a Captura_Diaria)           │
-│    ├─ Captura_Diaria (fact_produccion): fórmulas propias de KPI                         │
-│    ├─ dim: catálogo de máquinas (horas prog 5/6.4 por proveedor)                        │
-│    └─ RESUMEN_MES: matriz período 16–15, generada por este proyecto                     │
+│  Partes_Diarios_de_Maquinaria_<periodo>.xlsx ← PARTE_BANDEJA aprobados (B→AR, D165)     │
+│  Modelo_Produccion_Maquinaria_v2.xlsx — FUERA DE USO desde D171 (ya no se pega          │
+│    MAQUINARIA a Captura_Diaria; la producción por máquina se distribuye por CC del      │
+│    parte en Reparto_Produccion_Maquinaria.html). Se conserva como histórico.            │
 └─────────────────────────────────────────────────────────────────────────────────────--─┘
 ```
 
 ## Flujo de captura (diario)
 
-1. **Capataz** entra → agrega N actividades. Por actividad: actividad específica → (sistema muestra ítem contractual, unidad, UF, CC) → PK → producción (campo adaptativo) → equipos (máquina, operador, horas; motivo si faltan horas) → **nota de la actividad** (col `observacion`; va a DATA col S y, D103, sale como `📝` bajo su actividad en el WhatsApp del día) + **una nota general del día** por envío (`observacion_general` → hoja OBSERVACIONES).
+1. **Capataz** entra → agrega N actividades. Por actividad: actividad específica → (sistema muestra ítem contractual, unidad, UF, CC) → PK → producción (campo adaptativo) → equipos (**solo el CÓDIGO de la máquina**, chips desde `PARTE_EQUIPOS` vía `?action=maquinas`+`flota.js`; sin horas ni operador ni motivo — D171) → **nota de la actividad** (col `observacion`; va a DATA col S y, D103, sale como `📝` bajo su actividad en el WhatsApp del día) + **una nota general del día** por envío (`observacion_general` → hoja OBSERVACIONES).
 2. **Chequeadora** entra → fecha, origen → N líneas {PK destino, tipo destino (Terraplén·Puente·ODL·ODT·Botadero), bloque de placas} + maquinaria (excavadoras del origen). Pega el desglose por placa estilo WhatsApp; el sistema parsea placa+viajes, calcula el **volumen real de la línea = Σ(viajes×cubicaje)** leyendo la hoja CUBICAJE (D53 sobre D06). Placa no registrada → fallback **14 fijo** (D54) + flag (naranja + `cubicaje_origen`=default). Cada placa se guarda en VOLQUETAS con su cubicaje y m3_placa. **Excavación = por ORIGEN, acumulada (D63):** la excavación se registra DONDE SE HIZO EL CORTE = el origen, así que el reporte genera **UNA sola fila de excavación = Σ(volúmenes de todas las líneas)** al PK del origen (Masivo 2→19+800, Masivo 1→14+400, Diviso→21+500, todos ≤30→UF1/3701; Complementario/Otro→el PK que teclea la chequeadora), del que derivan PK/ELEMENTO/ABS/UF/PROYECTO/CC. El **terraplén NO cambia**: 1 fila por línea con destino=Terraplén, al PK de DESTINO. No aprovechable acumulada sigue disparando ZODME (D17). Las excavadoras reportadas van a MAQUINARIA con producción = total excavado del día **repartido en partes iguales** entre ellas (D54; el encargado reconcilia duplicados con el capataz, D51).
 3. Ambos envían → BANDEJA (+ MAQUINARIA). Confirmación real del servidor (cuenta de filas guardadas).
+4. **Operador de cada máquina** (canal aparte, D165) → escanea el QR de la cabina → `parte.html?eq=` → PARTE_BANDEJA (horómetro/km, operador, CC, motivo) → revisión en `revision-maquinaria.html`. **Flujo de datos desde D171:** capataz → producción por actividad (DATA) y asociación informativa máquina↔actividad (MAQUINARIA, solo código); parte → horas / operador / CC por máquina (PARTE_BANDEJA → Excel de partes → distribución por CC).
 
 ## Flujo de captura — DRENAJES (D70 / D84)
 
@@ -296,6 +304,8 @@ CONFIG gana `admin_recurso` (No. Recurso Navision, parámetro abierto: vacío �
 y hay un flag `EXTRAS_ORDINARIAS_EN_CERO` (en el HTML) por si un import rechaza el 0 en las ordinarias.
 
 ## Mapeo de paste MAQUINARIA → Captura_Diaria (D52, verificado con el archivo real)
+
+> ⚠️ **OBSOLETO desde D171 (sep-2026):** el pegado a `Captura_Diaria` ya no se hace — `Modelo_Produccion_Maquinaria_v2` dejó de ser Excel maestro. La hoja `MAQUINARIA` conserva el layout A→AA para no romper lectores, pero desde D171 las columnas **G operador · L Horas Operación · O Horas Mantenimiento · R ESTADO** y los internos **`app_horas_programadas` · `app_horas_muertas` · `motivo`** se escriben **VACÍAS** en las filas del capataz; horas/operador/motivo viven en `PARTE_BANDEJA`. Lo que sigue se conserva como referencia del histórico.
 
 Captura_Diaria es una **tabla de Excel** (`fact_produccion`, A1:AA). Se pegan SOLO las columnas de entrada con **Pegado especial → Omitir blancos**; la tabla autocompleta las columnas-fórmula.
 
@@ -525,3 +535,26 @@ reenvía. No exige redesplegar Apps Script; sí `wrangler deploy` + publicar Pag
 ```
 
 Verificación: banco en Node del Worker (41/41, Google simulado), 21 pantallas en Chromium sin errores ni violaciones de CSP con toda llamada bajo `api.galca.app` y con token (salvo `tablero`/`parte`), `verificar_v301_pantallas.js` 60/60.
+
+## D171 — Recorte de equipos en el reporte del capataz (sep-2026)
+
+**Qué cambió.** El capataz solo **asocia códigos de máquina** a cada actividad; no captura horas, operador, motivo ni horas programadas/muertas. Esos datos entran por el Parte Digital (D165) y se revisan en `revision-maquinaria.html`. La asociación es informativa (cruce y trazabilidad, `id_cantidad` ↔ BANDEJA), no alimenta producción ni horas por máquina.
+
+```
+reporte-capataz.html ──?action=maquinas&fecha=──> Codigo.gs.maquinasCatalogo
+   (flota.js: TM2Flota.cargar → equiposCapataz)     ├─ maquinas: hoja MAQUINAS (estancias, D138) — chequeadora/encargado/prod.
+   chips por código, búsqueda, agrupado por tipo    └─ equipos:  PARTE_EQUIPOS activo=SI (código·tipo·placa) — capataz (D171)
+   caché del teléfono (D82) → respaldo escrito en la pantalla si nunca hubo señal
+POST {reporte, cantidades:[{…, equipos:[{id_registro,id_maquina,tipo_equipo} | 'CR026', …]}]}
+   → guardarReporte: 1 fila MAQUINARIA por equipo: B fecha · D proyecto · E id_maquina · H/I derivadas ·
+     T producción (largo de la línea; vacía para tipos sin producción) · AA observación · internos
+     app_id_registro · id_cantidad · timestamp · reporta · app_tipo_equipo · unidad_prod · cap_actividad · a_captura · area.
+     G · L · O · R · app_horas_programadas · app_horas_muertas · motivo = '' (vacías desde D171).
+   Payload viejo (cola offline con horas/operador/motivo) → aceptado; campos descartados en silencio.
+```
+
+- **Catálogo único de máquinas = `PARTE_EQUIPOS`.** `MAQUINAS` (D138/D139) queda solo como registro de estancias para «faltantes» del panel de producción y el reparto mensual (D143); consolidarla es backlog V3-06.
+- **Lectores tolerantes:** `bandeja`, `estado`, `maquinaria_produccion`, `encargado.html` y `produccion-maquinaria.html` trabajan con celdas de horas vacías (filas nuevas) y con horas (filas viejas) mezcladas.
+- **`estado.html` obsoleto:** aviso arriba que remite a «Equipos sin parte» de `revision-maquinaria.html`; en `menu.html` como «Estado maquinaria (capataz, obsoleto)». No se borra.
+- **`sw.js` → `tm2-v12`** (flota.js cambió y el formulario nuevo depende de `equiposCapataz`).
+- Verificación: `backend/pruebas/verificar_d171_recorte_equipos.js`.

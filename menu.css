@@ -91,3 +91,4 @@
     }
     .pc-group .tile:hover .ico{border-color:var(--accent);}
   }
+  .tile-obsoleto{opacity:.6;}   /* D171: estado.html, capataz (obsoleto) */

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Estado Maquinaria</title>
+<title>Estado Maquinaria (capataz, obsoleto)</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
 <script src="auth.js"></script>
@@ -17,7 +17,7 @@
   <span class="galca-simbolo" role="img" aria-label="Galca"></span>
   <div class="header-left">
     <div class="label">Panel de Control</div>
-    <h1>📊 Estado Maquinaria</h1>
+    <h1>📊 Estado Maquinaria <span class="h1-obsoleto">capataz · obsoleto</span></h1>
   </div>
   <div class="header-user">
     <span id="userDisplay">—</span>
@@ -27,6 +27,13 @@
 </div>
 
 <div class="container">
+  <!-- D171: pantalla OBSOLETA. El capataz ya solo asocia el código de la máquina a la actividad; quién
+       trabajó y quién no (y con qué horas) lo dice el Parte Digital: «Equipos sin parte» en revision-maquinaria.html. -->
+  <div class="aviso-obsoleto">
+    <b>Pantalla obsoleta (D171).</b> Aquí solo se ve qué máquinas <b>asoció el capataz</b> a sus actividades —dato informativo, sin horas—.
+    Para saber qué equipos trabajaron y cuáles faltan por reportar usa <b>«Equipos sin parte»</b> en la
+    <a href="revision-maquinaria.html">revisión del parte digital de maquinaria</a>.
+  </div>
   <div class="filtro-card">
     <div class="filtro-row">
       <div class="field">

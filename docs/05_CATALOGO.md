@@ -73,7 +73,9 @@ Aplican a excavadoras, motoniveladoras, bulldozer. Estado `no_data`; no van a DA
 - Adecuación de caminos
 - Limpieza de derrumbe
 
-### Mapeo a actividad/subactividad del modelo de maquinaria (Captura_Diaria)
+### Mapeo a actividad/subactividad del modelo de maquinaria (Captura_Diaria) — OBSOLETO desde D171
+
+> `Modelo_Produccion_Maquinaria_v2` / `Captura_Diaria` dejaron de usarse (D171). El backend sigue derivando H/I y `a_captura` en la fila de MAQUINARIA para no romper lectores, pero ya no se pega nada. Se conserva como referencia del histórico.
 02.03→DESMONTE/DESCAPOTE · 02.05→EXCAVACION COMUN/(NO)APROVECHABLE · 02.06→EXCAVACION PRESTAMO · 02.07→TERRAPLEN/NUCLEO-CORONA-CEREO · 02.08→CONFORMACION/ZODME · 03.01→SUBBASE · 03.03→BASE BTC · 05.04 y 02.12→TERRAPLEN(MSR) · APOYO→APOYO/PAISAJEO, APOYO/ADECUACION, APOYO/DERRUMBE.
 
 **Mapeo explícito actividad del capataz → actividad(H) / SUB ACTIVIDAD(I) de Captura_Diaria** (verificado con datos reales, D52):
@@ -168,7 +170,11 @@ distinción de material se hace por actividad, no por origen. El **fresado** sig
 Terraplén (genera fila de terraplén) · Puente · UF3 (D160) · ODL · ODT · Botadero.
 Solo **Terraplén** genera fila de terraplén; el resto solo cuenta para la excavación del origen (Botadero va como excavación NO APROVECHABLE, D67). **Puente/UF3/ODL/ODT** cuentan para la excavación y salen en la nota del reporte, pero no en la suma del terraplén (UF3 = destino, no confundir con el material `Terraplén de UF3` del capataz, §1).
 
-## 4. Máquinas — CONFIRMADO en app
+## 4. Máquinas — catálogo ÚNICO = hoja `PARTE_EQUIPOS` (D171)
+
+**Desde D171 (sep-2026) la fuente única de máquinas para TODO el sistema es la hoja `PARTE_EQUIPOS`** del Sheet de obra (`codigo · tipo · placa · proveedor · medidor · ultima_fecha · ultimo_final · activo`; semilla en `backend/seeds/parte/PARTE_EQUIPOS_semilla.csv`; `activo` vacío = activo). Es la misma lista del Parte Digital (D165) y la que el **reporte del capataz** ofrece como chips (`?action=maquinas` → `equipos`, `flota.js`). Alta/baja = editar la fila (`activo=SI/NO`), sin código; un equipo nuevo necesita además su QR (`qr/README.md`). **El capataz ya no captura horas, operador ni motivo por máquina** — solo el código; horas/operador/CC/motivo salen del parte (`PARTE_BANDEJA`). Las horas programadas 5/6.4 (D10) y las horas muertas se calculan sobre el parte, no en el formulario.
+
+La hoja `MAQUINAS` (D138/D139, estancias con fechas) **ya no es catálogo del capataz**: queda solo para las «faltantes» del panel de producción y el reparto mensual (D143), pendiente de consolidar en `PARTE_EQUIPOS` (backlog V3-06). La tabla que sigue y las notas D61/D136/D137/D138/D139 se conservan como **histórico** de la flota de tierras; no las mantengas a mano.
 
 | ID | Tipo | Hrs prog | Proveedor |
 |---|---|---|---|
@@ -191,8 +197,8 @@ Solo **Terraplén** genera fila de terraplén; el resto solo cuenta para la exca
 
 **Flota esperada = TODA la flota vigente ese día (D137, enmienda D61d/D111; afinado por D138):** la lista contra la que `estado.html` y la sección "máquinas faltantes" del panel de producción marcan quién **no** reportó ese día son **todas las vigentes ese día**, no solo las productivas. Antes eran las 10 de BL/EXC/MO/NH69 y los vibros, el finisher, el minibuldózer y la RT-02 quedaban fuera, así que de esas nunca se sabía si habían trabajado o si simplemente nadie las reportó. Con D138 esto se resuelve solo: **esperada = vigente en la hoja**, así que una máquina devuelta deja de esperarse el día de su retiro y una recién llegada empieza a esperarse el día de su ingreso, sin listas paralelas. Las pantallas ya no llevan la lista escrita (solo un respaldo), y `MAQ_FLOTA_ESPERADA` quedó derivada de `MAQ_CATALOGO` para el camino de respaldo. Ojo con la lectura: "FALTA" aquí significa **sin reporte**, no "máquina parada" — una máquina que no trabajó ese día tampoco se reporta (D28), y es el residente quien la anota como inoperativo en texto libre.
 
-**Regla de producción por tipo:**
-- VIBROCOMPACTADOR: producción siempre nula — compactan frentes ejecutados por otras máquinas; el campo producción no se muestra ni se guarda.
+**Regla de producción por tipo** (vigente; desde D171 se decide por CONTENIDO del `tipo` de `PARTE_EQUIPOS`: contiene COMPACTADOR / MINICARGADOR / MINIBULDOZER / RETROEXCAVADORA / RETROCARGADOR → sin producción, `esTipoSinProduccion`):
+- VIBROCOMPACTADOR (y `COMPACTADORES`, `VIBROCOMPACTADOR RENTAL …`): producción siempre nula — compactan frentes ejecutados por otras máquinas; el campo producción no se muestra ni se guarda.
 - MINICARGADOR y MINIBULDOZER (CR026; NH421 hasta su devolución en ago-2026, D136): producción siempre nula — mismo tratamiento que los vibrocompactadores en cuanto al campo `produccion`. La regla se mantiene por TIPO, no por máquina: si vuelve a entrar un minicargador se comporta igual sin tocar código.
 - RETROEXCAVADORA (RT-02, la pajarita, D111): producción siempre nula — apoya frentes de otras máquinas. Solo aparece en el reporte del capataz de TIERRAS (no en el de la chequeadora, cuyo selector es solo excavadoras, ni en drenajes, que captura máquinas en texto libre); no entra en el selector de "redirigir producción" de la pestaña de producción (**sí** en la flota esperada desde D137/D138: se espera saber de ella si reportó o no).
 - Actividades de apoyo (Compactación terraplén/subbase/BTC · Paisajeo / Adecuación de caminos / Limpieza de derrumbe): producción nula para cualquier tipo de máquina.
@@ -204,7 +210,10 @@ CC habituales por máquina (de reportes Abr–May; incluye máquinas ya devuelta
 
 **Códigos huérfanos resueltos (D137):** **CR08** estaba solo en el desplegable del capataz y **entra al catálogo** como vibro ORTIZ propio (6.4 h). **CR020** y **D150B** estaban solo en el chip "maquinaria sin reporte" del panel del residente —se listaban como faltantes aunque nadie podía reportarlas— y **no están en obra** (confirmado por el dueño, ago-2026): salen. Con esto el bulldozer alquilado D150B y la motoniveladora 120 alquilada dejan de figurar como IDs pendientes.
 
-## 5. Motivos / Estados — CONFIRMADO
+## 5. Motivos / Estados — OBSOLETO en el formulario del capataz (D171)
+
+> Desde D171 el capataz **no** captura motivo ni horas, así que la fila de MAQUINARIA lleva `motivo` y ESTADO vacíos y el mapeo de abajo ya no se genera. El motivo de un día sin operación lo captura el operador en el Parte Digital (`Taller` · `Disponible` · `Domingo/Festivo` + descripción, D165). Se conserva como referencia del histórico.
+
 Motivos (dropdown, 10): Mantenimiento · Sin operador · Falla mecánica · Lluvia/clima · Sin frente de trabajo · Esperando material · Abastecimiento de combustible · Traslado/movilización · **Bloqueo** · Otro (especificar).
 Estados reales en Captura_Diaria (9): OPERANDO · LLUVIAS · NO PROGRAMADO · MEDIA JORNADA · ESPERA · VARADO · MANTENIMIENTO · SIN OPERADOR · BLOQUEO.
 
