@@ -7,6 +7,7 @@
 <title>Maquinaria</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
+<script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -238,7 +239,7 @@
 
 <script src="auth.js"></script>
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUEC1BVZc6K_IVsK-gjql7HD15sAJxDxwkmVIwz8j-gFLdoNht5IEb5fZY9Jduyac/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 // Motivos de horas menos (D12); '' = trabajó completo (estado OPERANDO).
 const MOTIVOS=['','Mantenimiento','Sin operador','Falla mecánica','Lluvia/clima','Sin frente de trabajo','Esperando material','Abastecimiento de combustible','Traslado/movilización','Bloqueo','Otro'];
 // Actividades complementarias sin producción (cereo + apoyo) que se pueden asignar a una faltante.

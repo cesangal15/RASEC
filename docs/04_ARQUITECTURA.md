@@ -27,6 +27,8 @@
 
 **Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta Apps Script; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
 
+**Entorno (D168).** `entorno.js` es el PRIMER script del `<head>` de las 21 pantallas y el único sitio con las URLs de los dos Apps Script: `GALCA_ENV.url.obra` / `GALCA_ENV.url.asistencias`, tomadas del juego `produccion` o `prueba` según `?env=` / localStorage `galca_env`. Con prueba activo pinta el chip «PRUEBA» en el `h1` de `.header-left` (o fijo arriba-centro) y al cambiar de entorno cierra la sesión. Está en el precache (`CACHE_V` v9). Cómo crear el entorno de prueba: `docs/OPERACIONES.md`.
+
 **Presentación (D150/D151/D153/D155).** Dos archivos compartidos que cuelgan de TODAS las pantallas:
 
 ```
@@ -424,3 +426,5 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 ```
 
 Verificación: banco en Chromium con Apps Script simulado — 24 páginas sin violaciones de CSP ni errores, service worker con `tm2-v8`, cola offline encola sin señal y sincroniza al volver.
+
+**Entorno de prueba (D168):** un SEGUNDO proyecto de Apps Script (copia) por cada uno de los dos, con su propio `SHEET_ID` (Sheet copia), su propio `AUTH_SECRETO` y sin disparadores; sus URLs `/exec` se pegan en el bloque `prueba` de `entorno.js`. Una segunda implementación del MISMO proyecto no aísla nada (mismo `SHEET_ID`, mismas Propiedades). Procedimiento: `docs/OPERACIONES.md`.

@@ -5,6 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tablero TM2 Sur</title>
+<script src="entorno.js"></script>
 </head>
 <body>
 <style>
@@ -1680,7 +1681,7 @@ async function recalcular(oProd,oMaq){
  * PUBLICAR es cosa de admin y jefe, y lo decide el SERVIDOR con el token
  * firmado (D109): escribir `rol: admin` en el navegador no sirve de nada.
  * =========================================================================*/
-const API = 'https://script.google.com/macros/s/AKfycbyUEC1BVZc6K_IVsK-gjql7HD15sAJxDxwkmVIwz8j-gFLdoNht5IEb5fZY9Jduyac/exec';
+const API = GALCA_ENV.url.obra;   // entorno.js (D168): producción o prueba
 
 /* El token de sesión (D109) va a mano en la única llamada que lo necesita, en
    vez de cargar `auth.js`: así el tablero sigue siendo UN archivo que se puede

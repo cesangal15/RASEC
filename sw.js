@@ -37,7 +37,11 @@
 // función compartida `esc()` que ahora usan las capturas para pintar texto del Sheet, y las
 // páginas precacheadas llevan la meta Content-Security-Policy. Sin subir la versión, un
 // teléfono sin señal serviría el tema.js viejo (sin `esc`) con un HTML nuevo que la llama.
-const CACHE_V = 'tm2-v8';   // v8: esc() compartido en tema.js + CSP en las páginas (endurecimiento)
+// v9 (D168, entorno de prueba): entra `entorno.js` en la LISTA de precache —el único sitio con las
+// URLs de los dos Apps Script, elegibles entre producción y prueba— y todas las pantallas lo cargan
+// el primero. Sin subir la versión, un teléfono sin señal serviría un HTML nuevo (que espera
+// `GALCA_ENV`) sin tener el archivo en caché, y la pantalla no arrancaría.
+const CACHE_V = 'tm2-v9';   // v9: entorno.js (URLs de producción/prueba) en el precache
 const FONT_CACHE = CACHE_V + '-fonts';
 
 // Lista explícita: shell + capturas + app. NO precachear las páginas fuera de alcance
@@ -51,6 +55,7 @@ const PRECACHE = [
   './reporte-chequeadora.html',
   './reporte-drenajes.html',
   './asistencia.html',
+  './entorno.js',
   './auth.js',
   './offline.js',
   './flota.js',

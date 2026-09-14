@@ -7,6 +7,7 @@
 <title>Mis horas extra — Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
+<script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -68,7 +69,7 @@
 
 <script src="auth.js"></script>
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymgvQX03ZqS_YzIz5l6WVesasDUMYwGOFItrggTJCdsFhcjXQvDPVz03E7mNcZQ4Nq/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.asistencias;   // entorno.js (D168): producción o prueba
 const LAST_CC_KEY = 'extras_admin_last_cc';
 
 // CC por defecto del admin (dato del dueño, jul-2026): sobrecosto "JEFES DE ÁREA…", una sola cuenta.

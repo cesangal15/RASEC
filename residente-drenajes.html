@@ -7,6 +7,7 @@
 <title>Panel de Drenajes — Residente</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
+<script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -156,7 +157,7 @@
 
 <script src="auth.js"></script>
 <script>
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyUEC1BVZc6K_IVsK-gjql7HD15sAJxDxwkmVIwz8j-gFLdoNht5IEb5fZY9Jduyac/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 
 /* Panel del residente de drenajes (D70/D84). Hace de "encargado" de su(s) área(s): la bandeja se pide
  * con &area= (el backend filtra por la columna `area`/CC), el envío a DATA pisa el día SOLO en esa área

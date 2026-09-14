@@ -7,6 +7,7 @@
 <title>Horas por persona — Asistencias</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tema.css">
+<script src="entorno.js"></script>
 <script src="tema.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -124,7 +125,7 @@
  *     eventual justamente NO se le espera en el día a día (el roster, los faltantes y el seguimiento
  *     de ausencias ya lo excluyen). Ahora esta pantalla sigue la misma regla y lo dice en la ficha.
  * ================================================================================================ */
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymgvQX03ZqS_YzIz5l6WVesasDUMYwGOFItrggTJCdsFhcjXQvDPVz03E7mNcZQ4Nq/exec";
+const APPS_SCRIPT_URL = GALCA_ENV.url.asistencias;   // entorno.js (D168): producción o prueba
 
 /* ---------- PERÍODO DE NÓMINA ----------
  * Dato del dueño (jul-2026): se paga MENSUAL el 30/31, pero el corte de EXTRAS Y NOVEDADES es del 10
