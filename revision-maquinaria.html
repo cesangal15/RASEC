@@ -47,7 +47,7 @@
       <div class="kpi"><div class="v" id="kPend">0</div><div class="l">Pendientes</div></div>
       <div class="kpi warn"><div class="v" id="kAlert">0</div><div class="l">Con alertas</div></div>
       <div class="kpi"><div class="v" id="kAprob">0</div><div class="l">Aprobadas hoy</div></div>
-      <div class="kpi"><div class="v" id="kFalt">0</div><div class="l">Equipos sin parte</div></div>
+      <button type="button" class="kpi link" data-on-click="irAFaltantes()" title="Ir a la lista de equipos sin parte"><div class="v" id="kFalt">0</div><div class="l">Equipos sin parte ↓</div></button>
     </div>
     <div class="layout">
       <div>
@@ -58,9 +58,23 @@
         </details>
       </div>
       <div class="lateral">
-        <div class="card">
+        <div class="card" id="cardFalt">
           <div class="section-title">Equipos sin parte <span class="count" id="cntFalt">0</span></div>
-          <div class="u-mb8 intro">Activos en <code>PARTE_EQUIPOS</code> sin fila (no descartada) en la fecha.</div>
+          <div class="u-mb8 intro">Activos en <code>PARTE_EQUIPOS</code> sin fila (no descartada) en la fecha. Marca los que aplican y elige el motivo; se crea una fila por equipo con el medidor sin cambio (inicial = final), igual que «Día sin operación» del parte del operador.</div>
+          <div class="sinop" id="sinopBar">
+            <div class="sinop-top">
+              <label class="sinop-todos"><input type="checkbox" id="selTodos" checked data-on-change="selFaltantes(this.checked)"> Todos</label>
+              <span class="sinop-lbl">Día sin operación · <b id="nSel">0</b> equipo(s):</span>
+            </div>
+            <div class="motivos">
+              <button class="btn mini" data-on-click="abrirSinOp('Domingo')">Domingo</button>
+              <button class="btn mini" data-on-click="abrirSinOp('Festivo')">Festivo</button>
+              <button class="btn mini" data-on-click="abrirSinOp('Taller')">Taller</button>
+              <button class="btn mini" data-on-click="abrirSinOp('Lluvia')">Lluvia</button>
+              <button class="btn mini" data-on-click="abrirSinOp('Disponible')">Disponible</button>
+              <button class="btn mini" data-on-click="abrirSinOp('Sin operador')">Sin operador</button>
+            </div>
+          </div>
           <div class="lista-falt" id="faltantes"></div>
         </div>
       </div>
@@ -100,6 +114,21 @@
     <div class="modal-acciones">
       <button class="btn" data-on-click="cerrarModal()">Cancelar</button>
       <button class="btn primario" id="mGuardar" data-on-click="guardarManual()">Guardar pendiente</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal: día sin operación para varios equipos sin parte -->
+<div class="modal hidden" id="modalSinOp" data-on-click="cerrarSinOpFondo(event,this)">
+  <div class="modal-box">
+    <h3 id="soTitulo">Día sin operación</h3>
+    <p>Crea una fila por equipo con <b>inicial = final</b> (el último medidor registrado), el pseudo-centro de coste del motivo y <code>origen=manual</code>. El nº de parte físico puede ir vacío: estos días normalmente no tienen parte en papel.</p>
+    <div class="campos" id="soCampos"></div>
+    <div class="so-lista" id="soLista"></div>
+    <label class="so-aprobar"><input type="checkbox" id="soAprobar" checked> Dejarlas <b>aprobadas</b> de una vez (si no, quedan pendientes para revisarlas)</label>
+    <div class="modal-acciones">
+      <button class="btn" data-on-click="cerrarSinOp()">Cancelar</button>
+      <button class="btn primario" id="soGuardar" data-on-click="guardarSinOp()">Crear filas</button>
     </div>
   </div>
 </div>

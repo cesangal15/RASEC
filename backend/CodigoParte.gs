@@ -403,9 +403,10 @@ function parteExpandirReparto_(tramos){
  * {mod:'parte', op:'reporte', codigo, tramos:[{fecha, reporte_num, operador, inicial, final, hora_de,
  *  hora_a, centro_coste, pr, uf, descripcion_trabajo, horas_varada, horas_lluvia, observaciones,
  *  inicial_modificado, id_registro?}], origen?}
- * Solo CREA filas `pendiente`. `origen` manual solo con sesión de revisor (panel "+ Agregar manual");
- * sin sesión válida se fuerza `qr`. Cada tramo = 1 fila. Valida lo que bloquea (mismas reglas que el
- * cliente) y calcula total, uf (si viene vacía) y alertas. */
+ * Solo CREA filas `pendiente`. `origen` manual solo con sesión de revisor (panel "+ Agregar manual" y
+ * «Día sin operación» de Equipos sin parte); sin sesión válida se fuerza `qr`. Cada tramo = 1 fila. Valida
+ * lo que bloquea (mismas reglas que el cliente) y calcula total, uf (si viene vacía) y alertas. El nº de
+ * parte físico es obligatorio salvo en filas manuales con pseudo-CC (día sin operación). */
 function parteReporte(body, ses){
   const cod=parteTexto_(body.codigo);
   logIdentidad_(cod, 'equipo');   // D166: identidad pública = código de equipo (no hay usuario)
@@ -455,7 +456,9 @@ function parteReporte(body, ses){
     if(!fecha) return rechazo('Tramo '+n+': la fecha llegó vacía o no se entiende. No se guardó nada.');
     if(fecha>hoy) return rechazo('Tramo '+n+': la fecha no puede ser futura. No se guardó nada.');
     const reporte=parteTexto_(t.reporte_num), operador=parteTexto_(t.operador), cc=parteTexto_(t.centro_coste);
-    if(!reporte)  return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
+    // Sin nº de parte físico solo en filas manuales de un día sin operación (pseudo-CC): domingos, festivos,
+    // lluvia o taller los cierra quien revisa desde «Equipos sin parte» y ese día no hubo parte en papel.
+    if(!reporte && !(origen==='manual' && parteEsPseudoCC_(cc))) return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
     if(!operador) return rechazo('Tramo '+n+': falta el operador. No se guardó nada.');
     if(!cc)       return rechazo('Tramo '+n+': falta el centro de coste. No se guardó nada.');
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
