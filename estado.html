@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Estado Maquinaria (capataz, obsoleto)</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
@@ -10,80 +10,29 @@
 <script src="auth.js"></script>
 <script src="entorno.js"></script>
 <script src="tema.js"></script>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 40px;}
-  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;}
-  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
-  .header-left h1{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
-  .header-user{font-size:12px;color:var(--muted);text-align:right;}
-  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
-  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
-  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
-  .container{max-width:640px;margin:0 auto;padding:24px 16px;}
-
-  .filtro-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;}
-  .filtro-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
-  .field{flex:1;min-width:140px;}
-  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
-  input[type="date"],select{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s;appearance:none;}
-  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;cursor:pointer;}
-  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
-  select option{background:var(--surface);}
-  .btn-consultar{padding:10px 20px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:8px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
-  .btn-consultar:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(245,166,35,0.3);}
-
-  /* Resumen */
-  .resumen-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
-  .resumen-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;}
-  .resumen-card .num{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;}
-  .resumen-card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;}
-  .resumen-card.total .num{color:var(--text);}
-  .resumen-card.ok .num{color:var(--success-txt);}
-  .resumen-card.falta .num{color:var(--error-txt);}
-
-  /* Máquinas */
-  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
-  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
-
-  .maq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px;}
-  .maq-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 12px;text-align:center;transition:border-color 0.2s;}
-  .maq-item.reportada{border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.05);}
-  .maq-item.faltante{border-color:rgba(231,76,60,0.4);background:rgba(231,76,60,0.05);}
-  .maq-id{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:4px;}
-  .maq-tipo{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;}
-  .maq-badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;}
-  .maq-badge.ok{background:rgba(46,204,113,0.15);color:var(--success-txt);}
-  .maq-badge.no{background:rgba(231,76,60,0.15);color:var(--error-txt);}
-  .maq-capataz{font-size:10px;color:var(--muted);margin-top:4px;}
-
-  .empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
-  .empty-state .icon{font-size:40px;margin-bottom:12px;}
-  .loading{text-align:center;padding:30px;color:var(--muted);font-size:14px;}
-
-  @media(max-width:400px){.resumen-grid{grid-template-columns:1fr 1fr;}.maq-grid{grid-template-columns:1fr 1fr;}}
-</style>
+<link rel="stylesheet" href="estado.css">
 </head>
 <body>
 <div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
   <div class="header-left">
     <div class="label">Panel de Control</div>
-    <h1>📊 Estado Maquinaria <span style="font-size:11px;font-weight:400;color:var(--muted);letter-spacing:0;">capataz · obsoleto</span></h1>
+    <h1>📊 Estado Maquinaria <span class="h1-obsoleto">capataz · obsoleto</span></h1>
   </div>
   <div class="header-user">
     <span id="userDisplay">—</span>
-    <button class="logout-btn" id="btnMenu" onclick="location.href='menu.html'" style="display:none;border-color:var(--accent);color:var(--accent-txt);margin-right:6px;">← Menú</button>
-    <button class="logout-btn" onclick="logout()">Cerrar sesión</button>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Cerrar sesión</button>
   </div>
 </div>
 
 <div class="container">
-  <!-- D170: pantalla OBSOLETA. El capataz ya solo asocia el código de la máquina a la actividad; quién
+  <!-- D171: pantalla OBSOLETA. El capataz ya solo asocia el código de la máquina a la actividad; quién
        trabajó y quién no (y con qué horas) lo dice el Parte Digital: «Equipos sin parte» en revision-maquinaria.html. -->
-  <div style="background:rgba(245,166,35,0.10);border:1px solid rgba(245,166,35,0.45);border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;line-height:1.55;">
-    <b style="color:var(--accent-txt);">Pantalla obsoleta (D170).</b> Aquí solo se ve qué máquinas <b>asoció el capataz</b> a sus actividades —dato informativo, sin horas—.
+  <div class="aviso-obsoleto">
+    <b>Pantalla obsoleta (D171).</b> Aquí solo se ve qué máquinas <b>asoció el capataz</b> a sus actividades —dato informativo, sin horas—.
     Para saber qué equipos trabajaron y cuáles faltan por reportar usa <b>«Equipos sin parte»</b> en la
-    <a href="revision-maquinaria.html" style="color:var(--accent-txt);font-weight:600;">revisión del parte digital de maquinaria</a>.
+    <a href="revision-maquinaria.html">revisión del parte digital de maquinaria</a>.
   </div>
   <div class="filtro-card">
     <div class="filtro-row">
@@ -99,7 +48,7 @@
           <option>3702</option>
         </select>
       </div>
-      <button class="btn-consultar" onclick="consultar()">CONSULTAR →</button>
+      <button class="btn-consultar" data-on-click="consultar()">CONSULTAR →</button>
     </div>
   </div>
 
@@ -112,112 +61,6 @@
 </div>
 
 <script src="flota.js"></script>
-<script>
-const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
-// D138: la flota esperada la sirve la hoja MAQUINAS por fecha (`?action=maquinas`), así que esta
-// pantalla ya dice la verdad hacia atrás: consultar el 15-jul compara contra las máquinas que había
-// ESE día, no contra las de hoy. Lo de abajo es el respaldo si el catálogo no responde.
-// D137: se esperan TODAS las del catálogo, no solo las productivas — de un vibro o del finisher
-// también hay que poder saber si trabajó o si nadie lo reportó.
-// D136: NH69, BL009, EXC001, EXC013, EXC014, CS78B, NH404, NH420, CAT900 y NH421 devueltas (ago-2026).
-const MAQUINAS_RESPALDO = ['BL005','EXC015','MO03','MO04','MO09','FNG02','CR019','CR013','CR016','CR08','NH403','CR026','RT-02'];
-const TIPO_RESPALDO = {
-  'BL005':'BULLDOZER',
-  'EXC015':'EXCAVADORA',
-  'MO03':'MOTONIVELADORA','MO04':'MOTONIVELADORA','MO09':'MOTONIVELADORA',
-  'FNG02':'FINISHER',
-  'CR019':'VIBROCOMPACTADOR','CR013':'VIBROCOMPACTADOR','CR016':'VIBROCOMPACTADOR','CR08':'VIBROCOMPACTADOR','NH403':'VIBROCOMPACTADOR',
-  'CR026':'MINIBULDOZER',
-  'RT-02':'RETROEXCAVADORA'
-};
-let TODAS_MAQUINAS = MAQUINAS_RESPALDO.slice();
-let TIPO_EQUIPO = Object.assign({}, TIPO_RESPALDO);
-
-window.onload = function() {
-  const rol = localStorage.getItem('rol');
-  const usuario = localStorage.getItem('usuario');
-  if (!rol || rol !== 'admin') { window.location.href = 'index.html'; return; }
-  document.getElementById('userDisplay').textContent = usuario;
-  if(rol==='admin'){var _bm=document.getElementById('btnMenu');if(_bm)_bm.style.display='inline-block';}
-  document.getElementById('fechaConsulta').value = new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
-};
-
-function logout() { localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href = 'index.html'; }
-
-async function consultar() {
-  const fecha = document.getElementById('fechaConsulta').value;
-  const proyecto = document.getElementById('proyectoFiltro').value;
-  if (!fecha) { alert('Selecciona una fecha'); return; }
-
-  document.getElementById('resultados').innerHTML = '<div class="loading">⏳ Consultando datos...</div>';
-
-  try {
-    let url = `${APPS_SCRIPT_URL}?action=estado&fecha=${fecha}`;
-    if (proyecto) url += `&proyecto=${encodeURIComponent(proyecto)}`;
-    // D138: la flota vigente de ESE día va en paralelo con el estado; si falla, queda el respaldo.
-    const [resp] = await Promise.all([fetch(url), cargarFlota(fecha)]);
-    const data = await resp.json();
-    renderResultados(data.reportadas || [], fecha, proyecto);
-  } catch(err) {
-    document.getElementById('resultados').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error al consultar. Verifica tu conexión.</p></div>`;
-  }
-}
-
-/* D138 — flota ESPERADA en la fecha consultada (hoja MAQUINAS). Solo entran las esperadas: el
- * finisher y su vibro, que entran y salen de la obra, no salen como "FALTA" los días que no están. */
-async function cargarFlota(fecha){
-  const fl = await TM2Flota.cargar(APPS_SCRIPT_URL, fecha, {ids:MAQUINAS_RESPALDO, tipos:TIPO_RESPALDO, prog:{}});
-  const esperadas = fl.maquinas.filter(m => m.esperada !== false);
-  if(esperadas.length){ TODAS_MAQUINAS = TM2Flota.ids(esperadas); TIPO_EQUIPO = TM2Flota.tipos(esperadas); }
-}
-
-function renderResultados(reportadas, fecha, proyecto) {
-  const reportadasSet = new Set(reportadas.map(r => r.id_maquina));
-  const faltantes = TODAS_MAQUINAS.filter(m => !reportadasSet.has(m));
-  const fechaDisplay = new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
-
-  let html = `
-  <div class="resumen-grid">
-    <div class="resumen-card total"><div class="num">${TODAS_MAQUINAS.length}</div><div class="lbl">Total Máquinas</div></div>
-    <div class="resumen-card ok"><div class="num">${reportadasSet.size}</div><div class="lbl">Reportadas</div></div>
-    <div class="resumen-card falta"><div class="num">${faltantes.length}</div><div class="lbl">Faltantes</div></div>
-  </div>`;
-
-  if (faltantes.length > 0) {
-    html += `<div class="section-title">❌ Sin reporte — ${esc(fechaDisplay)}</div><div class="maq-grid">`;
-    faltantes.forEach(m => {
-      html += `<div class="maq-item faltante">
-        <div class="maq-id">${esc(m)}</div>
-        <div class="maq-tipo">${esc(TIPO_EQUIPO[m]||'')}</div>
-        <span class="maq-badge no">FALTA</span>
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  if (reportadas.length > 0) {
-    html += `<div class="section-title">✅ Reportadas</div><div class="maq-grid">`;
-    // Dedup por máquina
-    const vistas = new Set();
-    reportadas.forEach(r => {
-      if (vistas.has(r.id_maquina)) return;
-      vistas.add(r.id_maquina);
-      html += `<div class="maq-item reportada">
-        <div class="maq-id">${esc(r.id_maquina)}</div>
-        <div class="maq-tipo">${esc(TIPO_EQUIPO[r.id_maquina]||'')}</div>
-        <span class="maq-badge ok">✓ OK</span>
-        <div class="maq-capataz">${esc(r.capataz||'')}</div>
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  if (reportadas.length === 0 && faltantes.length === TODAS_MAQUINAS.length) {
-    html += `<div class="empty-state"><div class="icon">📭</div><p>No hay reportes para esta fecha</p></div>`;
-  }
-
-  document.getElementById('resultados').innerHTML = html;
-}
-</script>
+<script src="estado.js"></script>
 </body>
 </html>

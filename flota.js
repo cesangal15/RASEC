@@ -26,7 +26,7 @@
  * desplegable hasta que ese teléfono tenga señal una vez. Se prefiere eso a bloquear la captura.
  * Nunca se sirve una flota VACÍA: sin máquinas el capataz no podría reportar nada.
  *
- * D170: el reporte del capataz ya no elige de la hoja MAQUINAS sino de PARTE_EQUIPOS (catálogo único
+ * D171: el reporte del capataz ya no elige de la hoja MAQUINAS sino de PARTE_EQUIPOS (catálogo único
  * de máquinas, el mismo del Parte Digital), que el mismo endpoint devuelve como `equipos`; ver
  * `equiposCapataz`. `maquinas` (estancias de la hoja MAQUINAS) sigue sirviendo a la chequeadora, al
  * panel del encargado y a produccion-maquinaria.html.
@@ -72,7 +72,7 @@
       var pedir = function(){
         return fetch(url).then(function(r){ return r.json(); }).then(function(d){
           if(!d || !d.ok || !d.maquinas || !d.maquinas.length) throw new Error('sin flota');
-          // D170: `equipos` = catálogo PARTE_EQUIPOS (activo=SI) para el reporte del capataz.
+          // D171: `equipos` = catálogo PARTE_EQUIPOS (activo=SI) para el reporte del capataz.
           return { maquinas:d.maquinas, equipos:d.equipos||[], fecha:d.fecha||fecha||'', fuente:d.fuente||'hoja', avisos:d.avisos||[] };
         });
       };
@@ -92,10 +92,10 @@
     },
 
     /**
-     * D170 — catálogo de equipos del REPORTE DEL CAPATAZ: [{codigo,tipo,placa}] ordenado por tipo y
+     * D171 — catálogo de equipos del REPORTE DEL CAPATAZ: [{codigo,tipo,placa}] ordenado por tipo y
      * código. La fuente única es la hoja PARTE_EQUIPOS (`activo=SI`), que el servidor devuelve dentro de
      * `?action=maquinas` como `equipos`. Si la respuesta (o la copia en caché, o el respaldo) no lo trae
-     * —backend sin redesplegar, caché anterior a D170, teléfono sin señal—, se deriva de `maquinas`
+     * —backend sin redesplegar, caché anterior a D171, teléfono sin señal—, se deriva de `maquinas`
      * para que el capataz nunca se quede sin lista.
      */
     equiposCapataz: function(fl){

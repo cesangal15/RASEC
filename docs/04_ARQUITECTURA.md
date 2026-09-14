@@ -23,6 +23,8 @@
 │  USUARIOS del Apps Script (D108) con token firmado HMAC-SHA256 (D109): index.html ya NO   │
 │  lleva credenciales.                                                                     │
 │  Admin: botón "← Menú" en toda pantalla interna vuelve a menu.html sin cerrar sesión.    │
+│  Marca (D170): símbolo Galca 22 px a la izquierda de cada cabecera (img/galca-simbolo.svg,   │
+│  máscara CSS en tema.css); logotipo horizontal (img/galca-logotipo.svg) en el tablero.       │
 └────────────────────────────────────┬─────────────────────────────────────────────────--┘
 
 **Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta la API —`api.galca.app` desde D169, antes Apps Script—; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
@@ -47,6 +49,11 @@ tema.js    Bloqueante en el <head> a propósito: aplica data-tema ANTES del prim
            izquierda (arriba está ocupado: el chip de señal de offline.js).
            D167: define además la global esc() (escape de HTML) — ver la sección
            «D167 — Endurecimiento del frontend» al final.
+           D170: despachador de eventos `data-on-*` (sin eval), aplicador de
+           `data-estilo` por CSSOM e `irA()`/`recargar()` — ver «D170» al final.
+           Sin tema.js una pantalla NO responde a ningún botón: es obligatorio.
+<nombre>.js / <nombre>.css   (D170) el JS y el CSS de cada pantalla, que antes
+           iban dentro del HTML; el tablero usa tablero-xlsx.js + tablero-produccion.js.
 ```
 
 Los `:root` locales de las 18 pantallas DESAPARECIERON: la paleta vive solo en `tema.css`.
@@ -68,15 +75,15 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │  GET  ?action=bandeja&fecha=…[&proyecto=…][&area=…] → crudo del día por área (D70)      │
 │  GET  ?action=consolidado&fecha=…            → lo ya enviado a DATA                     │
 │  GET  ?action=consolidado&desde=…&hasta=…    → filas A–T de DATA + climaPorDia (D65/D37)│
-│  GET  ?action=estado&fecha=…                 → máquinas reportadas (estado.html, OBSOLETO D170)│
-│  GET  ?action=maquinas&fecha=…               → flota MAQUINAS del día + `equipos` (PARTE_EQUIPOS, D170)│
+│  GET  ?action=estado&fecha=…                 → máquinas reportadas (estado.html, OBSOLETO D171)│
+│  GET  ?action=maquinas&fecha=…               → flota MAQUINAS del día + `equipos` (PARTE_EQUIPOS, D171)│
 │  GET  ?action=debug&fecha=…                  → diagnóstico                              │
 │  GET  ?action=cubicaje                        → mapa placa→cubicaje (frontend, D53/2.10) │
 │  GET  ?action=volquetas&fecha=…               → filas VOLQUETAS del día (digitadora, D83) │
 │  GET  ?action=maquinaria_produccion&fecha=…  → frentes×oficial DATA + PK/horas/faltantes  │
 │  GET  ?action=drenajes                        → 147 marcadores ODT + ítems .06/.07 (D70)  │
 │  POST {reporte}                              → escribe BANDEJA + MAQUINARIA (+VOLQUETAS)  │
-│         (D170: equipos del capataz = solo código; horas/operador/motivo NO se escriben)  │
+│         (D171: equipos del capataz = solo código; horas/operador/motivo NO se escriben)  │
 │  POST {action:enviar_data, area}             → pisa DATA del día POR ÁREA + marca bandeja │
 │         (tierras/odt/odl derivada del CC con deriveArea; sin area = tierras — D70)       │
 │  POST {action:maquinaria_produccion}         → parcha col T + crea filas (redir/horas/compl, D60-62)│
@@ -94,8 +101,8 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │              `personal_ayudantes` · `turno_noche` · `nota_libre` (cols 25–28, D70)       │
 │  MAQUINARIA  equipos con producción individual (directo, sin aprobación); interno `area` │
 │              tras produccion_capataz_orig — drenajes = captura libre, a_captura=NO (D70) │
-│              D170: G operador · L horas_operadas · O horas_mantenimiento · R ESTADO ·     │
-│              app_horas_programadas · app_horas_muertas · motivo → VACÍAS desde D170      │
+│              D171: G operador · L horas_operadas · O horas_mantenimiento · R ESTADO ·     │
+│              app_horas_programadas · app_horas_muertas · motivo → VACÍAS desde D171      │
 │              (filas del capataz; layout intacto). Horas/operador/motivo → PARTE_BANDEJA. │
 │  PARTE_EQUIPOS · PARTE_BANDEJA · PARTE_* (D165): catálogo ÚNICO de máquinas y parte     │
 │              digital (ver módulo abajo). MAQUINAS (D138) = solo estancias con fechas.    │
@@ -111,7 +118,7 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │  TM2_SUR_REPORTE_DIARIO_OBRA.xlsx   ← DATA (A:S del día)                                │
 │    └─ hoja DATA alimenta DATOS/TABLAS/GRAFICOS e informes                               │
 │  Partes_Diarios_de_Maquinaria_<periodo>.xlsx ← PARTE_BANDEJA aprobados (B→AR, D165)     │
-│  Modelo_Produccion_Maquinaria_v2.xlsx — FUERA DE USO desde D170 (ya no se pega          │
+│  Modelo_Produccion_Maquinaria_v2.xlsx — FUERA DE USO desde D171 (ya no se pega          │
 │    MAQUINARIA a Captura_Diaria; la producción por máquina se distribuye por CC del      │
 │    parte en Reparto_Produccion_Maquinaria.html). Se conserva como histórico.            │
 └─────────────────────────────────────────────────────────────────────────────────────--─┘
@@ -119,10 +126,10 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 
 ## Flujo de captura (diario)
 
-1. **Capataz** entra → agrega N actividades. Por actividad: actividad específica → (sistema muestra ítem contractual, unidad, UF, CC) → PK → producción (campo adaptativo) → equipos (**solo el CÓDIGO de la máquina**, chips desde `PARTE_EQUIPOS` vía `?action=maquinas`+`flota.js`; sin horas ni operador ni motivo — D170) → **nota de la actividad** (col `observacion`; va a DATA col S y, D103, sale como `📝` bajo su actividad en el WhatsApp del día) + **una nota general del día** por envío (`observacion_general` → hoja OBSERVACIONES).
+1. **Capataz** entra → agrega N actividades. Por actividad: actividad específica → (sistema muestra ítem contractual, unidad, UF, CC) → PK → producción (campo adaptativo) → equipos (**solo el CÓDIGO de la máquina**, chips desde `PARTE_EQUIPOS` vía `?action=maquinas`+`flota.js`; sin horas ni operador ni motivo — D171) → **nota de la actividad** (col `observacion`; va a DATA col S y, D103, sale como `📝` bajo su actividad en el WhatsApp del día) + **una nota general del día** por envío (`observacion_general` → hoja OBSERVACIONES).
 2. **Chequeadora** entra → fecha, origen → N líneas {PK destino, tipo destino (Terraplén·Puente·ODL·ODT·Botadero), bloque de placas} + maquinaria (excavadoras del origen). Pega el desglose por placa estilo WhatsApp; el sistema parsea placa+viajes, calcula el **volumen real de la línea = Σ(viajes×cubicaje)** leyendo la hoja CUBICAJE (D53 sobre D06). Placa no registrada → fallback **14 fijo** (D54) + flag (naranja + `cubicaje_origen`=default). Cada placa se guarda en VOLQUETAS con su cubicaje y m3_placa. **Excavación = por ORIGEN, acumulada (D63):** la excavación se registra DONDE SE HIZO EL CORTE = el origen, así que el reporte genera **UNA sola fila de excavación = Σ(volúmenes de todas las líneas)** al PK del origen (Masivo 2→19+800, Masivo 1→14+400, Diviso→21+500, todos ≤30→UF1/3701; Complementario/Otro→el PK que teclea la chequeadora), del que derivan PK/ELEMENTO/ABS/UF/PROYECTO/CC. El **terraplén NO cambia**: 1 fila por línea con destino=Terraplén, al PK de DESTINO. No aprovechable acumulada sigue disparando ZODME (D17). Las excavadoras reportadas van a MAQUINARIA con producción = total excavado del día **repartido en partes iguales** entre ellas (D54; el encargado reconcilia duplicados con el capataz, D51).
 3. Ambos envían → BANDEJA (+ MAQUINARIA). Confirmación real del servidor (cuenta de filas guardadas).
-4. **Operador de cada máquina** (canal aparte, D165) → escanea el QR de la cabina → `parte.html?eq=` → PARTE_BANDEJA (horómetro/km, operador, CC, motivo) → revisión en `revision-maquinaria.html`. **Flujo de datos desde D170:** capataz → producción por actividad (DATA) y asociación informativa máquina↔actividad (MAQUINARIA, solo código); parte → horas / operador / CC por máquina (PARTE_BANDEJA → Excel de partes → distribución por CC).
+4. **Operador de cada máquina** (canal aparte, D165) → escanea el QR de la cabina → `parte.html?eq=` → PARTE_BANDEJA (horómetro/km, operador, CC, motivo) → revisión en `revision-maquinaria.html`. **Flujo de datos desde D171:** capataz → producción por actividad (DATA) y asociación informativa máquina↔actividad (MAQUINARIA, solo código); parte → horas / operador / CC por máquina (PARTE_BANDEJA → Excel de partes → distribución por CC).
 
 ## Flujo de captura — DRENAJES (D70 / D84)
 
@@ -298,7 +305,7 @@ y hay un flag `EXTRAS_ORDINARIAS_EN_CERO` (en el HTML) por si un import rechaza 
 
 ## Mapeo de paste MAQUINARIA → Captura_Diaria (D52, verificado con el archivo real)
 
-> ⚠️ **OBSOLETO desde D170 (sep-2026):** el pegado a `Captura_Diaria` ya no se hace — `Modelo_Produccion_Maquinaria_v2` dejó de ser Excel maestro. La hoja `MAQUINARIA` conserva el layout A→AA para no romper lectores, pero desde D170 las columnas **G operador · L Horas Operación · O Horas Mantenimiento · R ESTADO** y los internos **`app_horas_programadas` · `app_horas_muertas` · `motivo`** se escriben **VACÍAS** en las filas del capataz; horas/operador/motivo viven en `PARTE_BANDEJA`. Lo que sigue se conserva como referencia del histórico.
+> ⚠️ **OBSOLETO desde D171 (sep-2026):** el pegado a `Captura_Diaria` ya no se hace — `Modelo_Produccion_Maquinaria_v2` dejó de ser Excel maestro. La hoja `MAQUINARIA` conserva el layout A→AA para no romper lectores, pero desde D171 las columnas **G operador · L Horas Operación · O Horas Mantenimiento · R ESTADO** y los internos **`app_horas_programadas` · `app_horas_muertas` · `motivo`** se escriben **VACÍAS** en las filas del capataz; horas/operador/motivo viven en `PARTE_BANDEJA`. Lo que sigue se conserva como referencia del histórico.
 
 Captura_Diaria es una **tabla de Excel** (`fact_produccion`, A1:AA). Se pegan SOLO las columnas de entrada con **Pegado especial → Omitir blancos**; la tabla autocompleta las columnas-fórmula.
 
@@ -414,8 +421,8 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
 │  <meta http-equiv="Content-Security-Policy"> en las 23 pantallas + tablero/index.html         │
 │    default-src 'self'                                                                          │
-│    script-src  'self' 'unsafe-inline'      ← DEUDA (backlog 2.30): JS dentro del HTML y        │
-│    style-src   'self' 'unsafe-inline' fonts.googleapis.com     cientos de onclick=/style=      │
+│    script-src  'self'                      ← D170: ya SIN 'unsafe-inline' (deuda 2.30 cerrada) │
+│    style-src   'self' fonts.googleapis.com    JS/CSS en archivos propios, ver sección D170       │
 │    font-src    'self' fonts.gstatic.com                                                        │
 │    img-src     'self' data:                ← flecha SVG de los <select> en tema.css            │
 │    connect-src 'self' https://api.galca.app     ← D169: el Worker; fuera script.google.com y     │
@@ -432,13 +439,77 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 │          replace(/'/g,"\\'") y luego esc(). Las 12 copias locales de esc/escapeHtml se borraron.│
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │  sw.js   CACHE_V = tm2-v8 (tema.js está en el precache y los HTML nuevos dependen de esc()).   │
-│          D168 → v9 (entra entorno.js) · D169 → v10 (auth.js con la base de la API, primero).   │
+│          D168 → v9 (entra entorno.js) · D169 → v10 (auth.js con la base de la API, primero)    │
+│          · D170 → v11 (entran los .js/.css de las 7 pantallas precacheadas + galca-simbolo.svg).│
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Verificación: banco en Chromium con Apps Script simulado — 24 páginas sin violaciones de CSP ni errores, service worker con `tm2-v8`, cola offline encola sin señal y sincroniza al volver.
 
 **Entorno de prueba (D168):** un SEGUNDO proyecto de Apps Script (copia) por cada uno de los dos, con su propio `SHEET_ID` (Sheet copia), su propio `AUTH_SECRETO` y sin disparadores; sus URLs `/exec` se pegan en el bloque `prueba` de `entorno.js`. Una segunda implementación del MISMO proyecto no aísla nada (mismo `SHEET_ID`, mismas Propiedades). Procedimiento: `docs/OPERACIONES.md`.
+
+## D170 — Marca Galca + CSP sin `'unsafe-inline'` (sep-2026)
+
+Solo navegador. Ni un endpoint, payload, texto visible ni comportamiento cambió; no exige redespliegue de Apps Script.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│  img/galca-simbolo.svg   símbolo solo, blanco, sin texto (290 bytes). En el PRECACHE.          │
+│  img/galca-logotipo.svg  logotipo horizontal, blanco, «Galca» en trazos (sin Red Hat Display). │
+│  tema.css  .galca-simbolo  22×22, máscara CSS sobre currentColor: blanco en oscuro, #0b1f3a en │
+│            claro (la cabecera es blanca), #6f7885 con .galca-pie. Primer hijo de .header y     │
+│            .header-left{margin-right:auto} para que el usuario siga a la derecha.              │
+│            .logout-btn.btn-volver  el «← Menú»/«← Volver» que era un style= en 15 cabeceras.   │
+│            + el CSS que offline.js y entorno.js inyectaban en un <style> (chip, panel, PRUEBA). │
+│  tablero-produccion.css  .galca-logotipo 84×28 sobre --ink (base clara) + copia del chip PRUEBA│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  CSP de las 22 pantallas + tablero/index.html: script-src 'self' · style-src 'self' fonts…     │
+│  (sin 'unsafe-inline'; resumen-asistencia y Reparto conservan su CDN de SheetJS en script-src) │
+│                                                                                              │
+│  Cada pantalla:  <link rel="stylesheet" href="<nombre>.css">  (donde estaba su <style>)       │
+│                  <script src="<nombre>.js"></script>           (donde estaba su <script>)      │
+│                  1ª línea del .js: TM2Estilos.aplicar()  ← data-estilo del marcado, síncrono   │
+│  Tablero:        tablero-xlsx.js (SheetJS embebido) + tablero-produccion.js (motor + UI)       │
+│                                                                                              │
+│  Manejadores     on<evento>="fn(args)"  →  data-on-<evento>="fn(args)"                        │
+│  (356)           tema.js escucha click/input/change/mousedown/keydown/keyup/submit en          │
+│                  burbuja y focus/blur en captura, recorre del objetivo hacia arriba y ejecuta   │
+│                  el atributo con un intérprete SIN eval: lista de llamadas separadas por `;`,   │
+│                  `nombre` global (o this.x / event.x), argumentos literales: número, cadena    │
+│                  (con \' y \\), true/false/null, JSON {…}/[…], this.value / event.target… │
+│                  `event.stopPropagation()` corta el recorrido; `return false` = preventDefault.│
+│                  Lo que no cabe en esa gramática se convirtió en función con nombre:           │
+│                  irA(url), recargar() (tema.js) · setNotaDia, cerrarModalFondo(event,this),    │
+│                  verMasSugs(this,id), setUfFila(this)… (en el .js de su pantalla).             │
+│                  Error de gramática → console.error('[tm2 data-on-…]') y NO se ejecuta nada.   │
+│                                                                                              │
+│  Estilos         style="…" estático y decorativo  →  clase (u-mt10, u-w360, u-textarea…)      │
+│  (411)           style="…" dinámico o que el JS enciende/apaga  →  data-estilo="…"             │
+│                  tema.js lo aplica por CSSOM (el.style) al entrar el nodo (MutationObserver)   │
+│                  y solo rellena propiedades que el JS no haya fijado ya: `el.style.display=   │
+│                  'block'` tras un innerHTML sigue ganando, igual que ganaba al atributo.        │
+│                  el.style.cssText / el.style.x = … (tablero, pantallas) siguen permitidos.     │
+│                                                                                              │
+│  <style> en línea que quedan: OFFLINE_HTML de sw.js y tablero/index.html → 'sha256-…' en su   │
+│  propia CSP. Cambiar una letra de ese CSS obliga a recalcular el hash (comentario en sw.js).   │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  sw.js  CACHE_V = tm2-v11. PRECACHE += index/seleccion-reporte/menu/reporte-capataz/           │
+│         reporte-chequeadora/reporte-drenajes/asistencia .js y .css + img/galca-simbolo.svg.    │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Verificación (banco en Chromium con la API simulada): 22 páginas sin violaciones de CSP ni errores;
+precache completo de `tm2-v11`; login por clic y por Enter; `addLinea()` por `data-on-click`; cola
+offline: encola sin señal (chip «Sin señal 1 pendiente»), sincroniza al volver, panel con Copiar /
+Descartar / Reintentar / Cerrar; navegación sin señal a `seleccion-reporte.html` desde caché con
+símbolo y tema; tema claro/oscuro; tablero con logotipo, barras y filtro UF; página «Sin conexión»
+con su CSS por hash.
+
+**Rutas sin `.html` — evaluadas y descartadas (D170, backlog 2.33).** GitHub Pages resuelve `/menu`
+→ `menu.html`, pero el SW sirve por URL exacta y los HTML se refrescan antes que el SW: durante la
+transición un teléfono con enlaces nuevos y SW viejo se quedaría sin pantalla al perder la señal.
+Además `redirige` vive en la hoja USUARIOS, los QR de las cabinas apuntan a `parte.html?eq=` y
+`manifest.json`/`OFFLINE_HTML` asumen `.html`.
 
 ## D169 — Worker de Cloudflare `api.galca.app`: proxy único delante de los tres Apps Script (sep-2026)
 
@@ -465,25 +536,25 @@ reenvía. No exige redesplegar Apps Script; sí `wrangler deploy` + publicar Pag
 
 Verificación: banco en Node del Worker (41/41, Google simulado), 21 pantallas en Chromium sin errores ni violaciones de CSP con toda llamada bajo `api.galca.app` y con token (salvo `tablero`/`parte`), `verificar_v301_pantallas.js` 60/60.
 
-## D170 — Recorte de equipos en el reporte del capataz (sep-2026)
+## D171 — Recorte de equipos en el reporte del capataz (sep-2026)
 
 **Qué cambió.** El capataz solo **asocia códigos de máquina** a cada actividad; no captura horas, operador, motivo ni horas programadas/muertas. Esos datos entran por el Parte Digital (D165) y se revisan en `revision-maquinaria.html`. La asociación es informativa (cruce y trazabilidad, `id_cantidad` ↔ BANDEJA), no alimenta producción ni horas por máquina.
 
 ```
 reporte-capataz.html ──?action=maquinas&fecha=──> Codigo.gs.maquinasCatalogo
    (flota.js: TM2Flota.cargar → equiposCapataz)     ├─ maquinas: hoja MAQUINAS (estancias, D138) — chequeadora/encargado/prod.
-   chips por código, búsqueda, agrupado por tipo    └─ equipos:  PARTE_EQUIPOS activo=SI (código·tipo·placa) — capataz (D170)
+   chips por código, búsqueda, agrupado por tipo    └─ equipos:  PARTE_EQUIPOS activo=SI (código·tipo·placa) — capataz (D171)
    caché del teléfono (D82) → respaldo escrito en la pantalla si nunca hubo señal
 POST {reporte, cantidades:[{…, equipos:[{id_registro,id_maquina,tipo_equipo} | 'CR026', …]}]}
    → guardarReporte: 1 fila MAQUINARIA por equipo: B fecha · D proyecto · E id_maquina · H/I derivadas ·
      T producción (largo de la línea; vacía para tipos sin producción) · AA observación · internos
      app_id_registro · id_cantidad · timestamp · reporta · app_tipo_equipo · unidad_prod · cap_actividad · a_captura · area.
-     G · L · O · R · app_horas_programadas · app_horas_muertas · motivo = '' (vacías desde D170).
+     G · L · O · R · app_horas_programadas · app_horas_muertas · motivo = '' (vacías desde D171).
    Payload viejo (cola offline con horas/operador/motivo) → aceptado; campos descartados en silencio.
 ```
 
 - **Catálogo único de máquinas = `PARTE_EQUIPOS`.** `MAQUINAS` (D138/D139) queda solo como registro de estancias para «faltantes» del panel de producción y el reparto mensual (D143); consolidarla es backlog V3-06.
 - **Lectores tolerantes:** `bandeja`, `estado`, `maquinaria_produccion`, `encargado.html` y `produccion-maquinaria.html` trabajan con celdas de horas vacías (filas nuevas) y con horas (filas viejas) mezcladas.
 - **`estado.html` obsoleto:** aviso arriba que remite a «Equipos sin parte» de `revision-maquinaria.html`; en `menu.html` como «Estado maquinaria (capataz, obsoleto)». No se borra.
-- **`sw.js` → `tm2-v11`** (flota.js cambió y el formulario nuevo depende de `equiposCapataz`).
-- Verificación: `backend/pruebas/verificar_d170_recorte_equipos.js`.
+- **`sw.js` → `tm2-v12`** (flota.js cambió y el formulario nuevo depende de `equiposCapataz`).
+- Verificación: `backend/pruebas/verificar_d171_recorte_equipos.js`.

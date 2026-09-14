@@ -1,0 +1,142 @@
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 40px;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:700px;margin:0 auto;padding:24px 16px;}
+  .filtro-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;}
+  .filtro-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+  .field{flex:1;min-width:130px;}
+  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
+  input[type="date"],select,input[type="number"],input[type="text"]{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s;appearance:none;}
+  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
+  select option,optgroup{background:var(--surface);}
+  .btn-consultar{padding:10px 18px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:8px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .btn-consultar:hover{transform:translateY(-1px);}
+  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:24px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .estado-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .estado-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .estado-box h3{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;font-weight:600;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{font-size:12px;font-weight:600;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--input-bg);}
+  .chip.ok{border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.08);color:var(--success-txt);}
+  .chip.no{border-color:rgba(231,76,60,0.4);background:rgba(231,76,60,0.08);color:var(--error-txt);}
+  .mini-lbl{font-size:10px;color:var(--muted);margin:10px 0 5px;text-transform:uppercase;letter-spacing:1px;}
+  .totales{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .tot-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .tot-row:last-child{border-bottom:none;}
+  .tot-row .cat{color:var(--muted);}
+  .tot-row .val{font-family:'Syne',sans-serif;font-weight:700;}
+  .uf-split{font-size:11px;color:var(--muted);}
+  .uf-split .u1{color:var(--uf1-txt);} .uf-split .u2{color:var(--uf2-txt);}
+  .grupo-cat{font-family:'Syne',sans-serif;font-size:12px;color:var(--accent-txt);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;}
+  .linea-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+  .linea-item.off{opacity:0.5;}
+  .tog{background:none;border:1px solid var(--border);border-radius:7px;width:30px;height:30px;font-size:15px;cursor:pointer;flex-shrink:0;line-height:1;}
+  .tog.on{border-color:rgba(46,204,113,0.5);color:var(--success-txt);background:rgba(46,204,113,0.08);}
+  .tog.no{border-color:var(--border);color:var(--muted);}
+  .li-main{flex:1;min-width:0;}
+  .li-act{font-size:13px;font-weight:600;}
+  .li-sub{font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .li-dest{font-size:10.5px;color:var(--accent-txt);margin-top:2px;opacity:0.85;}
+  .li-nota{font-size:10.5px;color:var(--muted);margin-top:2px;font-style:italic;}   /* D103: nota del capataz por actividad */
+  .conf-dest{width:auto;font-size:11px;padding:3px 26px 3px 8px;margin-left:4px;background-position:right 8px center;}
+  /* D104 — resolución del subtramo + selector de corrección por línea */
+  .li-tramo{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.5;}
+  .li-tramo .res{color:var(--text);opacity:.9;}
+  .li-tramo .auto{color:var(--muted);font-size:9.5px;}
+  .li-tramo .forz{color:var(--accent-txt);font-weight:600;}
+  .tramo-warn{display:block;font-size:10px;color:var(--accent-txt);background:rgba(245,166,35,0.08);
+    border:1px solid rgba(245,166,35,0.35);border-radius:6px;padding:3px 8px;margin-top:3px;}
+  .tramo-pick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:3px;}
+  .tramo-sel{width:auto;max-width:100%;font-size:11px;padding:3px 26px 3px 8px;background-position:right 8px center;}
+  .tramo-sel.forzado{border-color:var(--accent);color:var(--accent-txt);}
+  /* "cambiar" / "volver al automático": enlace discreto, sin peso visual de botón */
+  .tramo-link{background:none;border:none;padding:0 0 0 6px;color:var(--muted);font-family:'DM Sans',sans-serif;
+    font-size:10.5px;text-decoration:underline;cursor:pointer;}
+  .tramo-link:hover{color:var(--accent-txt);}
+  .src{font-size:10px;font-weight:600;padding:1px 7px;border-radius:12px;border:1px solid var(--border);}
+  .src.cap{border-color:rgba(245,166,35,0.4);color:var(--accent-txt);}
+  .src.cheq{border-color:rgba(58,155,220,0.4);color:var(--uf1-txt);}
+  .src.enc{border-color:var(--border);color:var(--muted);}
+  .li-largo{width:88px;flex-shrink:0;}
+  .li-largo input{padding:7px 9px;font-size:13px;text-align:right;}
+  .li-unit{font-size:11px;color:var(--muted);width:26px;flex-shrink:0;}
+  .badge{font-size:10px;font-weight:600;padding:1px 7px;border-radius:12px;border:1px solid var(--border);}
+  .badge.uf1{border-color:rgba(58,155,220,0.4);color:var(--uf1-txt);} .badge.uf2{border-color:rgba(155,89,182,0.4);color:var(--uf2-txt);}
+  .dup{font-size:10px;font-weight:600;padding:1px 7px;border-radius:12px;border:1px solid rgba(245,166,35,0.5);color:var(--accent-txt);background:rgba(245,166,35,0.08);}
+  .dup.hard{border-color:rgba(231,76,60,0.55);color:var(--error-txt);background:rgba(231,76,60,0.08);}
+  .linea-item.dupmark{border-color:rgba(245,166,35,0.45);}
+  .linea-item.dupmark.hard{border-color:rgba(231,76,60,0.5);}
+  .maq-id{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;min-width:60px;flex-shrink:0;}
+  .maq-conflict{border:1px solid rgba(231,76,60,0.5);border-radius:10px;padding:10px 10px 4px;margin-bottom:8px;background:rgba(231,76,60,0.04);}
+  .maq-conflict-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+  .maq-conflict .linea-item{margin-bottom:6px;}
+  .ctrl-tag{font-size:9px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--muted);background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:1px 7px;margin-left:7px;}
+  .ofi-tag{font-size:9px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--success-txt);background:rgba(46,204,113,0.08);border:1px solid rgba(46,204,113,0.4);border-radius:10px;padding:1px 7px;margin-left:7px;}
+  .linea-item.control{border-style:dashed;border-color:var(--border);}
+  .check-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;font-size:12.5px;margin:0 0 16px;}
+  .check-row.ok{background:rgba(46,204,113,0.08);border:1px solid rgba(46,204,113,0.35);color:var(--success-txt);}
+  .check-row.warn{background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.45);color:var(--error-txt);}
+  .add-card{background:var(--surface2);border:1px dashed var(--border);border-radius:10px;padding:14px;margin-top:10px;}
+  .add-grid{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;}
+  .add-grid label{font-size:10px;}
+  .btn-add{padding:9px 14px;background:var(--input-bg);border:1px solid var(--accent);border-radius:8px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:1px;}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;}
+  .btn-action{flex:1;min-width:160px;padding:14px;border-radius:10px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.5px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
+  .btn-action:hover{border-color:var(--accent);}
+  .btn-action.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--btn-txt);border:none;}
+  .msg-box{margin-top:16px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:14px;white-space:pre-wrap;font-size:12.5px;line-height:1.6;color:var(--text);max-height:340px;overflow:auto;display:none;}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+  .empty-state .icon{font-size:40px;margin-bottom:12px;}
+  .loading{text-align:center;padding:30px;color:var(--muted);font-size:14px;}
+  /* Estado del envío a DATA (D110). Antes el único acuse era un "enviado ✓" que se apagaba solo a los
+     3 s: en obra el residente enviaba y cerraba sin saber si había quedado. Ahora el estado es
+     permanente y se pinta arriba y junto a los botones, con el mismo lenguaje de asistencia.html. */
+  .envio-estado{display:flex;align-items:flex-start;gap:10px;border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px;line-height:1.5;border:1px solid var(--border);background:var(--surface);}
+  .envio-estado .ico{font-size:17px;line-height:1.3;flex-shrink:0;}
+  .envio-estado b{font-family:'Syne',sans-serif;letter-spacing:0.3px;}
+  .envio-estado .sub{display:block;color:var(--muted);font-size:11.5px;margin-top:4px;}
+  .envio-estado.ok{background:rgba(46,204,113,0.1);border-color:rgba(46,204,113,0.35);color:var(--success-txt);}
+  .envio-estado.pend{background:rgba(245,166,35,0.1);border-color:rgba(245,166,35,0.45);color:var(--accent-txt);}
+  .envio-estado.sin{background:var(--input-bg);border-color:var(--border);color:var(--text);}
+  .envio-estado.err{background:rgba(231,76,60,0.1);border-color:rgba(231,76,60,0.45);color:var(--error-txt);}
+  .btn-action:disabled{opacity:0.6;cursor:default;}
+  @media(max-width:480px){.estado-grid{grid-template-columns:1fr;}.add-grid{grid-template-columns:1fr 1fr;}}
+
+  /* ===== PC (D151) — dos columnas =====================================
+   * `render()` escupe una lista plana, así que las columnas salen de cuatro
+   * envoltorios. La clave es `display:contents` en móvil: los envoltorios
+   * DESAPARECEN para el layout y todo se apila exactamente en el mismo orden
+   * de siempre. Solo a partir de 1100px pasan a ser celdas de una rejilla.
+   * Las filas se fijan a mano porque la columna derecha son DOS bloques
+   * separados en el DOM (arriba estado/totales, abajo clima/novedades) con la
+   * bandeja entre medias; sin `grid-row` explícito, la izquierda se quedaría
+   * en una sola fila y la derecha se descolgaría.
+   * ==================================================================== */
+  .pc-zona,.pc-a,.pc-b,.pc-c,.pc-d{display:contents;}
+  @media(min-width:1100px){
+    .container{max-width:1240px;}
+    /* min-width:0 en las celdas: sin él, un hijo ancho (la tabla de personal)
+       ensancha su columna en vez de hacer scroll dentro, y descuadra la rejilla. */
+    .pc-zona{display:grid;grid-template-columns:1.55fr 1fr;gap:0 20px;align-items:start;}
+    .pc-a{display:block;grid-column:2;grid-row:1;min-width:0;}
+    .pc-b{display:block;grid-column:1;grid-row:1 / span 2;min-width:0;}
+    .pc-d{display:block;grid-column:2;grid-row:2;min-width:0;}
+    .pc-c{display:block;grid-column:1 / -1;grid-row:3;min-width:0;}
+    /* En la columna derecha, ya estrecha, las dos cajas de estado van una debajo de otra. */
+    .pc-a .estado-grid{grid-template-columns:1fr;}
+    .actions{max-width:760px;margin-left:auto;margin-right:auto;}
+  }
+
+  /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
+  .u-w130{max-width:130px;}
+  /* D171: bandeja de equipos sin horas */
+  .linea-item.u-op1{opacity:1;}
+  .li-tipo{color:var(--muted);font-weight:400;font-size:11px;}

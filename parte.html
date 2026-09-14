@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Parte de Maquinaria</title>
 <meta name="theme-color" content="#f5a623">
@@ -12,157 +12,12 @@
 <script src="auth.js"></script>
 <script src="entorno.js"></script>
 <script src="tema.js"></script>
-<style>
-  /* ============================================================================
-   * PARTE DIGITAL DE MAQUINARIA — formulario PÚBLICO del operador (V3-01 / D165)
-   *
-   * Sin login: la identidad la da el EQUIPO (?eq=CODIGO en la URL, impreso como QR
-   * en la cabina). Solo CREA filas `pendiente`; todo error se corrige en revisión.
-   * Pensado para celular con guantes: controles de ≥52px, una columna, tres pasos
-   * numerados, poco texto. Estilo: el de las capturas (tema.css, DM Sans/Syne).
-   * `?demo=1` (o `?eq=DEMO`): modo de prueba con datos de ejemplo, no llama al
-   * servidor ni guarda nada — para enseñar la pantalla y ensayar.
-   * ==========================================================================*/
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 110px;}
-  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;gap:10px;}
-  .header-left{min-width:0;}
-  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
-  .header-left h1{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;line-height:1.1;}
-  .header-left .sub{font-size:12px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .header-user{font-size:12px;color:var(--muted);text-align:right;flex-shrink:0;}
-  .chip-med{display:inline-block;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;padding:6px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--accent-txt);}
-  .container{max-width:600px;margin:0 auto;padding:16px 14px;}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;}
-  .paso{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .paso .n{width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--btn-txt);font-family:'Syne',sans-serif;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .paso h2{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;}
-  .paso p{font-size:12px;color:var(--muted);}
-  .field{margin-bottom:14px;}
-  .field:last-child{margin-bottom:0;}
-  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:0.5px;text-transform:uppercase;}
-  label .req{color:var(--accent-txt);margin-left:2px;}
-  label .opt{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;}
-  select,input[type="number"],input[type="text"],input[type="date"],input[type="time"],textarea{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:17px;padding:13px 14px;min-height:52px;outline:none;transition:border-color 0.2s;appearance:none;-webkit-appearance:none;}
-  textarea{resize:vertical;line-height:1.4;}
-  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;cursor:pointer;}
-  select:focus,input:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.12);}
-  select option,optgroup{background:var(--surface);}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .field-error,.picker-btn.field-error{border-color:var(--error)!important;}
-  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4;}
-  .hint b{color:var(--accent-txt);font-weight:600;}
-  .hint.err{color:var(--error-txt);}
-  /* botón-selector (abre el buscador a pantalla completa) */
-  .picker-btn{width:100%;min-height:52px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:17px;padding:11px 40px 11px 14px;text-align:left;cursor:pointer;position:relative;line-height:1.25;}
-  .picker-btn.vacio{color:var(--muted);}
-  .picker-btn::after{content:'⌄';position:absolute;right:14px;top:50%;transform:translateY(-60%);color:var(--muted);font-size:20px;}
-  .picker-btn small{display:block;font-size:12px;color:var(--muted);margin-top:2px;white-space:normal;}
-  .picker-btn b{font-weight:600;}
-  /* tramo */
-  .tramo{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;}
-  .tramo-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
-  .tramo-num{font-family:'Syne',sans-serif;font-size:12px;color:var(--accent-txt);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;}
-  .btn-del{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;min-width:40px;height:40px;font-size:14px;cursor:pointer;line-height:1;flex-shrink:0;padding:0 10px;font-family:'DM Sans',sans-serif;}
-  .btn-del:hover{border-color:var(--error);color:var(--error-txt);}
-  .bloque{border-top:1px dashed var(--border);padding-top:12px;margin-top:12px;}
-  .bloque-t{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-weight:600;}
-  .medidor{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .medidor input{font-size:22px;font-weight:600;text-align:center;font-variant-numeric:tabular-nums;}
-  .medidor .sub{font-size:11px;color:var(--muted);text-align:center;margin-top:5px;line-height:1.3;}
-  .total-box{margin-top:10px;display:flex;align-items:center;justify-content:space-between;background:var(--input-bg);border:1px dashed var(--border);border-radius:10px;padding:10px 14px;}
-  .total-box .t-label{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);}
-  .total-box .t-val{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;}
-  .total-box .t-val small{font-size:12px;color:var(--muted);font-family:'DM Sans',sans-serif;font-weight:400;margin-left:4px;}
-  .total-box.alto .t-val{color:var(--accent-txt);}
-  .total-box.mal .t-val{color:var(--error-txt);}
-  .total-box.mal{border-color:var(--error);}
-  .sugs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
-  .sug{background:var(--input-bg);border:1px solid var(--border);border-radius:20px;padding:9px 13px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.2;max-width:100%;text-align:left;font-family:'DM Sans',sans-serif;}
-  .sug:active,.sug:hover{border-color:var(--accent);}
-  .sug.mas{color:var(--accent-txt);border-style:dashed;}
-  details.opc{margin-bottom:14px;}
-  details.opc summary{cursor:pointer;font-size:13px;color:var(--accent-txt);font-weight:600;padding:8px 0;list-style:none;}
-  details.opc summary::before{content:'+ ';}
-  details.opc[open] summary::before{content:'− ';}
-  details.opc summary::-webkit-details-marker{display:none;}
-  /* reparto por porcentaje */
-  .toggle{display:flex;align-items:center;gap:10px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;cursor:pointer;min-height:52px;font-family:'DM Sans',sans-serif;color:var(--text);width:100%;text-align:left;font-size:14px;}
-  .toggle .sw{width:44px;height:26px;border-radius:13px;background:var(--border);position:relative;flex-shrink:0;transition:background .2s;}
-  .toggle .sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--surface);transition:left .2s;}
-  .toggle.on .sw{background:var(--accent);}
-  .toggle.on .sw::after{left:21px;}
-  .toggle small{display:block;color:var(--muted);font-size:12px;}
-  .rep{margin-top:10px;}
-  .rep-row{display:grid;grid-template-columns:minmax(0,1fr) 76px 40px;gap:8px;align-items:start;margin-bottom:8px;}
-  .rep-row input{text-align:center;padding-left:6px;padding-right:6px;font-weight:600;}
-  .rep.uno .rep-row{grid-template-columns:minmax(0,1fr);}
-  .rep.uno .rep-row .pr{grid-column:1;}
-  .rep-row .pr{grid-column:1 / span 2;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;margin-top:-2px;}
-  .rep-row .pr label{margin:0;}
-  .rep-row .pr input{text-align:left;font-weight:400;min-height:44px;padding:8px 12px;font-size:15px;}
-  .rep-sum{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);margin:4px 0 8px;}
-  .rep-sum b{font-family:'Syne',sans-serif;font-size:16px;color:var(--success-txt);}
-  .rep-sum.mal b{color:var(--error-txt);}
-  .rep-quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
-  .rep-quick button{background:var(--input-bg);border:1px solid var(--border);border-radius:20px;padding:8px 12px;font-size:12px;color:var(--accent-txt);cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;}
-  .btn-add{width:100%;padding:14px;background:var(--input-bg);border:1px dashed var(--border);border-radius:10px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;min-height:52px;}
-  .btn-add.mini{min-height:44px;padding:10px;font-size:11px;}
-  .btn-add:hover{border-color:var(--accent);background:rgba(245,166,35,0.05);}
-  .btn-sec{width:100%;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;min-height:52px;margin-top:10px;}
-  .btn-sec:hover{border-color:var(--accent);}
-  .submit-bar{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(to top,var(--bg) 60%,transparent);padding:14px;z-index:15;}
-  .submit-inner{max-width:600px;margin:0 auto;}
-  .btn-submit{width:100%;padding:18px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:16px;font-weight:800;cursor:pointer;letter-spacing:1px;box-shadow:0 6px 24px rgba(245,166,35,0.25);min-height:58px;}
-  .btn-submit:disabled{opacity:0.6;cursor:default;}
-  .resumen{font-size:13px;color:var(--muted);line-height:1.5;}
-  .resumen b{color:var(--text);}
-  .resumen .r-row{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--input-bg);}
-  .resumen .r-row.mal{border-color:var(--error);}
-  .resumen .falta{margin-top:8px;background:rgba(239,106,92,0.08);border:1px solid var(--error);border-radius:10px;padding:10px 12px;color:var(--text);}
-  .resumen .falta b{color:var(--error-txt);}
-  .resumen .listo{margin-top:8px;color:var(--success-txt);font-weight:600;}
-  .aviso{border:1px solid rgba(245,166,35,0.45);background:rgba(245,166,35,0.08);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);line-height:1.5;margin-bottom:12px;}
-  .aviso.error{border-color:var(--error);background:rgba(239,106,92,0.08);}
-  .aviso b{color:var(--accent-txt);}
-  .demo-bar{background:var(--accent);color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;padding:8px 14px;text-align:center;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;}
-  .demo-bar select{width:auto;min-height:34px;padding:5px 30px 5px 10px;font-size:13px;border-radius:8px;background-color:var(--surface);color:var(--text);font-weight:400;}
-  .hidden{display:none!important;}
-  /* pantallas de estado */
-  .estado{text-align:center;padding:50px 20px;}
-  .estado .ico{font-size:60px;margin-bottom:14px;}
-  .estado h2{font-family:'Syne',sans-serif;font-size:22px;margin-bottom:8px;}
-  .estado p{color:var(--muted);font-size:14px;margin-bottom:20px;line-height:1.5;}
-  .estado .btn-submit{margin-bottom:10px;}
-  .estado select{text-align:left;}
-  .res-tramos{text-align:left;margin:0 auto 18px;max-width:420px;}
-  /* buscador a pantalla completa (operador / centro de coste) */
-  .picker{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;}
-  .picker-top{padding:12px 14px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;gap:10px;align-items:center;}
-  .picker-top input{flex:1;font-size:18px;}
-  .picker-top button{min-width:52px;height:52px;border-radius:10px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:20px;cursor:pointer;}
-  .picker-tit{padding:10px 14px 0;font-size:12px;color:var(--muted);}
-  .picker-list{flex:1;overflow-y:auto;padding:8px 10px 30px;}
-  .picker-item{width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 14px;margin-bottom:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:17px;cursor:pointer;min-height:56px;line-height:1.25;}
-  .picker-item small{display:block;font-size:13px;color:var(--muted);margin-top:3px;}
-  .picker-item.sel{border-color:var(--accent);background:rgba(245,166,35,0.06);}
-  .picker-grp{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:12px 4px 6px;}
-  .picker-vacio{color:var(--muted);text-align:center;padding:30px;}
-  /* hoja "día sin operación" */
-  .sheet{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:40;display:flex;align-items:flex-end;}
-  .sheet-box{background:var(--surface);border-radius:18px 18px 0 0;padding:18px 16px 26px;width:100%;max-width:600px;margin:0 auto;border-top:3px solid var(--accent);}
-  .sheet-box h3{font-family:'Syne',sans-serif;font-size:16px;margin-bottom:6px;}
-  .sheet-box p{font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.4;}
-  .motivos{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .motivo{padding:16px 10px;background:var(--input-bg);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;min-height:60px;}
-  .motivo:hover{border-color:var(--accent);}
-  .motivo small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:11px;color:var(--muted);margin-top:3px;}
-  .tm2-tema-grupo{gap:8px;}
-</style>
+<link rel="stylesheet" href="parte.css">
 </head>
 <body>
-<div class="demo-bar hidden" id="demoBar">MODO DE PRUEBA · nada se guarda <select id="demoEq" onchange="cambiarDemo(this.value)"></select></div>
+<div class="demo-bar hidden" id="demoBar">MODO DE PRUEBA · nada se guarda <select id="demoEq" data-on-change="cambiarDemo(this.value)"></select></div>
 <div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
   <div class="header-left">
     <div class="label">Parte digital · Maquinaria</div>
     <h1 id="hCodigo">🚜 Parte</h1>
@@ -176,11 +31,11 @@
   <div class="ico">📱</div>
   <h2>Escanea el QR de tu equipo</h2>
   <p>El código QR está pegado en la cabina. Si no lo tienes a mano, elige tu equipo aquí:</p>
-  <div class="field" style="max-width:360px;margin:0 auto 12px;text-align:left;">
+  <div class="u-w360-izq field">
     <select id="selEquipo"><option value="">Cargando equipos…</option></select>
   </div>
-  <div style="max-width:360px;margin:0 auto;"><button class="btn-submit" onclick="abrirEquipoElegido()">ABRIR PARTE →</button></div>
-  <p id="qrError" class="hint err" style="margin-top:14px;"></p>
+  <div class="u-w360"><button class="btn-submit" data-on-click="abrirEquipoElegido()">ABRIR PARTE →</button></div>
+  <p id="qrError" class="u-mt14 hint err"></p>
 </div>
 
 <!-- Error de carga -->
@@ -188,7 +43,7 @@
   <div class="ico">⚠️</div>
   <h2>No se pudo cargar</h2>
   <p id="errorMsg"></p>
-  <div style="max-width:360px;margin:0 auto;"><button class="btn-submit" onclick="location.reload()">REINTENTAR</button></div>
+  <div class="u-w360"><button class="btn-submit" data-on-click="recargar()">REINTENTAR</button></div>
 </div>
 
 <!-- Formulario -->
@@ -210,15 +65,15 @@
     </div>
     <div class="field">
       <label>Operador <span class="req">*</span></label>
-      <button type="button" class="picker-btn vacio" id="btnOperador" onclick="abrirPicker('operador')">Toca para elegir…</button>
+      <button type="button" class="picker-btn vacio" id="btnOperador" data-on-click="abrirPicker('operador')">Toca para elegir…</button>
     </div>
   </div>
 
-  <div class="paso" style="margin:18px 0 10px;"><div class="n">2</div><div><h2>El trabajo de hoy</h2><p>El medidor del día y a qué centros de coste va. Si fue a varios, cada uno con su porcentaje.</p></div></div>
+  <div class="u-paso paso"><div class="n">2</div><div><h2>El trabajo de hoy</h2><p>El medidor del día y a qué centros de coste va. Si fue a varios, cada uno con su porcentaje.</p></div></div>
   <div id="tramos"></div>
-  <button class="btn-sec" onclick="abrirSinOperacion()">Día sin operación (domingo · festivo · taller · disponible)</button>
+  <button class="btn-sec" data-on-click="abrirSinOperacion()">Día sin operación (domingo · festivo · taller · disponible)</button>
 
-  <div class="card" id="resumenCard" style="margin-top:18px;">
+  <div class="u-mt18 card" id="resumenCard">
     <div class="paso"><div class="n">3</div><div><h2>Revisar y enviar</h2><p>Así queda el parte. Si falta algo, aquí se dice.</p></div></div>
     <div class="resumen" id="resumenBody"></div>
   </div>
@@ -231,15 +86,15 @@
   <h2>Parte enviado</h2>
   <p id="okMsg"></p>
   <div class="resumen res-tramos" id="okTramos"></div>
-  <div style="max-width:360px;margin:0 auto;">
-    <button class="btn-submit" onclick="otroTramo()">AGREGAR OTRO REGISTRO →</button>
-    <button class="btn-sec" onclick="nuevoParte()">Nuevo parte (otro día)</button>
+  <div class="u-w360">
+    <button class="btn-submit" data-on-click="otroTramo()">AGREGAR OTRO REGISTRO →</button>
+    <button class="btn-sec" data-on-click="nuevoParte()">Nuevo parte (otro día)</button>
   </div>
 </div>
 
 <div class="submit-bar hidden" id="submitBar">
   <div class="submit-inner">
-    <button class="btn-submit" id="btnSubmit" onclick="enviar()">ENVIAR PARTE →</button>
+    <button class="btn-submit" id="btnSubmit" data-on-click="enviar()">ENVIAR PARTE →</button>
   </div>
 </div>
 
@@ -247,494 +102,29 @@
 <div class="picker hidden" id="picker">
   <div class="picker-top">
     <input type="text" id="pickerBuscar" placeholder="Buscar…" autocomplete="off">
-    <button type="button" onclick="cerrarPicker()" aria-label="Cerrar">✕</button>
+    <button type="button" data-on-click="cerrarPicker()" aria-label="Cerrar">✕</button>
   </div>
   <div class="picker-tit" id="pickerTit"></div>
   <div class="picker-list" id="pickerList"></div>
 </div>
 
 <!-- día sin operación -->
-<div class="sheet hidden" id="sheetSinOp" onclick="if(event.target===this) cerrarSinOperacion()">
+<div class="sheet hidden" id="sheetSinOp" data-on-click="cerrarSinOperacionFondo(event,this)">
   <div class="sheet-box">
     <h3>Día sin operación</h3>
     <p>Se envía un solo tramo con el medidor sin cambio. Así el equipo queda reportado y no aparece como faltante. Igual necesita el nº de parte físico.</p>
     <div class="motivos">
-      <button class="motivo" onclick="sinOperacion('Domingo','Domingo/Festivo')">Domingo</button>
-      <button class="motivo" onclick="sinOperacion('Festivo','Domingo/Festivo')">Festivo</button>
-      <button class="motivo" onclick="sinOperacion('Taller','Taller')">Taller <small>mantenimiento · varado</small></button>
-      <button class="motivo" onclick="sinOperacion('Disponible','Disponible')">Disponible <small>sin frente</small></button>
-      <button class="motivo" onclick="sinOperacion('Disponible por lluvia','Disponible')">Lluvia <small>disponible por lluvia</small></button>
-      <button class="motivo" onclick="sinOperacion('Disponible - Sin operador','Disponible')">Sin operador</button>
+      <button class="motivo" data-on-click="sinOperacion('Domingo','Domingo/Festivo')">Domingo</button>
+      <button class="motivo" data-on-click="sinOperacion('Festivo','Domingo/Festivo')">Festivo</button>
+      <button class="motivo" data-on-click="sinOperacion('Taller','Taller')">Taller <small>mantenimiento · varado</small></button>
+      <button class="motivo" data-on-click="sinOperacion('Disponible','Disponible')">Disponible <small>sin frente</small></button>
+      <button class="motivo" data-on-click="sinOperacion('Disponible por lluvia','Disponible')">Lluvia <small>disponible por lluvia</small></button>
+      <button class="motivo" data-on-click="sinOperacion('Disponible - Sin operador','Disponible')">Sin operador</button>
     </div>
-    <button class="btn-sec" onclick="cerrarSinOperacion()">Cancelar</button>
+    <button class="btn-sec" data-on-click="cerrarSinOperacion()">Cancelar</button>
   </div>
 </div>
 
-<script>
-const APPS_SCRIPT_URL = GALCA_ENV.url.parte;         // entorno.js (D168) sobre auth.js (D169): ruta /parte del Worker, SIN token (público por QR)
-const API = APPS_SCRIPT_URL + '?mod=parte';
-
-/* ---------- MODO DE PRUEBA (?demo=1 o ?eq=DEMO) ----------
- * Datos de ejemplo en el propio archivo: sirve para enseñar la pantalla y ensayar sin señal y sin
- * guardar nada. Lo que se «envía» solo se muestra en la confirmación. */
-const PARAMS = new URLSearchParams(location.search);
-const DEMO = (window.PARTE_DEMO===true) || PARAMS.get('demo')==='1' || (PARAMS.get('eq')||'').toUpperCase()==='DEMO';
-const DEMO_DATOS = {
-  equipos: [
-    { codigo:'VOL048', tipo:'VOLQUETAS DOBLETROQUE', placa:'NNM180', proveedor:'ORTIZ CONSTRUCCIONES Y PROYECTOS S.A.', medidor:'KM', activo:true, ultimo:{ final:27120, fecha:'2026-09-10', hora_a:'17:00', origen:'bandeja' } },
-    { codigo:'CR026',  tipo:'VIBROCOMPACTADOR', placa:'POCR026', proveedor:'ORTIZ CONSTRUCCIONES Y PROYECTOS S.A.', medidor:'HOROMETRO', activo:true, ultimo:{ final:1698, fecha:'2026-09-10', hora_a:'16:30', origen:'bandeja' } },
-    { codigo:'EXC015', tipo:'EXCAVADORAS', placa:'MC706830', proveedor:'ORTIZ CONSTRUCCIONES Y PROYECTOS S.A.', medidor:'HOROMETRO', activo:true, ultimo:{ final:2711.6, fecha:'2026-09-10', hora_a:'17:00', origen:'bandeja' } },
-    { codigo:'MO004',  tipo:'MOTONIVELADORAS', placa:'MC725594', proveedor:'ORTIZ CONSTRUCCIONES Y PROYECTOS S.A.', medidor:'HOROMETRO', activo:true, ultimo:{ final:2337, fecha:'2026-09-09', hora_a:'17:00', origen:'catalogo' } },
-    { codigo:'RT-02',  tipo:'RETROCARGADOR', placa:'', proveedor:'MAQUISABANA', medidor:'HOROMETRO', activo:true, ultimo:{ final:7049.6, fecha:'2026-09-10', hora_a:'17:00', origen:'bandeja' } }
-  ],
-  operadores: ['Adonis Polo','Aleixer Lizarazo','Alexander Garcia','Alexander Sanchez','Anthony Riales','Brayan Castel','Carlos Valdiviejo','Cristian Sepulveda','Ever Coronel','Farid Navarro','Franklin Basto','German Florez','Gisela Vera','Jaime Niño','Javier Ayala','Jeiner Ortiz','Johan Rugeles','Jorge Sepulveda','Jose Miguel Prada','Jose Robles','Luis Hurtado','Luis Rincon','Mauricio Merchan','Nelson Rangel','Nicolle Bermudez','Oscar Ramirez','Reinaldo Florez','Richard Almeida','Ruideiver Montes','Samuel Camacho','Samuel Carrillo','Wilmar Pahuana','Wilson Lozano','Yeison Fernandez','Yerson Sandoval'],
-  cc: [
-    { centro_coste:'3701.02.07', proyecto:'3701', descripcion_cc:'Terraplenes (solo conformación)', usos:504 },
-    { centro_coste:'3702.02.11', proyecto:'3702', descripcion_cc:'Transporte de material para terraplén', usos:460 },
-    { centro_coste:'3701.02.11', proyecto:'3701', descripcion_cc:'Transporte de material para terraplén', usos:457 },
-    { centro_coste:'3702.02.07', proyecto:'3702', descripcion_cc:'Terraplenes (solo conformación)', usos:417 },
-    { centro_coste:'3701.05.04', proyecto:'3701', descripcion_cc:'Terraplén en MSR', usos:376 },
-    { centro_coste:'3701.03.01', proyecto:'3701', descripcion_cc:'Subbase granular', usos:316 },
-    { centro_coste:'3701.02.05', proyecto:'3701', descripcion_cc:'Excavación común', usos:243 },
-    { centro_coste:'3703.03.06', proyecto:'3703', descripcion_cc:'Base granular', usos:560 },
-    { centro_coste:'3703.03.02', proyecto:'3703', descripcion_cc:'Subbase granular', usos:421 },
-    { centro_coste:'3703.02.05', proyecto:'3703', descripcion_cc:'Excavación sin clasificar', usos:263 },
-    { centro_coste:'3701.03.03', proyecto:'3701', descripcion_cc:'Base granular', usos:172 },
-    { centro_coste:'3702.03.01', proyecto:'3702', descripcion_cc:'Subbase granular', usos:157 },
-    { centro_coste:'3701.02.10', proyecto:'3701', descripcion_cc:'Excavación de préstamo', usos:132 },
-    { centro_coste:'3701.02.08', proyecto:'3701', descripcion_cc:'Conformación de botadero (ZODME)', usos:82 },
-    { centro_coste:'3701.I0408', proyecto:'3701', descripcion_cc:'Paisajismo y zonas verdes', usos:88 },
-    { centro_coste:'3701.06.02', proyecto:'3701', descripcion_cc:'Rellenos con material seleccionado', usos:34 },
-    { centro_coste:'3701.06.01', proyecto:'3701', descripcion_cc:'Excavaciones varias sin clasificar', usos:32 },
-    { centro_coste:'3702.06.05', proyecto:'3702', descripcion_cc:'Tubería de concreto reforzado', usos:48 },
-    { centro_coste:'3701.07.01', proyecto:'3701', descripcion_cc:'Cunetas en concreto', usos:11 },
-    { centro_coste:'Taller', proyecto:'', descripcion_cc:'Taller / mantenimiento / equipo varado', usos:0, pseudo:true },
-    { centro_coste:'Disponible', proyecto:'', descripcion_cc:'Disponible (sin frente, lluvia, sin operador)', usos:0, pseudo:true },
-    { centro_coste:'Domingo/Festivo', proyecto:'', descripcion_cc:'Domingo o festivo', usos:0, pseudo:true }
-  ],
-  sugerencias: {
-    'VOLQUETAS DOBLETROQUE': ['Cargue terraplen','Terraplen','Viaje corte de talud','Disponible por lluvia','Domingo','Taller'],
-    'VIBROCOMPACTADOR': ['Compactacion en berma, material base y sub base','Compactacion sub base y base','Compactacion terraplen','Compactando terraplen PR14+400','Conformacion terraplen','Disponible por lluvia'],
-    'EXCAVADORAS': ['Cargue terraplen','Cargue de volquetas','Cargue de material','Corte y cargue de material','Cargando terraplen y cortando talud','Descapote'],
-    'MOTONIVELADORAS': ['Extendiendo y conformando terraplen','Extendido terraplen','Cereo terraplen','Conformando terraplen','Cereo sub base','Aproximacion terraplen'],
-    'RETROCARGADOR': ['Excavacion de tuberia para solado, movimiento de tuberia y colocacion','Descalificada de berma de ampliacion','Llenado de terraza de ODT','Arreglo acceso de mixer']
-  }
-};
-function demoEquipo(eq){
-  const lista=DEMO_DATOS.equipos.map(q=>({ codigo:q.codigo, tipo:q.tipo, placa:q.placa }));
-  const q=DEMO_DATOS.equipos.find(x=>x.codigo.replace(/[^A-Z0-9]/gi,'').toUpperCase()===String(eq||'').replace(/[^A-Z0-9]/gi,'').toUpperCase());
-  if(!q) return { ok:true, equipo:null, equipos:lista, hoy:hoyBogota() };
-  return { ok:true, equipo:{ codigo:q.codigo, tipo:q.tipo, placa:q.placa, proveedor:q.proveedor, medidor:q.medidor, activo:q.activo }, ultimo:q.ultimo,
-    operadores:DEMO_DATOS.operadores, cc:DEMO_DATOS.cc, sugerencias:DEMO_DATOS.sugerencias[q.tipo]||[], hoy:hoyBogota() };
-}
-function demoReporte(payload){
-  // imita las alertas del servidor para que la confirmación se vea igual que en real
-  const filas=[]; let finalPrevio=ULTIMO?ULTIMO.final:null, guardadas=0;
-  payload.tramos.forEach(t=>{
-    const partes = (t.reparto&&t.reparto.length>1) ? t.reparto : [null];
-    partes.forEach(p=>{
-      const alertas=[];
-      if(!p && finalPrevio!==null && num(t.inicial)!==null && Math.abs(num(t.inicial)-finalPrevio)>0.001) alertas.push('INICIAL_DISTINTO');
-      const tot=(num(t.final)!==null&&num(t.inicial)!==null)?num(t.final)-num(t.inicial):0, tope=TOPES[EQ.medidor];
-      if(!p && tope && tot>tope.alerta) alertas.push('TOTAL_ALTO');
-      filas.push({ id_registro:'demo', alertas:alertas }); guardadas++;
-    });
-    if(num(t.final)!==null) finalPrevio=num(t.final);
-  });
-  return { ok:true, guardadas:guardadas, duplicadas:0, filas:filas };
-}
-
-/* ---------- estado ---------- */
-let EQ = null;            // {codigo,tipo,placa,proveedor,medidor,activo}
-let ULTIMO = null;        // {final,fecha,hora_a,origen}
-let OPERADORES = [], CC = [], SUGS = [], TOPES = {HOROMETRO:{bloquea:24,alerta:12,unidad:'h'},KM:{bloquea:700,alerta:400,unidad:'km'}};
-let HOY = hoyBogota();
-let tramos = [];          // [{id, inicial, final, hora_de, hora_a, cc, pr, uf, desc, varada, lluvia, obs, iniPre, reparto:null|[{cc,pct,pr}]}]
-let operador = '';
-let pickerCtx = null;     // {tipo:'operador'|'cc', tramoId, repIdx}
-let enviando = false;
-let ultimoEnvio = null;   // para "Reportar otro tramo"
-let intento = false;      // ya intentó enviar: se marcan en rojo los campos que faltan
-
-function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
-function ayer(f){ const d=new Date(f+'T12:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
-function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
-function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
-function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.indexOf('3702')===0?'2':s.indexOf('3703')===0?'3':''; }
-function norm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
-function uuid(){ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); return 'p-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10); }
-function keyOp(){ return 'tm2_parte_op_'+(EQ?EQ.codigo:''); }
-function mostrar(id){ ['pantallaQR','pantallaError','formMain','pantallaOk'].forEach(p=>document.getElementById(p).classList.toggle('hidden', p!==id)); document.getElementById('submitBar').classList.toggle('hidden', id!=='formMain'); }
-function ccDe(cc){ return CC.find(x=>x.centro_coste===cc); }
-function ccLabelHTML(cc){ const c=ccDe(cc); if(!c) return '<b>'+esc(cc||'')+'</b>'; return '<b>'+esc(c.centro_coste)+'</b>'+(c.descripcion_cc?'<small>'+esc(c.descripcion_cc)+'</small>':''); }
-function ccTexto(cc){ const c=ccDe(cc); return c ? c.centro_coste+(c.descripcion_cc?' · '+c.descripcion_cc:'') : (cc||''); }
-
-/* ---------- carga ---------- */
-async function cargar(){
-  const eq=(PARAMS.get('eq')||'').trim();
-  let data;
-  if(DEMO){
-    document.getElementById('demoBar').classList.remove('hidden');
-    const sel=document.getElementById('demoEq');
-    sel.innerHTML=DEMO_DATOS.equipos.map(q=>'<option value="'+esc(q.codigo)+'">'+esc(q.codigo)+' · '+esc(q.tipo)+'</option>').join('');
-    const cod = (eq && eq.toUpperCase()!=='DEMO') ? eq : DEMO_DATOS.equipos[0].codigo;
-    sel.value=cod; data=demoEquipo(cod);
-  } else {
-    try{
-      const r=await fetch(API+'&op=equipo&eq='+encodeURIComponent(eq), {cache:'no-store'});
-      data=await r.json();
-    }catch(e){
-      document.getElementById('errorMsg').textContent='Sin señal o el servidor no responde. Revisa la conexión del teléfono y vuelve a intentar.';
-      mostrar('pantallaError'); return;
-    }
-  }
-  if(data.hoy) HOY=data.hoy;
-  if((!eq && !DEMO) || !data.ok || !data.equipo){
-    // pantalla "escanea tu QR" + selector de respaldo
-    const sel=document.getElementById('selEquipo');
-    const lista=(data.equipos||[]);
-    sel.innerHTML='<option value="">— Elige tu equipo —</option>'+lista.map(q=>'<option value="'+esc(q.codigo)+'">'+esc(q.codigo)+' · '+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+'</option>').join('');
-    document.getElementById('qrError').textContent = (eq && !data.ok) ? (data.error||'') : '';
-    document.getElementById('hCodigo').textContent='🚜 Parte'; document.getElementById('hSub').textContent='Elige tu equipo';
-    mostrar('pantallaQR'); return;
-  }
-  EQ=data.equipo; ULTIMO=data.ultimo||null; OPERADORES=data.operadores||[]; CC=data.cc||[]; SUGS=data.sugerencias||[];
-  if(data.topes) TOPES=data.topes;
-  document.getElementById('hCodigo').textContent='🚜 '+EQ.codigo;
-  document.getElementById('hSub').textContent=EQ.tipo+(EQ.placa?' · '+EQ.placa:'')+(EQ.proveedor?' · '+EQ.proveedor:'');
-  document.getElementById('hMedidor').textContent= EQ.medidor==='HOROMETRO' ? 'HORÓMETRO' : EQ.medidor==='KM' ? 'KILÓMETROS' : 'SIN MEDIDOR';
-  document.title='Parte '+EQ.codigo;
-  const f=document.getElementById('fecha'); f.value=HOY; f.max=HOY; f.min=ayer(HOY);
-  operador = localStorage.getItem(keyOp()) || '';
-  pintarOperador();
-  const av=document.getElementById('avisoTop'); av.classList.add('hidden');
-  if(!EQ.medidor){ av.innerHTML='Este equipo está <b>sin medidor definido</b> en el catálogo (PARTE_EQUIPOS). Se registra sin horómetro/kilometraje y quien revisa lo verá con la alerta <b>SIN_MEDIDOR</b>.'; av.classList.remove('hidden'); }
-  else if(!ULTIMO){ av.innerHTML='No hay un <b>medidor anterior</b> registrado para este equipo: escribe el inicial tal como está en el parte físico.'; av.classList.remove('hidden'); }
-  else if(!EQ.activo){ av.innerHTML='Este equipo figura <b>inactivo</b> en el catálogo. El parte se guarda igual y lo revisa maquinaria.'; av.classList.remove('hidden'); }
-  tramos=[]; intento=false; addTramo();
-  mostrar('formMain');
-}
-function cambiarDemo(cod){ const u=new URL(location.href); u.searchParams.set('demo','1'); u.searchParams.set('eq',cod); history.replaceState(null,'',u.toString()); PARAMS.set('eq',cod); cargar(); }
-function abrirEquipoElegido(){
-  const v=document.getElementById('selEquipo').value;
-  if(!v){ document.getElementById('qrError').textContent='Elige un equipo de la lista.'; return; }
-  const u=new URL(location.href); u.searchParams.set('eq', v); location.href=u.toString();
-}
-
-/* ---------- operador ---------- */
-function pintarOperador(){
-  const b=document.getElementById('btnOperador');
-  b.textContent= operador || 'Toca para elegir…'; b.classList.toggle('vacio', !operador);
-  pintarResumen();
-}
-
-/* ---------- tramos ---------- */
-function nuevoTramo(base){
-  const prev=tramos[tramos.length-1];
-  const iniPre = prev ? (prev.final!==''?prev.final:prev.inicial) : (ULTIMO ? ULTIMO.final : '');
-  return Object.assign({ id:uuid(), inicial: iniPre===null?'':iniPre, final:'', hora_de: prev ? prev.hora_a : '', hora_a:'', cc:'', pr: prev?prev.pr:'', uf:'', desc:'', varada:'', lluvia:'', obs:'', iniPre: iniPre===null?'':iniPre, reparto:null }, base||{});
-}
-function addTramo(){
-  const t=nuevoTramo(); tramos.push(t); render();
-  if(tramos.length>1){ const el=document.getElementById('tramo-'+t.id); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }
-}
-function delTramo(id){
-  if(tramos.length<=1) return;
-  tramos=tramos.filter(t=>t.id!==id); render();
-}
-function render(){
-  const cont=document.getElementById('tramos');
-  cont.innerHTML=tramos.map((t,i)=>tramoHTML(t,i)).join('');
-  tramos.forEach(t=>{ pintarTotal(t.id); pintarSugs(t.id); });
-  pintarResumen();
-}
-function tramoHTML(t,i){
-  const sinMed=!EQ.medidor;
-  const unidad = EQ.medidor==='KM' ? 'km' : 'h';
-  if(!t.reparto) t.reparto=[{ cc:t.cc||'', pct:100, pr:'' }];
-  const rep = true;
-  return '<div class="tramo" id="tramo-'+t.id+'">'
-   +(sinMed ? '' :
-     '<div class="field"><label>'+(EQ.medidor==='KM'?'Kilometraje':'Horómetro')+' <span class="req">*</span></label>'
-     +'<div class="medidor">'
-     +'<div><input type="number" inputmode="decimal" step="0.1" placeholder="Inicial" value="'+esc(t.inicial)+'" oninput="setT(\''+t.id+'\',\'inicial\',this.value)"><div class="sub">INICIAL<br>con que arrancó el día</div></div>'
-     +'<div><input type="number" inputmode="decimal" step="0.1" placeholder="Final" value="'+esc(t.final)+'" oninput="setT(\''+t.id+'\',\'final\',this.value)"><div class="sub">FINAL<br>lo que marca al terminar</div></div>'
-     +'</div>'
-     +'<div class="total-box" id="total-'+t.id+'"><span class="t-label">Total</span><span class="t-val">—<small>'+unidad+'</small></span></div>'
-     +'<div class="hint" id="hintIni-'+t.id+'"></div>'
-     +'</div>')
-   +'<div class="grid2">'
-   +'<div class="field"><label>Hora de</label><input type="time" value="'+esc(t.hora_de)+'" oninput="setT(\''+t.id+'\',\'hora_de\',this.value)"></div>'
-   +'<div class="field"><label>Hora a</label><input type="time" value="'+esc(t.hora_a)+'" oninput="setT(\''+t.id+'\',\'hora_a\',this.value)"></div>'
-   +'</div>'
-   +'<div class="bloque"><div class="bloque-t">¿A qué centro de coste va? <span class="req">*</span></div>'
-   +repartoHTML(t)
-   +'</div>'
-   +'<div class="field"><label>Descripción del trabajo</label>'
-   +'<textarea rows="2" placeholder="ej. Cargue terraplen PR14+400" oninput="setT(\''+t.id+'\',\'desc\',this.value)">'+esc(t.desc)+'</textarea>'
-   +'<div class="sugs" id="sugs-'+t.id+'"></div></div>'
-   +'<details class="opc"'+((t.varada!==''||t.lluvia!=='')?' open':'')+'><summary>Horas varada / lluvia (opcional)</summary>'
-   +'<div class="grid2" style="margin-top:8px">'
-   +'<div class="field"><label>Horas varada</label><input type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(t.varada)+'" oninput="setT(\''+t.id+'\',\'varada\',this.value)"></div>'
-   +'<div class="field"><label>Horas lluvia</label><input type="number" inputmode="decimal" step="0.5" min="0" value="'+esc(t.lluvia)+'" oninput="setT(\''+t.id+'\',\'lluvia\',this.value)"></div>'
-   +'</div></details>'
-   +'<div class="field"><label>Observaciones <span class="opt">(opcional)</span></label>'
-   +'<textarea rows="2" oninput="setT(\''+t.id+'\',\'obs\',this.value)">'+esc(t.obs)+'</textarea></div>'
-   +'</div>';
-}
-/* ---------- reparto por porcentaje ---------- */
-function repartoHTML(t){
-  const rep=t.reparto, varios=rep.length>1, suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
-  return '<div class="rep'+(varios?'':' uno')+'" id="rep-'+t.id+'">'
-    +(varios ? '<div class="rep-quick">'+[[50,50],[70,30],[30,70]].map(p=>'<button type="button" onclick="repRapido(\''+t.id+'\','+JSON.stringify(p)+')">'+p.join(' / ')+'</button>').join('')+'<button type="button" onclick="repIguales(\''+t.id+'\')">partes iguales</button></div>' : '')
-    +rep.map((r,j)=>'<div class="rep-row">'
-      +'<button type="button" class="picker-btn '+(r.cc?'':'vacio')+'" id="ccr-'+t.id+'-'+j+'" onclick="abrirPicker(\'cc\',\''+t.id+'\','+j+')">'+(r.cc?ccLabelHTML(r.cc):(varios?'Centro de coste '+(j+1)+'…':'Toca para elegir…'))+'</button>'
-      +(varios ? '<input type="number" inputmode="decimal" min="0" max="100" step="1" placeholder="%" value="'+esc(r.pct)+'" oninput="setRep(\''+t.id+'\','+j+',\'pct\',this.value)" aria-label="porcentaje">'
-               +'<button type="button" class="btn-del" onclick="delRep(\''+t.id+'\','+j+')" title="Quitar">✕</button>' : '')
-      +'<div class="pr"><label>PR</label><input type="number" inputmode="numeric" placeholder="ej. 14400 = PR14+400" value="'+esc(r.pr)+'" oninput="setRep(\''+t.id+'\','+j+',\'pr\',this.value)"></div>'
-      +'</div>').join('')
-    +(varios ? '<div class="rep-sum'+(Math.abs(suma-100)>0.5?' mal':'')+'"><span>'+(tot!==null&&tope?rep.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b></div>' : '')
-    +'<button type="button" class="btn-add mini" onclick="addRep(\''+t.id+'\')">+ '+(varios?'Otro centro de coste':'Fue a otro centro de coste también (se reparte por %)')+'</button>'
-    +'</div>';
-}
-function setRep(id,j,k,v){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return; t.reparto[j][k]=v; if(k==='pct') pintarRepSuma(t); pintarResumen(); }
-function pintarRepSuma(t){
-  const box=document.querySelector('#rep-'+t.id+' .rep-sum'); if(!box) return;
-  const suma=t.reparto.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
-  box.classList.toggle('mal', Math.abs(suma-100)>0.5);
-  box.innerHTML='<span>'+(tot!==null&&tope?t.reparto.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b>';
-}
-function addRep(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; t.reparto.push({ cc:'', pct:'', pr:'' }); repIguales(id); }
-function delRep(id,j){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||t.reparto.length<=1) return; t.reparto.splice(j,1); if(t.reparto.length===1) t.reparto[0].pct=100; else repIguales(id); render(); }
-function repRapido(id,p){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; while(t.reparto.length<2) t.reparto.push({cc:'',pct:'',pr:''}); t.reparto=t.reparto.slice(0,2); t.reparto[0].pct=p[0]; t.reparto[1].pct=p[1]; render(); }
-function repIguales(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; const n=t.reparto.length, base=Math.floor(100/n*100)/100; t.reparto.forEach((r,j)=>{ r.pct = j===n-1 ? Math.round((100-base*(n-1))*100)/100 : base; }); render(); }
-
-function setT(id, k, v){
-  const t=tramos.find(x=>x.id===id); if(!t) return;
-  t[k]=v;
-  if(k==='cc'){ t.uf=ufDe(v); const el=document.querySelector('#tramo-'+id+' select'); if(el) el.value=t.uf; }
-  if(k==='inicial'||k==='final'){
-    pintarTotal(id); if(t.reparto) pintarRepSuma(t);
-    // el siguiente tramo arranca donde termina este (si el operador no lo cambió a mano)
-    const i=tramos.indexOf(t), sig=tramos[i+1];
-    if(k==='final' && sig && (sig.inicial===''||String(sig.inicial)===String(sig.iniPre))){ sig.inicial=v; sig.iniPre=v; const el=document.querySelector('#tramo-'+sig.id+' .medidor input'); if(el) el.value=v; pintarTotal(sig.id); }
-  }
-  if(k==='hora_a'){ const i=tramos.indexOf(t), sig=tramos[i+1]; if(sig && !sig.hora_de){ sig.hora_de=v; const el=document.querySelectorAll('#tramo-'+sig.id+' input[type=time]')[0]; if(el) el.value=v; } }
-  if(k==='desc') pintarSugs(id);
-  pintarResumen();
-}
-function totalDe(t){ const a=num(t.inicial), b=num(t.final); if(a===null||b===null) return null; return Math.round((b-a)*100)/100; }
-function pintarTotal(id){
-  const t=tramos.find(x=>x.id===id), box=document.getElementById('total-'+id); if(!t||!box) return;
-  const tot=totalDe(t), tope=TOPES[EQ.medidor], unidad=tope?esc(tope.unidad):'';
-  box.classList.remove('alto','mal');
-  let txt='—';
-  if(tot!==null){ txt=fmt(tot); if(tot<0) box.classList.add('mal'); else if(tope && tot>tope.bloquea) box.classList.add('mal'); else if(tope && tot>tope.alerta) box.classList.add('alto'); }
-  box.querySelector('.t-val').innerHTML=txt+'<small>'+unidad+'</small>';
-  const h=document.getElementById('hintIni-'+id);
-  if(h){
-    const i=tramos.indexOf(t);
-    if(tot!==null && tot<0) h.innerHTML='<span class="err">El final es menor que el inicial: revisa los dos números.</span>';
-    else if(i===0 && ULTIMO && num(t.inicial)!==null && Math.abs(num(t.inicial)-ULTIMO.final)>0.001)
-      h.innerHTML='El inicial cambió: el último registrado era <b>'+fmt(ULTIMO.final)+'</b>'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+'. Se enviará marcado para revisión.';
-    else if(i===0 && ULTIMO) h.innerHTML='Inicial precargado del último parte'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+'. Cámbialo solo si el parte físico dice otra cosa.';
-    else h.innerHTML='';
-  }
-}
-function pintarSugs(id){
-  const t=tramos.find(x=>x.id===id), box=document.getElementById('sugs-'+id); if(!t||!box) return;
-  const q=norm(t.desc);
-  // con el campo vacío o con una sugerencia ya elegida se ofrecen todas (menos la elegida): así se puede cambiar de idea
-  const exacta = q && SUGS.some(s=>norm(s)===q);
-  let lista = (q && !exacta) ? SUGS.filter(s=>norm(s).indexOf(q)>=0) : SUGS.filter(s=>norm(s)!==q);
-  const mas = lista.length>6 && !box.dataset.todo;
-  if(mas) lista=lista.slice(0,6);
-  box.innerHTML=lista.map(s=>'<button type="button" class="sug" onclick="usarSug(\''+id+'\',this.textContent)">'+esc(s)+'</button>').join('')
-    +(mas?'<button type="button" class="sug mas" onclick="this.parentNode.dataset.todo=1;pintarSugs(\''+id+'\')">más…</button>':'');
-}
-function usarSug(id, txt){ const t=tramos.find(x=>x.id===id); t.desc=txt; const ta=document.querySelector('#tramo-'+id+' textarea'); if(ta) ta.value=txt; pintarSugs(id); pintarResumen(); }
-
-/* ---------- buscador (operador / CC) ---------- */
-function abrirPicker(tipo, tramoId, repIdx){
-  pickerCtx={tipo:tipo, tramoId:tramoId, repIdx:(repIdx===undefined?null:repIdx)};
-  const inp=document.getElementById('pickerBuscar'); inp.value=''; inp.placeholder= tipo==='operador' ? 'Buscar operador por nombre…' : 'Buscar por código o por nombre…';
-  document.getElementById('pickerTit').textContent = tipo==='operador' ? 'Toca tu nombre' : 'Toca el centro de coste del parte';
-  document.getElementById('picker').classList.remove('hidden');
-  pintarPicker(); setTimeout(()=>inp.focus(), 50);
-}
-function cerrarPicker(){ document.getElementById('picker').classList.add('hidden'); pickerCtx=null; }
-document.getElementById('pickerBuscar').addEventListener('input', pintarPicker);
-function pintarPicker(){
-  if(!pickerCtx) return;
-  const q=norm(document.getElementById('pickerBuscar').value), list=document.getElementById('pickerList');
-  let html='';
-  if(pickerCtx.tipo==='operador'){
-    const items=OPERADORES.filter(o=>!q || norm(o).indexOf(q)>=0);
-    html=items.map(o=>'<button type="button" class="picker-item'+(o===operador?' sel':'')+'" onclick="elegir('+esc(JSON.stringify(o))+')">'+esc(o)+'</button>').join('');
-    if(q && !items.some(o=>norm(o)===q)) html+='<button type="button" class="picker-item" onclick="elegir(document.getElementById(\'pickerBuscar\').value.trim())">➕ Usar «'+esc(document.getElementById('pickerBuscar').value.trim())+'» <small>nombre que no está en la lista (maquinaria lo revisa)</small></button>';
-  } else {
-    const t=tramos.find(x=>x.id===pickerCtx.tramoId);
-    const actual = t ? (pickerCtx.repIdx===null ? t.cc : (t.reparto&&t.reparto[pickerCtx.repIdx]?t.reparto[pickerCtx.repIdx].cc:'')) : '';
-    const items=CC.filter(c=>!q || norm(c.centro_coste+' '+c.descripcion_cc+' '+c.proyecto).indexOf(q)>=0);
-    const reales=items.filter(c=>!c.pseudo), pseudo=items.filter(c=>c.pseudo);
-    const frec=reales.slice(0, q?reales.length:12), resto=q?[]:reales.slice(12);
-    const item=c=>'<button type="button" class="picker-item'+(actual===c.centro_coste?' sel':'')+'" onclick="elegir('+esc(JSON.stringify(c.centro_coste))+')"><b>'+esc(c.centro_coste)+'</b>'+(c.descripcion_cc?'<small>'+esc(c.descripcion_cc)+'</small>':'')+(c.proyecto?'<small>proyecto '+esc(c.proyecto)+' · UF'+ufDe(c.centro_coste)+'</small>':'')+'</button>';
-    if(frec.length) html+='<div class="picker-grp">'+(q?'Centros de coste':'Más usados')+'</div>'+frec.map(item).join('');
-    if(resto.length) html+='<div class="picker-grp">Todos</div>'+resto.map(item).join('');
-    if(pseudo.length) html+='<div class="picker-grp">Sin operación</div>'+pseudo.map(item).join('');
-  }
-  list.innerHTML=html||'<div class="picker-vacio">Sin resultados</div>';
-}
-function elegir(v){
-  if(!pickerCtx) return;
-  if(pickerCtx.tipo==='operador'){ operador=String(v||'').trim(); try{ localStorage.setItem(keyOp(), operador); }catch(e){} pintarOperador(); }
-  else if(pickerCtx.repIdx!==null){
-    const t=tramos.find(x=>x.id===pickerCtx.tramoId); if(t&&t.reparto&&t.reparto[pickerCtx.repIdx]){ t.reparto[pickerCtx.repIdx].cc=v; const b=document.getElementById('ccr-'+t.id+'-'+pickerCtx.repIdx); if(b){ b.innerHTML=ccLabelHTML(v); b.classList.remove('vacio'); } pintarResumen(); }
-  }
-  else { setT(pickerCtx.tramoId,'cc',v); const b=document.getElementById('cc-'+pickerCtx.tramoId); if(b){ b.innerHTML=ccLabelHTML(v); b.classList.remove('vacio'); } }
-  cerrarPicker();
-}
-
-/* ---------- día sin operación ---------- */
-function abrirSinOperacion(){ document.getElementById('sheetSinOp').classList.remove('hidden'); }
-function cerrarSinOperacion(){ document.getElementById('sheetSinOp').classList.add('hidden'); }
-function sinOperacion(motivo, cc){
-  cerrarSinOperacion();
-  const ini = ULTIMO ? ULTIMO.final : (num(tramos[0]&&tramos[0].inicial));
-  tramos=[nuevoTramo({ inicial: ini===null||ini===undefined?'':ini, final: ini===null||ini===undefined?'':ini, hora_de:'', hora_a:'', cc:cc, pr:'', uf:'', desc:motivo, iniPre: ini===null||ini===undefined?'':ini, reparto:[{ cc:cc, pct:100, pr:'' }] })];
-  if(!operador && /sin operador/i.test(motivo)){ operador='Sin operador'; pintarOperador(); }
-  render();
-  window.scrollTo({top:0,behavior:'smooth'});
-}
-
-/* ---------- validación y resumen ---------- */
-function validar(){
-  const errs=[];
-  const fecha=document.getElementById('fecha').value;
-  if(!fecha) errs.push('Falta la fecha.');
-  else if(fecha>HOY) errs.push('La fecha no puede ser futura.');
-  else if(fecha<ayer(HOY)) errs.push('Solo se admite hoy o ayer. Un parte más viejo lo captura maquinaria desde revisión.');
-  if(!document.getElementById('reporteNum').value.trim()) errs.push('Falta el nº del parte físico.');
-  if(!operador) errs.push('Falta el operador.');
-  const tope=TOPES[EQ.medidor];
-  tramos.forEach((t,i)=>{
-    const n='';
-    if(EQ.medidor){
-      const a=num(t.inicial), b=num(t.final);
-      if(a===null||b===null) errs.push(n+'faltan el medidor inicial o final.');
-      else if(b<a) errs.push(n+'el final ('+fmt(b)+') es menor que el inicial ('+fmt(a)+').');
-      else if(tope && b-a>tope.bloquea) errs.push(n+'el total ('+fmt(b-a)+' '+tope.unidad+') pasa de '+tope.bloquea+' '+tope.unidad+'. Revisa el medidor.');
-    }
-    const rep=t.reparto||[];
-    if(!rep.length || rep.some(r=>!r.cc)) errs.push(rep.length>1 ? 'Falta un centro de coste del reparto.' : 'Falta el centro de coste.');
-    if(rep.length>1){
-      if(rep.some(r=>!(num(r.pct)>0))) errs.push('Cada centro de coste necesita su porcentaje.');
-      const suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0);
-      if(Math.abs(suma-100)>0.5) errs.push('Los porcentajes suman '+fmt(suma)+' % y deben sumar 100 %.');
-    }
-  });
-  return errs;
-}
-function marcarFaltantes(){
-  if(!intento) return;
-  document.getElementById('reporteNum').classList.toggle('field-error', !document.getElementById('reporteNum').value.trim());
-  document.getElementById('btnOperador').classList.toggle('field-error', !operador);
-  tramos.forEach(t=>{
-    if(t.reparto) t.reparto.forEach((r,j)=>{ const rb=document.getElementById('ccr-'+t.id+'-'+j); if(rb) rb.classList.toggle('field-error', !r.cc); });
-    if(EQ.medidor){ const ins=document.querySelectorAll('#tramo-'+t.id+' .medidor input'); if(ins.length===2){ ins[0].classList.toggle('field-error', num(t.inicial)===null); ins[1].classList.toggle('field-error', num(t.final)===null || (num(t.inicial)!==null && num(t.final)<num(t.inicial))); } }
-  });
-}
-function pintarResumen(){
-  if(!EQ) return;
-  const errs=validar();
-  const b=document.getElementById('resumenBody');
-  const tope=TOPES[EQ.medidor];
-  let html='';
-  tramos.forEach((t,i)=>{
-    const tot=totalDe(t);
-    const rep=t.reparto||[], varios=rep.length>1;
-    let cc = rep.length ? rep.map(r=>(r.cc?esc(ccTexto(r.cc)):'<span style="color:var(--error-txt)">sin centro de coste</span>')+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)+')':''):'')).join('<br>')
-                        : '<span style="color:var(--error-txt)">sin centro de coste</span>';
-    html+='<div class="r-row">'
-      +'<b>'+esc(EQ.codigo)+'</b>'+((t.hora_de||t.hora_a)?' · '+esc(t.hora_de||'?')+'–'+esc(t.hora_a||'?'):'')
-      +(EQ.medidor?'<br>'+esc(t.inicial||'—')+' → '+esc(t.final||'—')+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?esc(tope.unidad):'')+'</b>':'')
-      +'<br>'+cc
-      +(t.desc?'<br><i>'+esc(t.desc)+'</i>':'')
-      +'</div>';
-  });
-  html+='<div>'+esc(EQ.codigo)+' · '+esc(document.getElementById('fecha').value||'sin fecha')+' · parte nº <b>'+esc(document.getElementById('reporteNum').value||'—')+'</b> · <b>'+esc(operador||'sin operador')+'</b></div>';
-  if(errs.length) html+='<div class="falta"><b>Antes de enviar:</b><br>'+errs.map(esc).join('<br>')+'</div>';
-  else html+='<div class="listo">✓ Todo listo. Pulsa ENVIAR PARTE.</div>';
-  b.innerHTML=html;
-  document.getElementById('btnSubmit').disabled = enviando;
-  marcarFaltantes();
-}
-document.getElementById('fecha').addEventListener('input', pintarResumen);
-document.getElementById('reporteNum').addEventListener('input', pintarResumen);
-
-/* ---------- envío ---------- */
-function armarPayload(){
-  const fecha=document.getElementById('fecha').value, reporte=document.getElementById('reporteNum').value.trim();
-  return { mod:'parte', op:'reporte', codigo:EQ.codigo, origen:'qr',
-    tramos: tramos.map((t,i)=>{
-      const o={ id_registro:t.id, fecha:fecha, reporte_num:reporte, operador:operador,
-        inicial: EQ.medidor?num(t.inicial):'', final: EQ.medidor?num(t.final):'',
-        inicial_modificado: (i===0 && ULTIMO && num(t.inicial)!==null && Math.abs(num(t.inicial)-ULTIMO.final)>0.001) ? 'SI' : 'NO',
-        hora_de:t.hora_de, hora_a:t.hora_a, centro_coste:(t.reparto&&t.reparto[0]?t.reparto[0].cc:t.cc), pr:num(t.reparto&&t.reparto[0]?t.reparto[0].pr:t.pr)===null?'':num(t.reparto&&t.reparto[0]?t.reparto[0].pr:t.pr), uf:ufDe(t.reparto&&t.reparto[0]?t.reparto[0].cc:t.cc),
-        descripcion_trabajo:t.desc.trim(), horas_varada:num(t.varada)===null?'':num(t.varada), horas_lluvia:num(t.lluvia)===null?'':num(t.lluvia),
-        observaciones:t.obs.trim() };
-      if(t.reparto && t.reparto.length>1) o.reparto=t.reparto.map(r=>({ centro_coste:r.cc, pct:num(r.pct), pr:num(r.pr)===null?'':num(r.pr), uf:ufDe(r.cc) }));
-      return o; }) };
-}
-async function enviar(){
-  if(enviando) return;
-  intento=true;
-  const errs=validar();
-  if(errs.length){ pintarResumen(); document.getElementById('resumenCard').scrollIntoView({behavior:'smooth',block:'start'}); alert('Revisa antes de enviar:\n\n• '+errs.join('\n• ')); return; }
-  const payload=armarPayload(), fecha=payload.tramos[0].fecha, reporte=payload.tramos[0].reporte_num;
-  enviando=true; const btn=document.getElementById('btnSubmit'); btn.disabled=true; btn.textContent='ENVIANDO…';
-  let data=null;
-  if(DEMO){ await new Promise(r=>setTimeout(r,400)); data=demoReporte(payload); }
-  else {
-    try{
-      const r=await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
-      data=await r.json();
-    }catch(e){ data={ok:false, error:'Sin señal o el servidor no respondió. El parte NO se envió: acércate a una zona con señal y vuelve a pulsar ENVIAR (no se duplica).'}; }
-  }
-  enviando=false; btn.disabled=false; btn.textContent='ENVIAR PARTE →';
-  if(!data || !data.ok){ alert('No se guardó:\n\n'+((data&&data.error)||'error desconocido')); return; }
-  ultimoEnvio={ fecha:fecha, reporte:reporte, tramos:tramos.slice(), filas:data.filas||[] };
-  const alertas=(data.filas||[]).reduce((a,f)=>a.concat(f.alertas||[]),[]);
-  const okT=document.getElementById('okTramos');
-  let k=0;
-  okT.innerHTML=tramos.map((t,i)=>{ const tot=totalDe(t), tope=TOPES[EQ.medidor];
-    const partes = (t.reparto&&t.reparto.length>1) ? t.reparto : [null];
-    return partes.map((p,j)=>{ const f=(data.filas||[])[k++]||{};
-      const cc = p ? ccTexto(p.cc)+' · '+fmt(num(p.pct)||0)+' %'+(tot!==null&&tope?' = '+fmt(tot*(num(p.pct)||0)/100)+' '+tope.unidad:'') : ccTexto(t.reparto&&t.reparto[0]?t.reparto[0].cc:t.cc);
-      return '<div class="r-row"><b>'+(p?'Parte '+(j+1)+' de '+partes.length:esc(EQ.codigo))+'</b><br>'+esc(cc)+(!p&&EQ.medidor?'<br>'+esc(t.inicial)+' → '+esc(t.final)+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?esc(tope.unidad):'')+'</b>':'')+(t.desc?'<br><i>'+esc(t.desc)+'</i>':'')
-        +((f.alertas&&f.alertas.length)?'<br><span style="color:var(--accent-txt)">Para revisión: '+esc(f.alertas.join(', '))+'</span>':'')+'</div>'; }).join(''); }).join('');
-  document.getElementById('okMsg').innerHTML='<b>'+esc(EQ.codigo)+'</b> · '+esc(fecha)+' · parte nº '+esc(reporte)+' · '+esc(operador)+'<br>'
-    +((data.guardadas||0)+(data.duplicadas||0))+' fila(s) registrada(s) como <b>pendiente</b> de revisión.'
-    +(DEMO?'<br><span style="color:var(--accent-txt)">Modo de prueba: no se guardó nada.</span>':'')
-    +(alertas.length?'<br><span style="color:var(--accent-txt)">Quedó marcado para que maquinaria lo mire ('+esc([...new Set(alertas)].join(', '))+'). No tienes que hacer nada más.</span>':'');
-  // el último final ahora es el del último tramo enviado
-  const ultT=tramos[tramos.length-1]; if(EQ.medidor && num(ultT.final)!==null) ULTIMO={ final:num(ultT.final), fecha:fecha, hora_a:ultT.hora_a, origen:'bandeja' };
-  mostrar('pantallaOk'); window.scrollTo(0,0);
-}
-function otroTramo(){
-  // mismo parte físico, mismo operador, mismo día: un tramo nuevo que arranca donde terminó el anterior
-  const u=ultimoEnvio, prev=u?u.tramos[u.tramos.length-1]:null;
-  tramos=[]; intento=false;
-  tramos=[nuevoTramo({ inicial: ULTIMO?ULTIMO.final:'', hora_de: prev?prev.hora_a:'', pr: prev?prev.pr:'', iniPre: ULTIMO?ULTIMO.final:'' })];
-  if(u){ document.getElementById('fecha').value=u.fecha; document.getElementById('reporteNum').value=u.reporte; }
-  render(); mostrar('formMain'); window.scrollTo(0,0);
-}
-function nuevoParte(){
-  tramos=[]; intento=false; document.getElementById('reporteNum').value=''; document.getElementById('fecha').value=HOY;
-  addTramo(); mostrar('formMain'); window.scrollTo(0,0);
-}
-
-cargar();
-</script>
+<script src="parte.js"></script>
 </body>
 </html>

@@ -157,7 +157,7 @@ function derivarEstado(motivo, muertas){
 // Tipos cuya producción (T) es SIEMPRE nula: vibrocompactadores + minicargador/minibuldozer (D41/D44)
 // + la retroexcavadora RT-02 "la pajarita" (alquilada). Estas máquinas compactan/apoyan frentes de
 // otras; no generan producción propia.
-// D170: el tipo llega ahora con el vocabulario de PARTE_EQUIPOS (`COMPACTADORES`, `VIBROCOMPACTADOR
+// D171: el tipo llega ahora con el vocabulario de PARTE_EQUIPOS (`COMPACTADORES`, `VIBROCOMPACTADOR
 // RENTAL 900`, `RETROCARGADOR`, `MINICARGADOR`…), así que se decide por CONTENIDO, no por igualdad:
 // cualquier compactador, minicargador/minibuldózer y retro (cargador/excavadora) va sin producción.
 function esTipoSinProduccion(tipo){
@@ -166,7 +166,7 @@ function esTipoSinProduccion(tipo){
   return t.indexOf('COMPACTADOR')>=0 || t.indexOf('MINICARGADOR')>=0 || t.indexOf('MINIBULDOZER')>=0
       || t.indexOf('RETROEXCAVADORA')>=0 || t.indexOf('RETROCARGADOR')>=0;
 }
-/* D170 — catálogo único de máquinas para el reporte del capataz: la hoja PARTE_EQUIPOS del Parte
+/* D171 — catálogo único de máquinas para el reporte del capataz: la hoja PARTE_EQUIPOS del Parte
  * Digital (D165), `activo=SI`. Se lee con el lector de CodigoParte.gs (mismo proyecto); si ese
  * archivo no está o la hoja no existe, devuelve [] y el capataz cae a `maquinas` (flota.js). */
 function equiposCapataz_(){
@@ -1159,7 +1159,7 @@ function guardarReporte(body){
   // algo ya guardado ES éxito. RETROCOMPATIBILIDAD: si el payload llega sin id_registro (frontend
   // viejo cacheado en un celular), el backend genera el id como siempre y NO deduplica.
   const traeIdsBan=(body.cantidades||[]).some(function(c){ return c.id_registro; });
-  // D170: un equipo que llega como código suelto ('CR026') hereda un id determinístico de su línea
+  // D171: un equipo que llega como código suelto ('CR026') hereda un id determinístico de su línea
   // (id_registro de la cantidad + '-m' + posición), así que cuenta como "trae id" si la línea lo trae.
   const traeIdsMaq=(body.cantidades||[]).some(function(c){ return (c.equipos||[]).some(function(m){ return (m && m.id_registro) || ((typeof m==='string'||typeof m==='number') && c.id_registro); }); })
                  || (body.maquinaria||[]).some(function(m){ return m && m.id_registro; });
@@ -1204,7 +1204,7 @@ function guardarReporte(body){
   const totalExc=Object.keys(lineVol).reduce((s,k)=>s+(lineVol[k]||0),0);
   const totalBota=Object.keys(lineVol).reduce((s,k)=>s+(lineTipo[k]==='Botadero'?(lineVol[k]||0):0),0);
   const traeSplit=(body.cantidades||[]).some(function(c){ return c._acumBotadero; });
-  let eqMapa=null;   // D170: PARTE_EQUIPOS, solo si algún equipo llega sin tipo (lectura perezosa)
+  let eqMapa=null;   // D171: PARTE_EQUIPOS, solo si algún equipo llega sin tipo (lectura perezosa)
   (body.cantidades||[]).forEach(c=>{
     if(rol==='chequeadora'){
       if(c._acumBotadero) c.largo=totalBota;                               // excavación no aprovechable (Botadero)
@@ -1254,7 +1254,7 @@ function guardarReporte(body){
     // horas opcionales): a_captura=NO SIEMPRE (no pasan a Captura_Diaria) y T Producción en blanco.
     const der = derivarActividad(c);
     const esDrenaje = (areaLinea!=='tierras');
-    // D170: los equipos del capataz son SOLO el código. Cada elemento puede venir como objeto
+    // D171: los equipos del capataz son SOLO el código. Cada elemento puede venir como objeto
     // {id_registro,id_maquina,tipo_equipo} (frontend actual) o como string 'CR026' (lista de códigos);
     // un payload VIEJO de la cola offline (D82) trae además horas_operadas/operador/motivo/programadas/
     // muertas: se aceptan y se DESCARTAN en silencio (no se rechazan, no se escriben). Las columnas
@@ -1282,15 +1282,15 @@ function guardarReporte(body){
       const prod  = (esDrenaje || esVibro || esApoyo || baseProd == null || baseProd === '') ? '' : baseProd;
       const uProd = (prod === '') ? '' : (tieneProdMaq ? (c.unidad_maquina || '') : (c.unidad || ''));
       maqRows.push([
-        // A vacío (autonumera Captura) · B fecha · C vacío · D proyecto · E id_maquina · F vacío · G operador (VACÍO, D170)
+        // A vacío (autonumera Captura) · B fecha · C vacío · D proyecto · E id_maquina · F vacío · G operador (VACÍO, D171)
         '', fecha, '', c.proyecto, m.id_maquina, '', '',
-        // H actividad(der) · I sub(der) · J vacío · K vacío(fórmula) · L horas_operadas (VACÍO, D170) · M vacío
+        // H actividad(der) · I sub(der) · J vacío · K vacío(fórmula) · L horas_operadas (VACÍO, D171) · M vacío
         der.h, der.i, '', '', '', '',
-        // N vacío(fórmula) · O h_mantenimiento (VACÍO, D170) · P vacío · Q vacío · R estado (VACÍO, D170) · S vacío(clima)
+        // N vacío(fórmula) · O h_mantenimiento (VACÍO, D171) · P vacío · Q vacío · R estado (VACÍO, D171) · S vacío(clima)
         '', '', '', '', '', '',
         // T produccion · U–X vacío · Y vacío(viajes) · Z vacío · AA observacion
         prod, '', '', '', '', '', '', c.observacion||'',
-        // internos del app (app_horas_programadas · app_horas_muertas · motivo VACÍOS, D170)
+        // internos del app (app_horas_programadas · app_horas_muertas · motivo VACÍOS, D171)
         idM, idC, ts, reporta, m.tipo_equipo||'', '', '',
         '', uProd, c.actividad, (esDrenaje?'NO':der.aCaptura), '', areaCol]);
     });
@@ -1660,7 +1660,7 @@ function maquinasCatalogo(e){
     const ta=MAQ_ORDEN_TIPO.indexOf(a.tipo), tb=MAQ_ORDEN_TIPO.indexOf(b.tipo);
     return ((ta<0?99:ta)-(tb<0?99:tb)) || (a.id_maquina<b.id_maquina?-1:a.id_maquina>b.id_maquina?1:0);
   });
-  // D170: `equipos` = PARTE_EQUIPOS activos (código·tipo·placa), la lista que usa el reporte del capataz.
+  // D171: `equipos` = PARTE_EQUIPOS activos (código·tipo·placa), la lista que usa el reporte del capataz.
   return json({ ok:true, fecha:fl.fecha, fuente:fl.fuente, maquinas:maquinas, equipos:equiposCapataz_(), avisos:fl.avisos });
 }
 /* ============ D139 — ALTA Y BAJA DE MÁQUINAS DESDE LA PANTALLA (backlog 2.29) ============
@@ -2769,7 +2769,7 @@ const VAL_OBRA_EQUIPO = {
   id_registro:['t',100], id_maquina:['t',50], operador:['t',200], tipo_equipo:['t',100], motivo:['t',300],
   horas_operadas:['n',0,VAL_MAX_HORAS], horas_programadas:['n',0,VAL_MAX_HORAS], horas_muertas:['n',0,VAL_MAX_HORAS]
 };
-// D170: `equipos` de una línea del capataz = lista de códigos ('CR026') o de objetos con el esquema de
+// D171: `equipos` de una línea del capataz = lista de códigos ('CR026') o de objetos con el esquema de
 // arriba. horas_operadas/operador/motivo/programadas/muertas siguen en el esquema SOLO para que un
 // payload viejo (cola offline, D82) pase la validación; guardarReporte los ignora.
 function valEquiposCapataz_(arr, nombre){

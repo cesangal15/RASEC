@@ -20,6 +20,10 @@
  * archivo). Con network-first, el CONTENIDO de los archivos se refresca solo al haber señal — un
  * cambio de texto en un HTML NO requiere subir la versión.
  */
+// D170: se sube a v11 porque la lista de precache CAMBIA: la CSP ya no admite JS ni CSS en línea, así que
+// cada pantalla precacheada trae ahora su `.js` y su `.css` (7 pantallas × 2 archivos) y entra el símbolo
+// de marca `img/galca-simbolo.svg`; además tema.js (ya en el precache) trae el despachador de eventos del
+// que dependen los HTML nuevos. Sin subirla, un teléfono instalado tendría los HTML nuevos sin sus .js.
 // D138: se sube a v5 porque la lista de precache CAMBIA (entra `flota.js`, el catálogo de máquinas
 // vivo que usan capataz y chequeadora). Sin subirla, un teléfono ya instalado serviría el shell viejo
 // y `flota.js` no estaría en su caché: con señal se bajaría igual, pero SIN señal la pantalla se
@@ -46,21 +50,22 @@
 // de la API y se carga el PRIMERO; `entorno.js` deja de tener URLs y depende de él. Un teléfono sin
 // señal con el auth.js/entorno.js viejos y un HTML nuevo (orden de scripts cambiado, CSP sin
 // script.google.com) no arrancaría, o saldría a Google y la CSP lo frenaría. Por eso se sube.
-const CACHE_V = 'tm2-v11';  // v11 (D170): flota.js gana `equiposCapataz` y reporte-capataz.html depende de él
-                            // v10: auth.js con la base de la API (Worker), entorno.js sin URLs
+const CACHE_V = 'tm2-v12';  // v12 (D171): flota.js gana `equiposCapataz` y reporte-capataz.js depende de él
+                            // v11 (D170): JS/CSS de cada pantalla en archivos propios + símbolo Galca; tema.js nuevo
 const FONT_CACHE = CACHE_V + '-fonts';
 
 // Lista explícita: shell + capturas + app. NO precachear las páginas fuera de alcance
 // (encargado, residente, residente-drenajes, jefe, estado, produccion-maquinaria,
 // resumen-asistencia, mis-extras necesitan datos vivos, D49/D82).
 const PRECACHE = [
-  './index.html',
-  './seleccion-reporte.html',
-  './menu.html',
-  './reporte-capataz.html',
-  './reporte-chequeadora.html',
-  './reporte-drenajes.html',
-  './asistencia.html',
+  './index.html', './index.js', './index.css',
+  './seleccion-reporte.html', './seleccion-reporte.js', './seleccion-reporte.css',
+  './menu.html', './menu.js', './menu.css',
+  './reporte-capataz.html', './reporte-capataz.js', './reporte-capataz.css',
+  './reporte-chequeadora.html', './reporte-chequeadora.js', './reporte-chequeadora.css',
+  './reporte-drenajes.html', './reporte-drenajes.js', './reporte-drenajes.css',
+  './asistencia.html', './asistencia.js', './asistencia.css',
+  './img/galca-simbolo.svg',
   './entorno.js',
   './auth.js',
   './offline.js',
@@ -74,8 +79,11 @@ const PRECACHE = [
 ];
 
 // Mini-página inline para navegaciones sin red a páginas fuera del precache (mismo tema oscuro).
+// D170: su CSP ya no lleva 'unsafe-inline'; el <style> se autoriza por HASH (sha256 en base64 del texto
+// EXACTO entre <style> y </style>). Si se cambia una letra de ese CSS hay que recalcular el hash:
+//   node -e "const c=require('crypto');process.stdout.write(c.createHash('sha256').update(TEXTO).digest('base64'))"
 const OFFLINE_HTML = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
-  + '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; style-src \'unsafe-inline\'; img-src \'self\' data:">'
+  + '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; style-src \'sha256-BsT9wShmcCJKcuVJ6q3i/mdUBBz9sydEK6a1vIqilEY=\'; img-src \'self\' data:">'
   + '<meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Sin conexión — TM2 Sur</title>'
   + '<style>body{font-family:sans-serif;background:#0f1117;color:#e8eaf0;min-height:100vh;display:flex;'
   + 'align-items:center;justify-content:center;padding:20px;margin:0;}'
