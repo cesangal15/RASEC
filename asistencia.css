@@ -1,0 +1,85 @@
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 60px;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:720px;margin:0 auto;padding:20px 16px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .field{flex:1;min-width:130px;}
+  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
+  input[type="date"],input[type="text"],input[type="time"],select,textarea{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 12px;outline:none;transition:border-color 0.2s;}
+  select{appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
+  .jornada-banner{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--muted);margin-top:12px;}
+  .jornada-banner b{color:var(--accent-txt);}
+  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:22px 0 10px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .persona-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(46,52,80,0.5);font-size:13.5px;flex-wrap:wrap;}
+  .persona-row:last-child{border-bottom:none;}
+  .persona-row .nombre{flex:1;min-width:140px;}
+  .persona-row .nombre b{display:block;}
+  .persona-row .nombre small{color:var(--muted);font-size:11px;}
+  .persona-row .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;}
+  .persona-row .badge.asig{border-color:rgba(46,204,113,0.4);color:var(--success-txt);}
+  .persona-row .badge.sin{border-color:rgba(245,166,35,0.4);color:var(--warn);}
+  .chk-presente{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);white-space:nowrap;}
+  .chk-presente input{width:auto;}
+  .motivo-sel{min-width:220px;flex:1;}
+  .turno-cap-sel{font-size:11px;padding:4px 8px;border-radius:8px;background:var(--input-bg);border:1px solid var(--border);color:var(--text);max-width:210px;cursor:pointer;}
+  .sin-asignar{border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--surface2);}
+  .sin-asignar.alerta{border-color:rgba(245,166,35,0.5);background:rgba(245,166,35,0.08);}
+  .sin-asignar h3{font-family:'Syne',sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;color:var(--muted);}
+  .sin-asignar.alerta h3{color:var(--warn);}
+  .chip-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{background:var(--input-bg);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;}
+  .sin-asignar.alerta .chip{border-color:rgba(245,166,35,0.4);color:var(--warn);}
+  .bloque{border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;background:var(--surface2);}
+  .bloque-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;}
+  .bloque-head .tag{font-family:'Syne',sans-serif;font-size:12px;font-weight:800;color:var(--accent-txt);}
+  .btn-x{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:12px;}
+  .btn-x:hover{border-color:var(--error);color:var(--error-txt);}
+  .cc-search{position:relative;}
+  .cc-results{position:absolute;top:100%;left:0;right:0;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;z-index:10;margin-top:4px;}
+  .cc-opt{padding:9px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--border);}
+  .cc-opt:last-child{border-bottom:none;}
+  .cc-opt:hover{background:var(--surface2);color:var(--accent-txt);}
+  .cc-opt small{display:block;color:var(--muted);font-size:10px;margin-top:2px;}
+  .cc-chosen{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .cc-chosen b{color:var(--accent-txt);font-size:12px;}
+  .miembro{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px;flex-wrap:wrap;}
+  .miembro input[type=checkbox]{width:auto;}
+  .miembro .link-ov{font-size:11px;color:var(--muted);text-decoration:underline;cursor:pointer;background:none;border:none;}
+  .miembro-ov{display:flex;gap:8px;margin:4px 0 8px 26px;}
+  .miembro-ov input{max-width:110px;}
+  .btn-add-bloque{width:100%;padding:12px;background:var(--input-bg);border:1px dashed var(--accent);border-radius:10px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;}
+  .avisos{background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.3);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:var(--warn);}
+  .avisos ul{margin:6px 0 0 18px;}
+  .btn-enviar{width:100%;padding:15px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:0.5px;}
+  .btn-enviar:hover{transform:translateY(-1px);}
+  .btn-enviar:disabled{opacity:0.5;cursor:not-allowed;}
+  .loading,.empty-state{text-align:center;padding:34px;color:var(--muted);font-size:14px;}
+  .confirm-ok{background:rgba(46,204,113,0.1);border:1px solid rgba(46,204,113,0.3);border-radius:10px;padding:12px 14px;color:var(--success-txt);font-size:13px;margin-bottom:14px;}
+  /* D82: confirmación NARANJA de encolado (guardado local, NO es confirmación de servidor) */
+  .confirm-cola{background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.4);border-radius:10px;padding:12px 14px;color:var(--accent-txt);font-size:13px;margin-bottom:14px;}
+
+  /* ===== PC (D151) — dos columnas ====================================
+   * Izquierda el listado de personal, que es el bloque largo (42 personas en
+   * una cuadrilla); derecha los bloques de CC y la nota del día, que es donde
+   * se teclea. Así se marca asistencia sin perder de vista el bloque al que se
+   * asigna la gente. `display:contents` mantiene intacto el orden en móvil.
+   * ================================================================== */
+  .pc-zona,.pc-izq,.pc-der{display:contents;}
+  @media(min-width:1100px){
+    .container{max-width:1240px;}
+    /* min-width:0 en las celdas: sin él, un hijo ancho (la tabla de personal)
+       ensancha su columna en vez de hacer scroll dentro, y descuadra la rejilla. */
+    .pc-zona{display:grid;grid-template-columns:1.35fr 1fr;gap:0 20px;align-items:start;}
+    .pc-izq{display:block;min-width:0;}
+    .pc-der{display:block;min-width:0;}
+    .btn-enviar{max-width:520px;margin-left:auto;margin-right:auto;display:block;}
+  }

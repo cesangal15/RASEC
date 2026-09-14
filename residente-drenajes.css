@@ -1,0 +1,113 @@
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 40px;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:700px;margin:0 auto;padding:24px 16px;}
+  .filtro-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;}
+  .filtro-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+  .field{flex:1;min-width:130px;}
+  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
+  input[type="date"],select,input[type="number"],input[type="text"]{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s;appearance:none;}
+  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
+  select option,optgroup{background:var(--surface);}
+  .btn-consultar{padding:10px 18px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:8px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .btn-consultar:hover{transform:translateY(-1px);}
+  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:24px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .estado-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .estado-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .estado-box h3{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;font-weight:600;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{font-size:12px;font-weight:600;padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--input-bg);}
+  .chip.ok{border-color:rgba(46,204,113,0.4);background:rgba(46,204,113,0.08);color:var(--success-txt);}
+  .chip.no{border-color:rgba(231,76,60,0.4);background:rgba(231,76,60,0.08);color:var(--error-txt);}
+  .totales{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;}
+  .tot-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;gap:10px;}
+  .tot-row:last-child{border-bottom:none;}
+  .tot-row .cat{color:var(--muted);min-width:0;}
+  .tot-row .val{font-family:'Syne',sans-serif;font-weight:700;white-space:nowrap;}
+  .grupo-cat{font-family:'Syne',sans-serif;font-size:12px;color:var(--accent-txt);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;}
+  /* D103 — notas generales del día que dejan los capataces de drenajes (hoja OBSERVACIONES) */
+  .obs-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px;}
+  .obs-item{background:var(--bg);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:6px;}
+  .obs-item:last-child{margin-bottom:0;}
+  .obs-quien{font-size:10px;font-weight:600;color:var(--accent-txt);text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+  .obs-txt{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
+  .obs-vacio{font-size:12px;color:var(--muted);}
+  .linea-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+  .linea-item.off{opacity:0.5;}
+  .tog{background:none;border:1px solid var(--border);border-radius:7px;width:30px;height:30px;font-size:15px;cursor:pointer;flex-shrink:0;line-height:1;}
+  .tog.on{border-color:rgba(46,204,113,0.5);color:var(--success-txt);background:rgba(46,204,113,0.08);}
+  .tog.no{border-color:var(--border);color:var(--muted);}
+  .li-main{flex:1;min-width:0;}
+  .li-act{font-size:13px;font-weight:600;}
+  .li-sub{font-size:11px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .li-pers{font-size:10.5px;color:var(--accent-txt);margin-top:2px;opacity:0.9;}
+  .li-nota{font-size:10.5px;color:var(--muted);margin-top:2px;font-style:italic;}
+  .src{font-size:10px;font-weight:600;padding:1px 7px;border-radius:12px;border:1px solid var(--border);}
+  .src.cap{border-color:rgba(245,166,35,0.4);color:var(--accent-txt);}
+  .src.enc{border-color:var(--border);color:var(--muted);}
+  .li-largo{width:88px;flex-shrink:0;}
+  .li-largo input{padding:7px 9px;font-size:13px;text-align:right;}
+  .li-unit{font-size:11px;color:var(--muted);width:30px;flex-shrink:0;}
+  .badge{font-size:10px;font-weight:600;padding:1px 7px;border-radius:12px;border:1px solid var(--border);}
+  .badge.uf1{border-color:rgba(58,155,220,0.4);color:var(--uf1-txt);} .badge.uf2{border-color:rgba(155,89,182,0.4);color:var(--uf2-txt);}
+  .maq-id{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;min-width:60px;flex-shrink:0;}
+  .add-card{background:var(--surface2);border:1px dashed var(--border);border-radius:10px;padding:14px;margin-top:10px;}
+  .add-grid{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;}
+  .add-grid label{font-size:10px;}
+  .btn-add{padding:9px 14px;background:var(--input-bg);border:1px solid var(--accent);border-radius:8px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:1px;}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px;}
+  .btn-action{flex:1;min-width:160px;padding:14px;border-radius:10px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.5px;border:1px solid var(--border);background:var(--surface);color:var(--text);}
+  .btn-action:hover{border-color:var(--accent);}
+  .btn-action.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--btn-txt);border:none;}
+  .msg-box{margin-top:16px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:14px;white-space:pre-wrap;font-size:12.5px;line-height:1.6;color:var(--text);max-height:340px;overflow:auto;display:none;}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+  .empty-state .icon{font-size:40px;margin-bottom:12px;}
+  .loading{text-align:center;padding:30px;color:var(--muted);font-size:14px;}
+  .saved-flag{font-size:12px;color:var(--success-txt);margin-left:8px;display:none;}
+  .nota-maq{font-size:11px;color:var(--muted);margin-top:6px;}
+  /* D84: chips de filtro de área (presentación), badges por área y grupos de área en la bandeja combinada */
+  .filtro-chips{display:flex;gap:8px;margin:0 0 4px;flex-wrap:wrap;}
+  .fchip{font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--input-bg);color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif;}
+  .fchip.act{border-color:var(--accent);color:var(--accent-txt);background:rgba(245,166,35,0.08);}
+  .badge.odt{border-color:rgba(58,155,220,0.4);color:var(--uf1-txt);}
+  .badge.odl{border-color:rgba(155,89,182,0.4);color:var(--uf2-txt);}
+  .grupo-area{font-family:'Syne',sans-serif;font-size:13px;color:var(--accent-txt);text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+  .tot-area-hdr{color:var(--accent-txt)!important;font-weight:700;}
+  .wa-toggle-row{margin-top:8px;text-align:right;}
+  .wa-toggle{font-size:12px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .wa-toggle input{accent-color:var(--accent);width:auto;}
+  .wa-sub{margin-bottom:14px;}
+  .wa-sub pre{white-space:pre-wrap;font-size:12.5px;line-height:1.6;margin-top:8px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:12px;overflow:auto;max-height:260px;}
+  @media(max-width:480px){.estado-grid{grid-template-columns:1fr;}.add-grid{grid-template-columns:1fr 1fr;}}
+
+  /* ===== PC (D151) — dos columnas =====================================
+   * Mismo mecanismo que encargado.html: `render()` escupe una lista plana y
+   * las columnas salen de tres envoltorios con `display:contents`, que en móvil
+   * DESAPARECEN para el layout (todo se apila en el mismo orden de siempre) y
+   * solo a partir de 1100px pasan a ser celdas de una rejilla. La bandeja (lo
+   * que se scrollea) va a la izquierda, ancha; estado/totales/notas a la
+   * derecha; los botones de envío/WhatsApp al pie a ancho completo. Los chips
+   * de filtro de área (D84) quedan FUERA de la rejilla, arriba a ancho completo.
+   * `min-width:0` en cada celda: sin él, un hijo ancho (una línea larga de la
+   * bandeja) ensancha su columna en vez de hacer scroll dentro y descuadra todo.
+   * ==================================================================== */
+  .pc-zona,.pc-a,.pc-b,.pc-c{display:contents;}
+  @media(min-width:1100px){
+    .container{max-width:1240px;}
+    .pc-zona{display:grid;grid-template-columns:1.55fr 1fr;gap:0 20px;align-items:start;}
+    .pc-b{display:block;grid-column:1;grid-row:1;min-width:0;}
+    .pc-a{display:block;grid-column:2;grid-row:1;min-width:0;}
+    .pc-c{display:block;grid-column:1 / -1;grid-row:2;min-width:0;}
+    /* En la columna derecha, ya estrecha, las dos cajas de estado van apiladas. */
+    .pc-a .estado-grid{grid-template-columns:1fr;}
+    .actions{max-width:760px;margin-left:auto;margin-right:auto;}
+    .wa-toggle-row{max-width:760px;margin-left:auto;margin-right:auto;}
+  }

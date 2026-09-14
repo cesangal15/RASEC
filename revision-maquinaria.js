@@ -1,0 +1,323 @@
+// D170: aplica los data-estilo del marcado ANTES de que corra la lógica de la pantalla (ver tema.js).
+if(window.TM2Estilos) TM2Estilos.aplicar();
+const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
+const API = APPS_SCRIPT_URL + '?mod=parte';
+const ROLES = ['admin','encargado','residente','parte_maquinaria'];
+
+/* ---------- sesión (D82/D109) ---------- */
+const rol=localStorage.getItem('rol')||'', usuario=localStorage.getItem('usuario')||'';
+if(!rol || ROLES.indexOf(rol)<0 || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }
+document.getElementById('userDisplay').textContent=usuario+' · '+rol;
+if(rol==='admin') document.getElementById('btnMenu').style.display='inline-block';
+function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); location.href='index.html'; }
+function caducada(d){ if(window.TM2Auth && TM2Auth.caducada(d)){ alert('La sesión ya no vale. Vuelve a entrar.'); logout(); return true; } return false; }
+
+/* ---------- utilidades ---------- */
+function hoy(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
+function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
+function fmt(n){ return n===null||n===''||n===undefined ? '' : (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
+function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.indexOf('3702')===0?'2':s.indexOf('3703')===0?'3':''; }
+function norm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
+function uuid(){ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); return 'm-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10); }
+function fechaExcel(iso){ const p=String(iso||'').slice(0,10).split('-'); if(p.length<3) return String(iso||''); return p[2]+'/'+p[1]+'/'+p[0]; }
+let toastT=null; function toast(msg, err){ let t=document.querySelector('.toast'); if(!t){ t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); } t.textContent=msg; t.classList.toggle('err',!!err); t.style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none', err?6000:2500); }
+async function api(url, body){
+  const r = body ? await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(body) }) : await fetch(url, {cache:'no-store'});
+  return r.json();
+}
+
+/* ---------- estado ---------- */
+let TOPES={HOROMETRO:{bloquea:24,alerta:12,unidad:'h'},KM:{bloquea:700,alerta:400,unidad:'km'}};
+let LISTAS={operadores:[],cc:[],equipos:[]};
+let BAND={pendientes:[],revisadas:[],faltantes:[]};
+let dirty={};          // id_registro → {campo:valor}
+let BASE=null;         // respuesta de op=base
+let editando=null;     // id en edición en la tabla Base
+
+function verTab(t){
+  document.getElementById('tabPend').classList.toggle('on', t==='pend'); document.getElementById('tabBase').classList.toggle('on', t==='base');
+  document.getElementById('vistaPend').classList.toggle('hidden', t!=='pend'); document.getElementById('vistaBase').classList.toggle('hidden', t!=='base');
+  if(t==='base' && !BASE) cargarBase();
+}
+
+/* ================= PENDIENTES ================= */
+function moverDia(d){ const f=document.getElementById('fecha'); const dt=new Date(f.value+'T12:00:00'); dt.setDate(dt.getDate()+d); f.value=dt.toISOString().slice(0,10); cargarBandeja(); }
+async function cargarBandeja(){
+  const fecha=document.getElementById('fecha').value; if(!fecha) return;
+  document.getElementById('pendientes').innerHTML='<div class="vacio">Cargando…</div>';
+  let d; try{ d=await api(API+'&op=bandeja&fecha='+fecha); }catch(e){ d={ok:false,error:'Sin conexión con el servidor.'}; }
+  if(caducada(d)) return;
+  if(!d.ok){ document.getElementById('pendientes').innerHTML='<div class="vacio">'+esc(d.error||'error')+'</div>'; return; }
+  BAND=d; dirty={}; if(d.topes) TOPES=d.topes; if(d.listas) LISTAS=d.listas;
+  pintarBandeja();
+}
+function alertasDe(r){ return String(r.alertas||'').split(';').map(s=>s.trim()).filter(Boolean); }
+const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC' };
+function pintarBandeja(){
+  const p=BAND.pendientes||[], rv=BAND.revisadas||[], falt=BAND.faltantes||[];
+  const conAl=p.filter(r=>alertasDe(r).length).length;
+  document.getElementById('nPend').textContent=p.length; document.getElementById('kPend').textContent=p.length;
+  document.getElementById('kAlert').textContent=conAl; document.getElementById('kAprob').textContent=rv.filter(r=>r.estado==='aprobado').length;
+  document.getElementById('kFalt').textContent=falt.length; document.getElementById('cntFalt').textContent=falt.length;
+  document.getElementById('btnAprobarTodo').disabled = !(p.length-conAl);
+  document.getElementById('btnAprobarTodo').textContent='✓ Aprobar todo lo sin alertas ('+(p.length-conAl)+')';
+  document.getElementById('pendientes').innerHTML = p.length ? p.map(r=>filaHTML(r)).join('') : '<div class="vacio">Sin partes pendientes en esta fecha.</div>';
+  const rb=document.getElementById('revisadasBox'); rb.style.display= rv.length ? 'block' : 'none';
+  document.getElementById('nRev').textContent=rv.length;
+  document.getElementById('revisadas').innerHTML=rv.map(r=>filaHTML(r,true)).join('');
+  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+}
+function opSelect(v, lista, extra){
+  const vistos={}; let html='';
+  (extra||[]).concat(lista).forEach(o=>{ if(vistos[o]) return; vistos[o]=1; html+='<option value="'+esc(o)+'"'+(o===v?' selected':'')+'>'+esc(o)+'</option>'; });
+  if(v && !vistos[v]) html='<option value="'+esc(v)+'" selected>'+esc(v)+' (no está en la lista)</option>'+html;
+  return html;
+}
+function ccSelect(v){
+  const reales=(LISTAS.cc||[]).filter(c=>!c.pseudo), pseudo=(LISTAS.cc||[]).filter(c=>c.pseudo);
+  const op=c=>'<option value="'+esc(c.centro_coste)+'"'+(c.centro_coste===v?' selected':'')+'>'+esc(c.centro_coste)+(c.descripcion_cc?' · '+esc(c.descripcion_cc):'')+'</option>';
+  let html='<option value="">—</option>';
+  if(v && !(LISTAS.cc||[]).some(c=>c.centro_coste===v)) html+='<option value="'+esc(v)+'" selected>'+esc(v)+' (no está en PARTE_CC)</option>';
+  html+='<optgroup label="Centros de coste">'+reales.map(op).join('')+'</optgroup><optgroup label="Sin operación">'+pseudo.map(op).join('')+'</optgroup>';
+  return html;
+}
+function filaHTML(r, soloLectura){
+  const al=alertasDe(r), id=r.id_registro, d=dirty[id]||{}, idA=esc(id), idJs=esc(String(id).replace(/'/g,"\\'"));
+  const v=k=> d.hasOwnProperty(k) ? d[k] : r[k];
+  const tot = (num(v('inicial'))!==null && num(v('final'))!==null) ? Math.round((num(v('final'))-num(v('inicial')))*100)/100 : null;
+  const tope=TOPES[r.medidor], unidad=tope?esc(tope.unidad):'';
+  const totCls = tot===null ? '' : tot<0 || (tope && tot>tope.bloquea) ? 'mal' : (tope && tot>tope.alerta) ? 'alto' : '';
+  const ro = soloLectura ? ' disabled' : '';
+  const on = soloLectura ? '' : ' data-on-change="edit(\''+idJs+'\',this)"';
+  const inp=(k,tipo,extra)=>'<input type="'+tipo+'" data-k="'+k+'" value="'+esc(v(k))+'"'+(extra||'')+ro+on+'>';
+  return '<div class="fila'+(al.length?' con-alertas':'')+(Object.keys(d).length?' dirty':'')+(soloLectura?' done':'')+'" id="fila-'+idA+'">'
+    +'<div class="fila-head"><span class="cod">'+esc(r.codigo)+'</span><span class="tipo">'+esc(r.tipo)+(r.placa?' · '+esc(r.placa):'')+' · '+esc(r.medidor||'sin medidor')+'</span>'
+    +(r.origen==='manual'?'<span class="badge manual">manual</span>':'')
+    +(/\[Reparto /.test(String(r.observaciones||''))?'<span class="badge manual" title="Parte de un reparto por porcentaje: el medidor y las horas vienen prorrateados">'+esc((String(r.observaciones).match(/\[Reparto [^\]]*\]/)||[''])[0].replace(/[\[\]]/g,''))+'</span>':'')
+    +(r.inicial_modificado==='SI'?'<span class="badge alerta" title="El operador cambió el inicial precargado">inicial editado</span>':'')
+    +(soloLectura?'<span class="badge estado-'+esc(r.estado)+'">'+esc(r.estado)+(r.revisado_por?' · '+esc(r.revisado_por):'')+'</span>':'')
+    +al.map(a=>'<span class="badge alerta" title="'+esc(ALERTA_TXT[a]||a)+'">⚠ '+esc(a)+'</span>').join('')
+    +'<span class="acciones">'
+    +(soloLectura
+      ? '<button class="btn mini" data-on-click="revisar(\''+idJs+'\',\'pendiente\')">↩ Reabrir</button>'
+      : '<button class="btn mini ok" data-on-click="revisar(\''+idJs+'\',\'aprobado\')">✓ Aprobar</button><button class="btn mini mal" data-on-click="revisar(\''+idJs+'\',\'descartado\')">✕ Descartar</button>'
+        +'<button class="btn mini btn-guardar'+(Object.keys(d).length?'':' hidden')+'" data-on-click="revisar(\''+idJs+'\',\'\')">💾 Guardar</button>')
+    +'</span></div>'
+    +'<div class="campos">'
+    +'<div class="c"><label>Fecha</label>'+inp('fecha','date')+'</div>'
+    +'<div class="c"><label>Nº parte</label>'+inp('reporte_num','text')+'</div>'
+    +'<div class="c w2"><label>Operador</label><select data-k="operador"'+ro+on+'>'+opSelect(v('operador'), LISTAS.operadores||[], ['Sin operador'])+'</select></div>'
+    +'<div class="c"><label>Hora de</label>'+inp('hora_de','time')+'</div>'
+    +'<div class="c"><label>Hora a</label>'+inp('hora_a','time')+'</div>'
+    +'<div class="c"><label>Inicial</label>'+inp('inicial','number',' step="0.1"')+'</div>'
+    +'<div class="c"><label>Final</label>'+inp('final','number',' step="0.1"')+'</div>'
+    +'<div class="c"><label>Total</label><div class="tot '+totCls+'">'+(tot===null?'—':fmt(tot))+' <small>'+unidad+'</small></div></div>'
+    +'<div class="c"><label>H. varada</label>'+inp('horas_varada','number',' step="0.5"')+'</div>'
+    +'<div class="c"><label>H. lluvia</label>'+inp('horas_lluvia','number',' step="0.5"')+'</div>'
+    +'<div class="c"><label>PR</label>'+inp('pr','number')+'</div>'
+    +'<div class="c w3"><label>Centro de coste</label><select data-k="centro_coste"'+ro+on+'>'+ccSelect(v('centro_coste'))+'</select></div>'
+    +'<div class="c"><label>UF</label><select data-k="uf"'+ro+on+'>'+['','1','2','3'].map(u=>'<option value="'+u+'"'+(String(v('uf'))===u?' selected':'')+'>'+(u||'—')+'</option>').join('')+'</select></div>'
+    +'<div class="c w2"><label>Descripción</label><textarea rows="2" data-k="descripcion_trabajo"'+ro+on+'>'+esc(v('descripcion_trabajo'))+'</textarea></div>'
+    +'<div class="c w3"><label>Observaciones</label><textarea rows="2" data-k="observaciones"'+ro+on+'>'+esc(v('observaciones'))+'</textarea></div>'
+    +'</div>'
+    +(al.length?'<div class="nota">'+al.map(a=>'<b>'+esc(a)+':</b> '+esc(ALERTA_TXT[a]||'')).join(' · ')+'</div>':'')
+    +'</div>';
+}
+function edit(id, el){
+  const k=el.dataset.k; dirty[id]=dirty[id]||{}; dirty[id][k]=el.value;
+  const f=document.getElementById('fila-'+id); if(!f) return;
+  // sin repintar la tarjeta (se perdería el foco y lo tecleado): solo el estado visible
+  if(k==='centro_coste'){ dirty[id].uf=ufDe(el.value); const su=f.querySelector('[data-k=uf]'); if(su) su.value=dirty[id].uf; }
+  if(k==='inicial'||k==='final'){
+    const r=(BAND.pendientes||[]).find(x=>x.id_registro===id)||{}, d=dirty[id];
+    const a=num(d.hasOwnProperty('inicial')?d.inicial:r.inicial), b=num(d.hasOwnProperty('final')?d.final:r.final);
+    const tot=(a!==null&&b!==null)?Math.round((b-a)*100)/100:null, tope=TOPES[r.medidor], box=f.querySelector('.tot');
+    if(box){ box.className='tot '+(tot===null?'':tot<0||(tope&&tot>tope.bloquea)?'mal':(tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?esc(tope.unidad):'')+'</small>'; }
+  }
+  f.classList.add('dirty'); const g=f.querySelector('.btn-guardar'); if(g) g.classList.remove('hidden');
+}
+async function revisar(id, estado){
+  const c={ id_registro:id }; if(estado) c.estado=estado;
+  if(dirty[id] && Object.keys(dirty[id]).length) c.campos=dirty[id];
+  if(!c.estado && !c.campos) return;
+  if(c.campos && c.campos.hasOwnProperty('final') && c.campos.hasOwnProperty('inicial')===false){ /* el servidor recalcula total */ }
+  let d; try{ d=await api(null, { mod:'parte', op:'revisar', cambios:[c] }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+  if(caducada(d)) return;
+  if(!d.ok){ toast(d.error||'No se guardó', true); return; }
+  if(d.errores && d.errores.length){ toast('No se aplicó: '+d.errores.map(e=>e.error).join('; '), true); return; }
+  delete dirty[id];
+  aplicarCambios(d.filas||[]);
+  toast(estado==='aprobado'?'Aprobado':estado==='descartado'?'Descartado':estado==='pendiente'?'Reabierto':'Guardado');
+}
+// mueve las filas devueltas por el servidor entre pendientes/revisadas sin recargar todo
+function aplicarCambios(filas){
+  filas.forEach(nf=>{
+    BAND.pendientes=(BAND.pendientes||[]).filter(r=>r.id_registro!==nf.id_registro);
+    BAND.revisadas=(BAND.revisadas||[]).filter(r=>r.id_registro!==nf.id_registro);
+    const fechaVista=document.getElementById('fecha').value;
+    if(nf.fecha!==fechaVista) return;   // se le cambió la fecha: ya no es de este día
+    (nf.estado==='pendiente'?BAND.pendientes:BAND.revisadas).push(nf);
+  });
+  const ord=(a,b)=>(a.codigo+a.hora_de)<(b.codigo+b.hora_de)?-1:1;
+  BAND.pendientes.sort(ord); BAND.revisadas.sort(ord);
+  // recalcular faltantes con lo que hay en pantalla
+  const con={}; BAND.pendientes.concat(BAND.revisadas).forEach(r=>{ if(r.estado!=='descartado') con[norm(r.codigo).replace(/[^A-Z0-9]/g,'')]=1; });
+  BAND.faltantes=(LISTAS.equipos||[]).filter(q=>!con[norm(q.codigo).replace(/[^A-Z0-9]/g,'')]).map(q=>{ const prev=(BAND.faltantes||[]).find(f=>f.codigo===q.codigo); return prev||q; });
+  pintarBandeja();
+}
+async function aprobarSinAlertas(){
+  const lista=(BAND.pendientes||[]).filter(r=>!alertasDe(r).length);
+  if(!lista.length) return;
+  if(!confirm('¿Aprobar '+lista.length+' parte(s) sin alertas de la fecha '+document.getElementById('fecha').value+'?')) return;
+  const cambios=lista.map(r=>{ const c={ id_registro:r.id_registro, estado:'aprobado' }; if(dirty[r.id_registro]) c.campos=dirty[r.id_registro]; return c; });
+  let d; try{ d=await api(null, { mod:'parte', op:'revisar', cambios:cambios }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+  if(caducada(d)) return;
+  if(!d.ok){ toast(d.error||'No se guardó', true); return; }
+  (d.filas||[]).forEach(f=>delete dirty[f.id_registro]);
+  aplicarCambios(d.filas||[]);
+  toast('Aprobadas '+d.cambiadas+(d.errores&&d.errores.length?' · '+d.errores.length+' con error':''), !!(d.errores&&d.errores.length));
+}
+
+/* ---------- agregar manual ---------- */
+let manualEq=null;
+function abrirManual(codigo){
+  const q=(LISTAS.equipos||[]).find(e=>e.codigo===codigo) || (BAND.faltantes||[]).find(e=>e.codigo===codigo);
+  if(!q) return;
+  const f=(BAND.faltantes||[]).find(e=>e.codigo===codigo); const ult=f&&f.ultimo?f.ultimo.final:'';
+  manualEq=q;
+  document.getElementById('mTitulo').textContent='Agregar parte manual · '+q.codigo+' · '+q.tipo+(q.placa?' · '+q.placa:'')+' · '+(q.medidor||'sin medidor');
+  const c=document.getElementById('mCampos');
+  c.innerHTML=
+     '<div class="c"><label>Fecha</label><input type="date" id="m_fecha" value="'+esc(document.getElementById('fecha').value)+'"></div>'
+    +'<div class="c"><label>Nº parte físico</label><input type="text" id="m_reporte" placeholder="obligatorio"></div>'
+    +'<div class="c w2"><label>Operador</label><select id="m_operador">'+opSelect('', LISTAS.operadores||[], ['Sin operador'])+'</select></div>'
+    +'<div class="c"><label>Hora de</label><input type="time" id="m_hde"></div><div class="c"><label>Hora a</label><input type="time" id="m_ha"></div>'
+    +(q.medidor?'<div class="c"><label>Inicial</label><input type="number" step="0.1" id="m_ini" value="'+esc(ult)+'"></div><div class="c"><label>Final</label><input type="number" step="0.1" id="m_fin"></div>':'<div class="c w2"><label>Medidor</label><div class="tot" data-estilo="font-size:13px;color:var(--muted)">sin medidor en el catálogo</div></div>')
+    +'<div class="c"><label>H. varada</label><input type="number" step="0.5" id="m_var"></div><div class="c"><label>H. lluvia</label><input type="number" step="0.5" id="m_llu"></div>'
+    +'<div class="c"><label>PR</label><input type="number" id="m_pr"></div>'
+    +'<div class="c w3"><label>Centro de coste</label><select id="m_cc" data-on-change="setUfDesdeCC(\'m_uf\',this.value)">'+ccSelect('')+'</select></div>'
+    +'<div class="c"><label>UF</label><select id="m_uf"><option value="">—</option><option>1</option><option>2</option><option>3</option></select></div>'
+    +'<div class="c w2"><label>Descripción</label><textarea rows="2" id="m_desc"></textarea></div>'
+    +'<div class="c w3"><label>Observaciones</label><textarea rows="2" id="m_obs"></textarea></div>';
+  document.getElementById('modal').classList.remove('hidden');
+}
+function cerrarModal(){ document.getElementById('modal').classList.add('hidden'); manualEq=null; }
+async function guardarManual(){
+  if(!manualEq) return;
+  const g=id=>{ const el=document.getElementById(id); return el?el.value:''; };
+  const t={ id_registro:uuid(), fecha:g('m_fecha'), reporte_num:g('m_reporte').trim(), operador:g('m_operador'), inicial:num(g('m_ini'))===null?'':num(g('m_ini')), final:num(g('m_fin'))===null?'':num(g('m_fin')),
+    inicial_modificado:'NO', hora_de:g('m_hde'), hora_a:g('m_ha'), centro_coste:g('m_cc'), pr:num(g('m_pr'))===null?'':num(g('m_pr')), uf:g('m_uf')||ufDe(g('m_cc')),
+    descripcion_trabajo:g('m_desc').trim(), horas_varada:num(g('m_var'))===null?'':num(g('m_var')), horas_lluvia:num(g('m_llu'))===null?'':num(g('m_llu')), observaciones:g('m_obs').trim() };
+  const errs=[]; if(!t.fecha) errs.push('fecha'); if(!t.reporte_num) errs.push('nº de parte'); if(!t.operador) errs.push('operador'); if(!t.centro_coste) errs.push('centro de coste');
+  if(manualEq.medidor && (t.inicial===''||t.final==='')) errs.push('medidor inicial y final');
+  if(errs.length){ alert('Falta: '+errs.join(', ')); return; }
+  const b=document.getElementById('mGuardar'); b.disabled=true;
+  let d; try{ d=await api(null, { mod:'parte', op:'reporte', origen:'manual', codigo:manualEq.codigo, tramos:[t] }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+  b.disabled=false;
+  if(caducada(d)) return;
+  if(!d.ok){ toast(d.error||'No se guardó', true); return; }
+  cerrarModal(); toast('Fila manual creada como pendiente'); cargarBandeja();
+}
+
+/* ================= BASE ================= */
+async function cargarBase(){
+  const desde=document.getElementById('desde').value, hasta=document.getElementById('hasta').value;
+  if(!desde||!hasta){ toast('Elige desde y hasta', true); return; }
+  document.getElementById('tbBase').innerHTML='<tr><td colspan="20" class="vacio">Cargando…</td></tr>';
+  let d; try{ d=await api(API+'&op=base&desde='+desde+'&hasta='+hasta+'&estado='+document.getElementById('fEstado').value); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+  if(caducada(d)) return;
+  if(!d.ok){ document.getElementById('tbBase').innerHTML='<tr><td colspan="20" class="vacio">'+esc(d.error||'error')+'</td></tr>'; return; }
+  BASE=d; if(d.listas) LISTAS=Object.assign({}, LISTAS, d.listas); editando=null;
+  pintarBase();
+}
+function filasFiltradas(){
+  if(!BASE) return [];
+  const eq=norm(document.getElementById('fEq').value), cc=norm(document.getElementById('fCC').value), tx=norm(document.getElementById('fTxt').value);
+  return BASE.filas.map((r,i)=>({r:r,i:i})).filter(x=>{ const r=x.r;
+    return (!eq || norm(r.codigo).indexOf(eq)>=0) && (!cc || norm(r.centro_coste).indexOf(cc)>=0)
+      && (!tx || norm(r.operador+' '+r.descripcion_trabajo+' '+r.observaciones+' '+r.reporte_num).indexOf(tx)>=0); });
+}
+function pintarBase(){
+  if(!BASE) return;
+  const lista=filasFiltradas();
+  document.getElementById('kBase').textContent=BASE.filas.length; document.getElementById('kBaseF').textContent=lista.length;
+  document.getElementById('kBaseEq').textContent=new Set(lista.map(x=>x.r.codigo)).size;
+  document.getElementById('btnCopiar').disabled=!lista.length;
+  const tb=document.getElementById('tbBase');
+  if(!lista.length){ tb.innerHTML='<tr><td colspan="20" class="vacio">Sin filas'+(BASE.filas.length?' con ese filtro':' en el rango')+'.</td></tr>'; return; }
+  tb.innerHTML=lista.map(x=>x.r.id_registro===editando ? filaEditHTML(x.r) : filaBaseHTML(x.r)).join('');
+}
+function filaBaseHTML(r){
+  const al=alertasDe(r);
+  return '<tr'+(r.estado!=='aprobado'?' data-estilo="opacity:.6"':'')+'><td><button class="btn mini" data-on-click="editarBase(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\')">✎</button></td>'
+    +'<td>'+esc(r.fecha)+(r.estado!=='aprobado'?'<br><span class="badge estado-'+esc(r.estado)+'">'+esc(r.estado)+'</span>':'')+'</td><td>'+esc(r.reporte_num)+'</td><td><b>'+esc(r.codigo)+'</b><br><span data-estilo="color:var(--muted)">'+esc(r.tipo)+'</span></td><td>'+esc(r.medidor)+'</td>'
+    +'<td class="num">'+fmt(r.inicial)+'</td><td class="num">'+fmt(r.final)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td><td class="num">'+fmt(r.horas_varada)+'</td><td class="num">'+fmt(r.horas_lluvia)+'</td>'
+    +'<td>'+esc(r.hora_de)+'</td><td>'+esc(r.hora_a)+'</td><td class="desc">'+esc(r.descripcion_trabajo)+'</td><td>'+esc(r.centro_coste)+'</td><td class="num">'+esc(r.pr)+'</td><td>'+esc(r.uf)+'</td><td>'+esc(r.operador)+'</td><td class="desc">'+esc(r.observaciones)+'</td>'
+    +'<td>'+al.map(a=>'<span class="badge alerta">'+esc(a)+'</span>').join(' ')+'</td><td>'+esc(r.revisado_por)+(r.origen==='manual'?' <span class="badge manual">manual</span>':'')+'</td></tr>';
+}
+function filaEditHTML(r){
+  const inp=(k,tipo,extra)=>'<input type="'+tipo+'" data-k="'+k+'" value="'+esc(r[k])+'"'+(extra||'')+'>';
+  return '<tr class="edit" id="edit-'+esc(r.id_registro)+'"><td><button class="btn mini ok" data-on-click="guardarBase(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\')">💾</button> <button class="btn mini" data-on-click="cancelarEdicionBase()">✕</button></td>'
+    +'<td>'+inp('fecha','date')+'</td><td>'+inp('reporte_num','text')+'</td><td><b>'+esc(r.codigo)+'</b></td><td>'+esc(r.medidor)+'</td>'
+    +'<td>'+inp('inicial','number',' step="0.1"')+'</td><td>'+inp('final','number',' step="0.1"')+'</td><td class="num">'+fmt(r.total)+'</td><td>'+inp('horas_varada','number',' step="0.5"')+'</td><td>'+inp('horas_lluvia','number',' step="0.5"')+'</td>'
+    +'<td>'+inp('hora_de','time')+'</td><td>'+inp('hora_a','time')+'</td><td class="desc"><textarea rows="2" data-k="descripcion_trabajo">'+esc(r.descripcion_trabajo)+'</textarea></td>'
+    +'<td><select data-k="centro_coste" data-on-change="setUfFila(this)">'+ccSelect(r.centro_coste)+'</select></td><td>'+inp('pr','number')+'</td>'
+    +'<td><select data-k="uf">'+['','1','2','3'].map(u=>'<option value="'+u+'"'+(String(r.uf)===u?' selected':'')+'>'+(u||'—')+'</option>').join('')+'</select></td>'
+    +'<td><select data-k="operador">'+opSelect(r.operador, LISTAS.operadores||[], ['Sin operador'])+'</select></td><td class="desc"><textarea rows="2" data-k="observaciones">'+esc(r.observaciones)+'</textarea></td>'
+    +'<td>'+esc(r.alertas)+'</td><td>'+esc(r.revisado_por)+'</td></tr>';
+}
+function editarBase(id){ editando=id; pintarBase(); }
+async function guardarBase(id){
+  const tr=document.getElementById('edit-'+id); if(!tr) return;
+  const r=BASE.filas.find(x=>x.id_registro===id), campos={};
+  tr.querySelectorAll('[data-k]').forEach(el=>{ const k=el.dataset.k; if(String(el.value)!==String(r[k]===null?'':r[k])) campos[k]=el.value; });
+  if(!Object.keys(campos).length){ editando=null; pintarBase(); return; }
+  let d; try{ d=await api(null, { mod:'parte', op:'revisar', cambios:[{ id_registro:id, campos:campos }] }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+  if(caducada(d)) return;
+  if(!d.ok){ toast(d.error||'No se guardó', true); return; }
+  if(d.errores && d.errores.length){ toast('No se aplicó: '+d.errores.map(e=>e.error).join('; '), true); return; }
+  const nf=(d.filas||[])[0];
+  if(nf){ const i=BASE.filas.findIndex(x=>x.id_registro===id); BASE.filas[i]=nf; BASE.excel.filas[i]=excelFilaLocal(nf); }
+  editando=null; pintarBase(); toast('Fila actualizada');
+}
+// misma regla que parteExcelFila_ del backend, para actualizar la copia local tras una edición
+function excelFilaLocal(r){
+  const mapa=BASE.excel.mapa, esH=r.medidor==='HOROMETRO', esK=r.medidor==='KM';
+  return BASE.excel.columnas.map(L=>{ const c=mapa[L]; if(!c) return '';
+    if(c==='inicial_h') return esH?r.inicial:''; if(c==='final_h') return esH?r.final:''; if(c==='inicial_km') return esK?r.inicial:''; if(c==='final_km') return esK?r.final:'';
+    return r[c]===undefined||r[c]===null?'':r[c]; });
+}
+function celdaExcel(L, v){
+  if(v===''||v===null||v===undefined) return '';
+  if(L==='C') return fechaExcel(v);                                   // dd/mm/aaaa
+  if(typeof v==='number') return String(v).replace('.',',');        // decimal con coma (como jefe.html)
+  return String(v).replace(/[\t\r\n]+/g,' ');
+}
+function copiarExcel(btn){
+  const lista=filasFiltradas(); if(!lista.length) return;
+  const cols=BASE.excel.columnas;
+  const tsv=lista.map(x=>BASE.excel.filas[x.i].map((v,j)=>celdaExcel(cols[j],v)).join('\t')).join('\n');
+  const ok=()=>{ const o=btn.innerHTML; btn.classList.add('copied'); btn.innerHTML='✓ Copiado ('+lista.length+' filas, B→AR)'; setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=o;},2200); };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).then(ok).catch(()=>fallbackCopiar(tsv,ok)); else fallbackCopiar(tsv,ok);
+}
+function fallbackCopiar(text, ok){
+  const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try{ document.execCommand('copy'); ok(); }catch(e){ alert('No se pudo copiar automáticamente.'); }
+  document.body.removeChild(ta);
+}
+
+/* ---------- arranque ---------- */
+(function(){
+  const h=hoy(); document.getElementById('fecha').value=h;
+  const d=new Date(h+'T12:00:00'); d.setDate(d.getDate()-7);
+  document.getElementById('desde').value=d.toISOString().slice(0,10); document.getElementById('hasta').value=h;
+  document.getElementById('fecha').addEventListener('change', cargarBandeja);
+  cargarBandeja();
+})();
+
+// D170: antes eran expresiones en línea en el marcado; la CSP ya no las admite.
+function cerrarModalFondo(ev, el){ if(ev.target===el) cerrarModal(); }
+function setUfDesdeCC(idUf, cc){ document.getElementById(idUf).value=ufDe(cc); }
+function cancelarEdicionBase(){ editando=null; pintarBase(); }
+function setUfFila(sel){ sel.closest('tr').querySelector('[data-k=uf]').value=ufDe(sel.value); }

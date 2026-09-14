@@ -250,46 +250,13 @@
 
   /* ---------- UI de estado (chip + panel de cola + toast) ---------- */
 
-  var CSS = ''
-    +'.tm2off-chip{display:inline-flex;align-items:center;gap:6px;font-family:"DM Sans",sans-serif;font-size:11px;font-weight:600;'
-    +'padding:3px 10px;border-radius:20px;border:1px solid var(--border,#2e3450);background:var(--input-bg,#12151f);color:var(--muted,#7a80a0);'
-    +'margin-top:6px;cursor:default;user-select:none;}'
-    +'.tm2off-chip.tm2off-fixed{position:fixed;top:10px;right:10px;z-index:60;margin:0;}'
-    +'.tm2off-chip .tm2off-dot{width:8px;height:8px;border-radius:50%;background:#2ecc71;flex-shrink:0;}'
-    +'.tm2off-chip.off .tm2off-dot{background:var(--accent,#f5a623);}'
-    +'.tm2off-chip.off{border-color:rgba(245,166,35,0.45);color:var(--accent,#f5a623);}'
-    +'.tm2off-chip .tm2off-pend{background:var(--accent,#f5a623);color:#0f1117;border-radius:12px;padding:1px 7px;font-size:10px;font-weight:700;}'
-    +'.tm2off-chip.haspend{cursor:pointer;}'
-    +'.tm2off-panel{position:fixed;left:12px;right:12px;bottom:90px;max-width:560px;margin:0 auto;z-index:70;'
-    +'background:var(--surface,#1a1d27);border:1px solid var(--accent,#f5a623);border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,0.55);'
-    +'font-family:"DM Sans",sans-serif;font-size:13px;color:var(--text,#e8eaf0);display:none;max-height:60vh;overflow-y:auto;}'
-    +'.tm2off-panel.abierto{display:block;}'
-    +'.tm2off-panel h3{font-family:"Syne",sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--accent,#f5a623);margin:0 0 10px;}'
-    +'.tm2off-item{border:1px solid var(--border,#2e3450);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--input-bg,#12151f);}'
-    +'.tm2off-item .t{font-weight:600;font-size:12.5px;}'
-    +'.tm2off-item .d{font-size:11px;color:var(--muted,#7a80a0);margin-top:3px;line-height:1.5;}'
-    +'.tm2off-item .e{font-size:11px;color:var(--accent,#f5a623);margin-top:3px;word-break:break-word;}'
-    +'.tm2off-item .acc{margin-top:8px;display:flex;gap:8px;}'
-    +'.tm2off-btn{background:none;border:1px solid var(--border,#2e3450);border-radius:6px;color:var(--muted,#7a80a0);'
-    +'font-family:"DM Sans",sans-serif;font-size:11px;padding:4px 10px;cursor:pointer;}'
-    +'.tm2off-btn.acc1{border-color:var(--accent,#f5a623);color:var(--accent,#f5a623);}'
-    +'.tm2off-btn.peligro{border-color:rgba(231,76,60,0.5);color:#e74c3c;}'
-    +'.tm2off-vacio{color:var(--muted,#7a80a0);font-size:12px;text-align:center;padding:8px 0;}'
-    +'.tm2off-toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:90;background:#173325;'
-    +'border:1px solid rgba(46,204,113,0.5);color:#2ecc71;border-radius:10px;padding:10px 18px;font-family:"DM Sans",sans-serif;'
-    +'font-size:13px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,0.5);opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:90vw;}'
-    +'.tm2off-toast.visible{opacity:1;}'
-    +'.tm2off-banner-cat{background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.35);border-radius:10px;'
-    +'padding:9px 12px;font-size:12px;color:var(--accent,#f5a623);margin:0 0 12px;font-family:"DM Sans",sans-serif;}';
+  // D170: el CSS del chip/panel/toast vivía aquí y se inyectaba en un <style>; la CSP ya no admite
+  // estilos en línea, así que ahora está en tema.css (precache, igual que este archivo), sección «offline.js».
 
   var _chip=null, _panel=null, _toastEl=null, _panelAbierto=false;
 
   function montarUI(){
     if (_chip || !document.body) return;
-    var style = document.createElement('style');
-    style.textContent = CSS;
-    document.head.appendChild(style);
-
     _chip = document.createElement('div');
     _chip.className = 'tm2off-chip';
     _chip.setAttribute('title','Estado de la señal y envíos pendientes');
@@ -343,13 +310,13 @@
         + '<div class="d">'+escUI(it.usuario||'')+' · guardado '+escUI((it.creado||'').replace('T',' ').slice(0,16))+' · '+(it.intentos||0)+' intento'+(it.intentos===1?'':'s')+'</div>'
         + ((it.ultimo_error)?('<div class="e">Último error: '+escUI(it.ultimo_error)+'</div>'):'')
         + '<div class="acc">'
-        + '<button class="tm2off-btn" onclick="TM2Offline._copiarItem(\''+escUI(String(it.id).replace(/'/g,"\\'"))+'\')">Copiar texto</button>'
-        + '<button class="tm2off-btn peligro" onclick="TM2Offline._descartarItem(\''+escUI(String(it.id).replace(/'/g,"\\'"))+'\')">Descartar</button>'
+        + '<button class="tm2off-btn" data-on-click="TM2Offline._copiarItem(\''+escUI(String(it.id).replace(/'/g,"\\'"))+'\')">Copiar texto</button>'
+        + '<button class="tm2off-btn peligro" data-on-click="TM2Offline._descartarItem(\''+escUI(String(it.id).replace(/'/g,"\\'"))+'\')">Descartar</button>'
         + '</div></div>';
     });
-    html += '<div class="acc" style="display:flex;gap:8px;margin-top:4px;">'
-      + '<button class="tm2off-btn acc1" onclick="TM2Offline.sincronizar()">↻ Reintentar ahora</button>'
-      + '<button class="tm2off-btn" onclick="TM2Offline._cerrarPanel()">Cerrar</button></div>';
+    html += '<div class="acc" data-estilo="display:flex;gap:8px;margin-top:4px;">'
+      + '<button class="tm2off-btn acc1" data-on-click="TM2Offline.sincronizar()">↻ Reintentar ahora</button>'
+      + '<button class="tm2off-btn" data-on-click="TM2Offline._cerrarPanel()">Cerrar</button></div>';
     _panel.innerHTML = html;
     _panel.classList.add('abierto');
   }

@@ -1,0 +1,78 @@
+  /* --muted sube de #7a80a0 a #a8aec8: las etiquetas de 12px en mayúsculas se perdían
+     bajo sol directo, que es donde el capataz usa esta pantalla. */
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+  /* FONDO — ilustración SVG EN LÍNEA, no una imagen aparte. Es deliberado: index.html está en el
+     PRECACHE del service worker (es el start_url de la PWA), así que el fondo viaja con él y el
+     login abre igual sin señal. Una foto .webp habría que añadirla a PRECACHE y subir CACHE_V, y
+     si alguien lo olvida el capataz sin cobertura ve el login roto. Si algún día entra una foto
+     real, ese es el trámite obligatorio. */
+  .escena{position:fixed;inset:0;z-index:0;overflow:hidden;}
+  .escena svg{width:100%;height:100%;display:block;}
+  .escena-ancha{display:none;}
+  .velo{position:fixed;inset:0;z-index:1;background:var(--velo);}
+  .marca{display:none;}
+
+  .panel{position:relative;z-index:2;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .card{background:var(--card-velada);border:1px solid var(--border);border-radius:20px;padding:40px 32px;width:100%;max-width:400px;box-shadow:var(--card-sombra);}
+  .panel-titulo{display:none;}
+  .logo{text-align:center;margin-bottom:32px;}
+  /* Marca Galca (identidad visual, turno 5e). El símbolo va EN LÍNEA, no como <img>: así viaja con
+     index.html en el precache y el login sin señal no queda sin marca. Hereda --text en oscuro
+     (blanco: dentro de la app la marca va en blanco); en claro toma el azul profundo de marca. */
+  .galca{width:64px;height:64px;display:block;margin:0 auto 14px;color:var(--text);}
+  .galca-nombre{font-family:'Red Hat Display',sans-serif;font-weight:900;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  :root[data-tema="claro"] .galca{color:#0b1f3a;}
+  @media (prefers-color-scheme: light){ :root:not([data-tema="oscuro"]) .galca{color:#0b1f3a;} }
+  /* 20px, no 22: en Syne (ancha) el título a 22px se parte en dos líneas en 390px y le roba
+     protagonismo al símbolo. A 20px cabe en una línea, como en la maqueta 5e; el 5.1vw lo
+     mantiene en una línea también en teléfonos de 360px. */
+  .logo h1{font-family:'Syne',sans-serif;font-size:min(20px,5.1vw);font-weight:800;color:var(--text);}
+  .logo p{font-size:13px;color:var(--muted);margin-top:4px;}
+  .field{margin-bottom:16px;}
+  label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:6px;letter-spacing:0.5px;text-transform:uppercase;}
+  input{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:12px 14px;outline:none;transition:border-color 0.2s;}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
+  .btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-top:8px;transition:all 0.2s;}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(245,166,35,0.3);}
+  .btn-sec{background:none;border:1px solid var(--border);color:var(--muted);box-shadow:none;margin-top:10px;}
+  .btn-sec:hover{transform:none;box-shadow:none;border-color:var(--accent);color:var(--accent-txt);}
+  .aviso{background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.35);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--accent-txt);margin-top:12px;line-height:1.5;}
+  .error{background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--error-txt);margin-top:12px;display:none;}
+  .error.visible{display:block;}
+  .divider{height:1px;background:var(--border);margin:24px 0;}
+  .pie{display:flex;align-items:center;justify-content:space-between;gap:14px;}
+  .version{text-align:left;font-size:11px;color:var(--muted);}
+  /* Autoría. Solo aquí, en el login: en las pantallas de trabajo estorba. */
+  .autoria{display:block;margin-top:5px;font-size:11px;color:var(--muted);}
+  .autoria b{font-weight:600;color:var(--accent-txt);}
+
+  /* ESCRITORIO — mismo HTML, otra composición: la ilustración pasa a ser una columna a sangre
+     y el formulario se va al panel derecho. No hay segunda plantilla ni JS: solo este bloque. */
+  @media (min-width:900px){
+    .escena{width:55%;}
+    .escena-movil{display:none;}
+    .escena-ancha{display:block;}
+    .velo{width:55%;background:var(--velo-ancha);}
+    .marca{display:block;position:fixed;top:44px;left:48px;z-index:2;max-width:340px;}
+    .marca .m-sello{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+    /* Pantalla ancha: logotipo horizontal Galca sobre el sello TM2 SUR */
+    .marca .m-galca{display:flex;align-items:center;gap:8px;margin-bottom:22px;}
+    .marca .m-galca .galca{width:22px;height:22px;margin:0;}
+    .marca .m-galca span{font-family:'Red Hat Display',sans-serif;font-weight:900;font-size:20px;letter-spacing:-0.03em;color:var(--text);line-height:1;}
+    :root[data-tema="claro"] .marca .m-galca span{color:#0b1f3a;}
+    @media (prefers-color-scheme: light){ :root:not([data-tema="oscuro"]) .marca .m-galca span{color:#0b1f3a;} }
+    .marca h2{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:var(--text);margin-top:8px;}
+    .marca p{font-size:14px;color:var(--muted);margin-top:10px;line-height:1.5;}
+    .panel{margin-left:55%;width:45%;padding:48px;}
+    .card{background:none;border:none;border-radius:0;padding:0;max-width:380px;box-shadow:none;}
+    .logo{display:none;}
+    .panel-titulo{display:block;margin-bottom:28px;}
+    .panel-titulo h2{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--text);}
+    .panel-titulo p{font-size:13px;color:var(--muted);margin-top:6px;}
+
+  }
+
+  /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
+  .u-escena{position:absolute;inset:0;width:100%;height:100%;display:block;}

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'sha256-uaCKKtV8iGYaaDsfWvrZNmRWjGZ24RkGqxarJHuVOKk=' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tablero de producción · TM2 Sur</title>
 <!-- ==========================================================================
@@ -19,6 +19,8 @@
      enlace que ya circula por ahí sigue sirviendo — que es justamente para lo
      que existe este archivo.
      ======================================================================= -->
+<!-- D170: la CSP de arriba autoriza el <style> de abajo por HASH (sha256, base64, del texto exacto
+     entre <style> y </style>) en vez de 'unsafe-inline'. Si se toca ese CSS hay que recalcularlo. -->
 <meta http-equiv="refresh" content="0; url=../tablero-produccion.html">
 <link rel="canonical" href="../tablero-produccion.html">
 <style>

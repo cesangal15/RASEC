@@ -1,0 +1,106 @@
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 48px;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:720px;margin:0 auto;padding:24px 16px;}
+  .filtro-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;}
+  .filtro-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+  .field{flex:1;min-width:130px;}
+  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
+  input[type="date"],select{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s;appearance:none;}
+  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
+  select option,optgroup{background:var(--surface);}
+  .btn-consultar{padding:10px 18px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:8px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .btn-consultar:hover{transform:translateY(-1px);}
+  .filtros-din{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:none;}
+  /* D139: puerta a la pantalla de Maquinaria. El jefe entra ahí en SOLO LECTURA; el contenido NO se
+     duplica aquí (una copia se desincroniza sola en cuanto una de las dos cambie). */
+  .tile-link{display:none;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;
+             padding:16px 18px;margin-bottom:20px;text-decoration:none;color:var(--text);transition:all 0.2s;}
+  .tile-link:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 6px 20px rgba(245,166,35,0.12);}
+  .tile-link .ico{font-size:30px;}
+  .tile-link h2{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;}
+  .tile-link p{font-size:12px;color:var(--muted);margin-top:3px;}
+  .tile-link .arrow{margin-left:auto;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:18px;}
+  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:26px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  /* ---- Resumen (protagonista) ---- */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:8px;}
+  .kpi{background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;}
+  .kpi .k-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--accent-txt);line-height:1.1;}
+  .kpi .k-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:6px;}
+  .meta-line{font-size:12px;color:var(--muted);margin:10px 2px 0;}
+  .resumen-block{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:8px 18px 14px;margin-bottom:16px;}
+  .resumen-block h3{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:1px;padding:12px 0 8px;border-bottom:1px solid var(--border);}
+  .act-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 0 8px;border-bottom:1px solid var(--border);}
+  .act-name{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--accent-txt);text-transform:uppercase;letter-spacing:0.5px;}
+  .act-sub{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;}
+  .act-sub .u{font-family:'DM Sans',sans-serif;font-size:11px;color:var(--muted);font-weight:400;margin-left:3px;}
+  /* D113d: desglose por material dentro del bloque de la actividad (no cambia el total de arriba) */
+  .mat-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px;padding:8px 0 9px;border-bottom:1px solid rgba(46,52,80,0.5);font-size:12.5px;color:var(--text);}
+  .mat-row .mat-lbl{font-family:'Syne',sans-serif;font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:2px 8px;margin-right:2px;}
+  .mat-row .mat-item{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:3px 9px;white-space:nowrap;}
+  .mat-row .mat-item b{font-weight:600;color:var(--text);}
+  .mat-row .mat-item .n{font-family:'Syne',sans-serif;font-weight:700;color:var(--accent-txt);margin-left:5px;}
+  .mat-row .mat-item .u{font-family:'DM Sans',sans-serif;font-size:10.5px;color:var(--muted);margin-left:3px;}
+  .tot-row .cat .badge{margin-left:6px;vertical-align:middle;}
+  .tot-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(46,52,80,0.5);font-size:13px;}
+  .tot-row:last-child{border-bottom:none;}
+  .tot-row .cat{color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .tot-row .cat small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-top:1px;}
+  /* D104: subtramo (ELEMENTO) al lado del PK — solo lectura, para detectar incoherencias */
+  .tot-row .cat .elem{display:inline-block;margin-left:8px;font-size:10.5px;color:var(--muted);}
+  .tot-row .cat .elem.revisar{color:var(--accent-txt);font-weight:600;}
+  .tot-row .val{font-family:'Syne',sans-serif;font-weight:700;white-space:nowrap;}
+  .tot-row .val .u{font-family:'DM Sans',sans-serif;font-size:11px;color:var(--muted);font-weight:400;margin-left:4px;}
+  .badge{font-size:10px;font-weight:600;padding:1px 7px;border-radius:12px;border:1px solid var(--border);}
+  .badge.uf1{border-color:rgba(58,155,220,0.4);color:var(--uf1-txt);} .badge.uf2{border-color:rgba(155,89,182,0.4);color:var(--uf2-txt);}
+  /* ---- Copiado (secundario) ---- */
+  .copy-card{background:var(--surface2);border:1px dashed var(--border);border-radius:14px;padding:18px;}
+  .copy-intro{font-size:12.5px;color:var(--muted);margin-bottom:14px;line-height:1.5;}
+  .copy-btns{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;}
+  .btn-copy{padding:11px 16px;background:var(--input-bg);border:1px solid var(--accent);border-radius:10px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.5px;transition:all 0.15s;}
+  .btn-copy:hover{background:rgba(245,166,35,0.1);}
+  .btn-copy small{display:block;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:400;color:var(--muted);margin-top:2px;letter-spacing:0;}
+  .btn-copy.copied{border-color:var(--success);color:var(--success-txt);}
+  .guia{background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+  .guia h4{font-family:'Syne',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .guia ol{margin:0;padding-left:18px;}
+  .guia li{font-size:12px;color:var(--text);line-height:1.6;margin-bottom:3px;}
+  .guia li b{color:var(--accent-txt);}
+  .empty-state{text-align:center;padding:44px 20px;color:var(--muted);}
+  .empty-state .icon{font-size:40px;margin-bottom:12px;}
+  .loading{text-align:center;padding:34px;color:var(--muted);font-size:14px;}
+  @media(max-width:480px){.kpis{grid-template-columns:1fr;}}
+
+  /* ===== PC (D151) — dos columnas ======================================
+   * Mismo mecanismo que encargado.html / residente-drenajes.html: `render()`
+   * escupe una lista plana y las columnas salen de dos envoltorios con
+   * `display:contents`, que en móvil DESAPARECEN (todo se apila en el mismo
+   * orden de siempre) y solo a partir de 1100px pasan a ser celdas de una
+   * rejilla. Este panel es un reporte de SOLO LECTURA que "se usa bastantico
+   * en PC": el resumen por actividad va en la columna principal (los bloques
+   * fluyen en dos columnas de texto, ya que la columna es ancha) y el copiado
+   * al maestro queda en una barra lateral FIJA, siempre a la vista mientras se
+   * revisa el resumen largo. `min-width:0` en cada celda para que un valor
+   * ancho haga scroll dentro en vez de descuadrar la rejilla.
+   * ==================================================================== */
+  .pc-zona,.pc-a,.pc-b{display:contents;}
+  @media(min-width:1100px){
+    .container{max-width:1200px;}
+    .pc-zona{display:grid;grid-template-columns:1.7fr 1fr;gap:0 22px;align-items:start;}
+    .pc-a{display:block;grid-column:1;min-width:0;}
+    .pc-b{display:block;grid-column:2;min-width:0;}
+    .pc-b .section-title{margin-top:0;}   /* primera sección de la columna derecha, sin hueco arriba */
+    .pc-b .copy-card{position:sticky;top:16px;}
+    /* Los bloques de actividad fluyen en dos columnas de texto dentro de la columna principal, ya ancha.
+       `break-inside:avoid` evita que un bloque se parta entre las dos columnas. */
+    .acts-grid{columns:2;column-gap:18px;}
+    .acts-grid .resumen-block{break-inside:avoid;}
+  }
