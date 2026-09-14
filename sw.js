@@ -9,9 +9,10 @@
  *     ven de inmediato (se sirve lo fresco y se actualiza la caché); sin señal, se sirve la copia.
  *   - Fuentes de Google (DM Sans/Syne): CACHE-FIRST runtime (no cambian; sin esto el offline abre
  *     con fuente del sistema). Cualquier otro dominio externo: passthrough sin caché.
- *   - NUNCA se interceptan las llamadas al Apps Script (script.google.com /
- *     script.googleusercontent.com), ni GET ni POST: el fallback de catálogos lo maneja offline.js
- *     a nivel de aplicación con control explícito, y cachear un POST sería catastrófico.
+ *   - NUNCA se interceptan las llamadas a la API (https://api.galca.app, D169 — ni antes las de
+ *     Apps Script), ni GET ni POST: es otro origen y pasa de largo. El fallback de catálogos lo
+ *     maneja offline.js a nivel de aplicación con control explícito, y cachear un POST sería
+ *     catastrófico.
  *   - Navegar sin red a una página FUERA del precache (encargado/residente/jefe/resúmenes, D49)
  *     responde una mini-página "Esta pantalla necesita conexión" con el estilo del tema.
  *
@@ -41,7 +42,11 @@
 // URLs de los dos Apps Script, elegibles entre producción y prueba— y todas las pantallas lo cargan
 // el primero. Sin subir la versión, un teléfono sin señal serviría un HTML nuevo (que espera
 // `GALCA_ENV`) sin tener el archivo en caché, y la pantalla no arrancaría.
-const CACHE_V = 'tm2-v9';   // v9: entorno.js (URLs de producción/prueba) en el precache
+// v10 (D169, Worker api.galca.app): `auth.js` —en el precache— pasa a ser el único sitio con la URL base
+// de la API y se carga el PRIMERO; `entorno.js` deja de tener URLs y depende de él. Un teléfono sin
+// señal con el auth.js/entorno.js viejos y un HTML nuevo (orden de scripts cambiado, CSP sin
+// script.google.com) no arrancaría, o saldría a Google y la CSP lo frenaría. Por eso se sube.
+const CACHE_V = 'tm2-v10';  // v10: auth.js con la base de la API (Worker), entorno.js sin URLs
 const FONT_CACHE = CACHE_V + '-fonts';
 
 // Lista explícita: shell + capturas + app. NO precachear las páginas fuera de alcance
@@ -109,9 +114,8 @@ self.addEventListener('fetch', function(ev){
   let url;
   try{ url = new URL(req.url); }catch(e){ return; }
 
-  // ¡NUNCA interceptar el Apps Script! (ni GET de catálogos ni POST de reportes)
-  if (url.hostname === 'script.google.com' || url.hostname === 'script.googleusercontent.com'
-      || url.hostname.endsWith('.script.google.com')) return;
+  // ¡NUNCA interceptar la API! (ni GET de catálogos ni POST de reportes). Es otro origen
+  // (api.galca.app, D169), así que cae en el passthrough de «cualquier otro dominio» de abajo.
 
   // Fuentes de Google: cache-first runtime (no cambian)
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com'){

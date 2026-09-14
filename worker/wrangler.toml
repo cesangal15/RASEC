@@ -1,0 +1,44 @@
+# TM2 Sur — Cloudflare Worker «galca-api» (D169)
+#
+# Proxy ÚNICO delante de los Apps Script de obra, asistencias y parte, en https://api.galca.app.
+# Las URLs /exec de Google NO van aquí ni en src/index.js: son SECRETOS del Worker
+# (`wrangler secret put …`, ver docs/OPERACIONES.md §7). Este archivo se puede publicar tranquilo.
+#
+#   Ruta            Secreto                   Filtro
+#   /obra           OBRA_URL                  token de D109 obligatorio (salvo action=login y action=tablero)
+#   /asistencias    ASISTENCIAS_URL           token de D109 obligatorio
+#   /parte          PARTE_URL                 sin token (formulario público por QR, D165)
+#   /prueba/<x>     <X>_PRUEBA_URL            mismo filtro que su ruta; opcional (entorno de prueba, D168)
+#
+# Desplegar:   wrangler login · wrangler secret put OBRA_URL (×3) · wrangler deploy
+# Ruta:        el dominio personalizado de abajo crea solo el registro DNS de api.galca.app
+#              (la zona galca.app tiene que estar en la misma cuenta de Cloudflare).
+
+name = "galca-api"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+# Dominio personalizado: Cloudflare crea el DNS y el certificado; no hace falta tocar la zona a mano.
+routes = [
+  { pattern = "api.galca.app", custom_domain = true }
+]
+
+[vars]
+# Orígenes con permiso de CORS. Coma-separados. localhost/127.0.0.1 (cualquier puerto) se aceptan
+# siempre para el banco de pruebas, además de lo que se liste aquí.
+ALLOWED_ORIGINS = "https://tm2.galca.app"
+# Límite por IP: peticiones por minuto. Debe coincidir con `simple.limit` del binding de abajo
+# (ese es el que manda cuando existe; esta var alimenta el respaldo en memoria).
+RATE_LIMIT_POR_MIN = "120"
+
+# Rate limit por IP (120/min). Binding nativo de Cloudflare: cuenta entre TODOS los nodos de la red.
+# `namespace_id` es un entero cualquiera, único dentro de la cuenta. `period` solo admite 10 o 60.
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }
+
+[observability]
+enabled = true

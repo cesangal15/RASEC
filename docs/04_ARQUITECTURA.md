@@ -25,9 +25,9 @@
 │  Admin: botón "← Menú" en toda pantalla interna vuelve a menu.html sin cerrar sesión.    │
 └────────────────────────────────────┬─────────────────────────────────────────────────--┘
 
-**Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta Apps Script; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
+**Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta la API —`api.galca.app` desde D169, antes Apps Script—; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
 
-**Entorno (D168).** `entorno.js` es el PRIMER script del `<head>` de las 21 pantallas y el único sitio con las URLs de los dos Apps Script: `GALCA_ENV.url.obra` / `GALCA_ENV.url.asistencias`, tomadas del juego `produccion` o `prueba` según `?env=` / localStorage `galca_env`. Con prueba activo pinta el chip «PRUEBA» en el `h1` de `.header-left` (o fijo arriba-centro) y al cambiar de entorno cierra la sesión. Está en el precache (`CACHE_V` v9). Cómo crear el entorno de prueba: `docs/OPERACIONES.md`.
+**API y entorno (D169 sobre D168).** Las pantallas NO hablan con Google: hablan con el Worker de Cloudflare **`https://api.galca.app`** (`worker/`), que reenvía `/obra`, `/asistencias` y `/parte` a las URLs `/exec` guardadas como secretos suyos. `auth.js` es el PRIMER script del `<head>` de las 21 pantallas y el ÚNICO sitio del frontend con la URL base (`TM2Auth.API_BASE`, `TM2Auth.url = {obra, asistencias, parte}`); `entorno.js`, cargado justo después, no contiene URLs: arma `GALCA_ENV.url.obra` / `.asistencias` / `.parte` sobre esa base para `produccion` (tal cual) o `prueba` (`/prueba/…`) según `?env=` / localStorage `galca_env`. Con prueba activo pinta el chip «PRUEBA» en el `h1` de `.header-left` (o fijo arriba-centro) y al cambiar de entorno cierra la sesión. Está en el precache (`CACHE_V` v9). Cómo crear el entorno de prueba: `docs/OPERACIONES.md`.
 
 **Presentación (D150/D151/D153/D155).** Dos archivos compartidos que cuelgan de TODAS las pantallas:
 
@@ -408,8 +408,8 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 │    style-src   'self' 'unsafe-inline' fonts.googleapis.com     cientos de onclick=/style=      │
 │    font-src    'self' fonts.gstatic.com                                                        │
 │    img-src     'self' data:                ← flecha SVG de los <select> en tema.css            │
-│    connect-src 'self' script.google.com script.googleusercontent.com                           │
-│                (el POST al Apps Script redirige al segundo host; CSP valida la redirección)     │
+│    connect-src 'self' https://api.galca.app     ← D169: el Worker; fuera script.google.com y     │
+│                script.googleusercontent.com (la redirección 302 de Google la sigue el Worker)   │
 │    manifest-src/worker-src 'self' · base-uri 'self' · form-action 'self' · object-src 'none'   │
 │  Excepciones: resumen-asistencia.html (+cdn.jsdelivr.net) y Reparto_Produccion_Maquinaria.html │
 │    (+cdnjs.cloudflare.com) cargan SheetJS de un CDN. La página «Sin conexión» de sw.js lleva   │
@@ -422,9 +422,35 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 │          replace(/'/g,"\\'") y luego esc(). Las 12 copias locales de esc/escapeHtml se borraron.│
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │  sw.js   CACHE_V = tm2-v8 (tema.js está en el precache y los HTML nuevos dependen de esc()).   │
+│          D168 → v9 (entra entorno.js) · D169 → v10 (auth.js con la base de la API, primero).   │
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Verificación: banco en Chromium con Apps Script simulado — 24 páginas sin violaciones de CSP ni errores, service worker con `tm2-v8`, cola offline encola sin señal y sincroniza al volver.
 
 **Entorno de prueba (D168):** un SEGUNDO proyecto de Apps Script (copia) por cada uno de los dos, con su propio `SHEET_ID` (Sheet copia), su propio `AUTH_SECRETO` y sin disparadores; sus URLs `/exec` se pegan en el bloque `prueba` de `entorno.js`. Una segunda implementación del MISMO proyecto no aísla nada (mismo `SHEET_ID`, mismas Propiedades). Procedimiento: `docs/OPERACIONES.md`.
+
+## D169 — Worker de Cloudflare `api.galca.app`: proxy único delante de los tres Apps Script (sep-2026)
+
+Las URLs `/exec` de Google salen del código público. El frontend conoce UNA base (`auth.js`) y el Worker
+reenvía. No exige redesplegar Apps Script; sí `wrangler deploy` + publicar Pages (`docs/OPERACIONES.md` §7–§9).
+
+```
+ tm2.galca.app (GitHub Pages)                    api.galca.app (Cloudflare Worker, worker/src/index.js)          Google
+ ┌──────────────────────────────┐   fetch        ┌──────────────────────────────────────────────────────┐
+ │ auth.js   API_BASE + rutas   │ ─────────────▶ │ 1 CORS   Origin ∈ {https://tm2.galca.app, localhost} │
+ │           (ÚNICO sitio)      │  GET  ?token=  │          otro → 403 · sin Origin (curl) → pasa       │
+ │ entorno.js GALCA_ENV.url =   │  POST {token}  │ 2 Rate limit 120/min por IP (binding ratelimit) → 429│
+ │   base + '' | '/prueba'      │  text/plain    │ 3 Token PRESENTE (no firma):                          │
+ │ pantallas  GALCA_ENV.url.*   │                │     /obra, /asistencias → 401 si falta,               │    secretos
+ │ offline.js resuelve la URL   │                │       salvo action=login · action=tablero (D161)      │  OBRA_URL ───▶ Codigo.gs (+CodigoParte.gs)
+ │   de cada ítem AL ENVIAR     │                │     /parte → sin token (QR, D165)                     │  ASISTENCIAS_URL ─▶ CodigoAsistencias.gs
+ │ CSP connect-src api.galca.app│ ◀───────────── │ 4 Reenvía método + query intacta + cuerpo byte a byte │  PARTE_URL ──▶ Codigo.gs (?mod=parte)
+ └──────────────────────────────┘  status + JSON │   redirect:follow (302 → googleusercontent)           │  *_PRUEBA_URL ─▶ copias D168 (opcional, 503 si falta)
+                                   no-store+CORS │   sin cookies, sin caché, cuerpo ≤ 1 MB               │
+                                                 └──────────────────────────────────────────────────────┘
+ Errores con la MISMA forma que el backend (D166): 401 {ok:false, auth:false, error:'Sesión no válida…'} · 429 {ok:false, error:'rate_limit'}
+ Rollback (una edición): auth.js bloque API → base:'' + URLs /exec en rutas; CSP con los hosts de Google. La cola offline se re-dirige sola.
+```
+
+Verificación: banco en Node del Worker (41/41, Google simulado), 21 pantallas en Chromium sin errores ni violaciones de CSP con toda llamada bajo `api.galca.app` y con token (salvo `tablero`/`parte`), `verificar_v301_pantallas.js` 60/60.
