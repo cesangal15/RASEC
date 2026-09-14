@@ -46,7 +46,8 @@
 // de la API y se carga el PRIMERO; `entorno.js` deja de tener URLs y depende de él. Un teléfono sin
 // señal con el auth.js/entorno.js viejos y un HTML nuevo (orden de scripts cambiado, CSP sin
 // script.google.com) no arrancaría, o saldría a Google y la CSP lo frenaría. Por eso se sube.
-const CACHE_V = 'tm2-v10';  // v10: auth.js con la base de la API (Worker), entorno.js sin URLs
+const CACHE_V = 'tm2-v11';  // v11 (D170): flota.js gana `equiposCapataz` y reporte-capataz.html depende de él
+                            // v10: auth.js con la base de la API (Worker), entorno.js sin URLs
 const FONT_CACHE = CACHE_V + '-fonts';
 
 // Lista explícita: shell + capturas + app. NO precachear las páginas fuera de alcance

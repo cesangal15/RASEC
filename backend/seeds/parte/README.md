@@ -28,7 +28,9 @@ BANDEJA/DATA; ID `1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM`). Son CSV con co
    `ultimo_final_manual`) y agrega los pseudo-CC `Taller` · `Disponible` · `Domingo/Festivo` a
    `PARTE_CC` (el código los ofrece aunque falten; en la hoja quedan para que se vean).
 4. Redesplegar: Implementar → Administrar implementaciones → editar → **Nueva versión** (misma URL).
-5. `python3 tools/generar_qr.py` (confirmar antes `URL_BASE` en el script) → `qr/etiquetas.pdf`.
+5. Los QR **ya están generados en `qr/`** (D170: `qr/etiquetas.pdf`, un PNG por equipo activo con tipo, inventario `qr/LISTADO.md`) con la URL base confirmada `https://tm2.galca.app`. Solo hay que imprimir. Para regenerar tras cambiar `activo` o dar de alta un equipo: exportar `PARTE_EQUIPOS` como CSV y `python3 tools/generar_qr.py --csv <archivo>` (ver `qr/README.md`).
+
+**D170 (sep-2026):** `PARTE_EQUIPOS` es además el **catálogo único de máquinas** del sistema: el reporte del capataz toma de aquí sus chips de equipo (`activo=SI`).
 
 `activo` vacío cuenta como activo en las cuatro hojas. Todo se lee **por nombre de columna**, así que
 se pueden añadir columnas al final sin tocar código.
