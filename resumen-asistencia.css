@@ -1,0 +1,103 @@
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 60px;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:760px;margin:0 auto;padding:20px 16px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .field{flex:1;min-width:130px;}
+  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
+  input[type="date"],input[type="text"],input[type="number"],input[type="file"],select{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 12px;outline:none;}
+  select{appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer;}
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
+  .btn{padding:10px 18px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:8px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .btn:hover{transform:translateY(-1px);}
+  .btn-ghost{padding:10px 16px;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent-txt);}
+  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:22px 0 10px;display:flex;align-items:center;gap:8px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px;}
+  .kpi{background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center;}
+  .kpi .k-val{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--accent-txt);}
+  .kpi .k-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:4px;}
+  .cuad-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(46,52,80,0.5);font-size:13.5px;}
+  .cuad-row:last-child{border-bottom:none;}
+  .cuad-row .ok{color:var(--success-txt);} .cuad-row .no{color:var(--error-txt);}
+  .falt-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid rgba(46,52,80,0.5);font-size:13px;flex-wrap:wrap;}
+  .falt-row:last-child{border-bottom:none;}
+  .falt-row .nm b{display:block;} .falt-row .nm small{color:var(--muted);font-size:11px;}
+  .badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;border:1px solid var(--border);white-space:nowrap;}
+  .badge.sin{border-color:rgba(231,76,60,0.4);color:var(--error-txt);}
+  .badge.aus{border-color:rgba(245,166,35,0.4);color:var(--accent-txt);}
+  .export-card{background:var(--surface2);border:1px dashed var(--border);border-radius:14px;padding:18px;}
+  .export-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+  .aviso{background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.3);border-radius:10px;padding:10px 14px;font-size:12.5px;color:var(--accent-txt);margin-top:12px;}
+  .loading,.empty-state{text-align:center;padding:34px;color:var(--muted);font-size:14px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{padding:7px 6px;text-align:left;border-bottom:1px solid rgba(46,52,80,0.5);}
+  th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;}
+  .tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;border:1px solid var(--border);}
+  .tag.activo{border-color:rgba(46,204,113,0.4);color:var(--success-txt);}
+  .tag.inactivo{border-color:rgba(122,128,160,0.4);color:var(--muted);}
+  .mini-btn{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px;}
+  .mini-btn:hover{border-color:var(--accent);color:var(--accent-txt);}
+  /* Buscador de CC (D78): mismo patrón visual que el del capataz, pero sobre TODO el catálogo */
+  .cc-search{position:relative;}
+  .cc-results{position:absolute;top:100%;left:0;right:0;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;max-height:240px;overflow-y:auto;z-index:30;margin-top:4px;}
+  .cc-opt{padding:8px 12px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--border);}
+  .cc-opt:last-child{border-bottom:none;}
+  .cc-opt:hover{background:var(--surface2);color:var(--accent-txt);}
+  .cc-head{padding:5px 12px;font-size:9.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);position:sticky;top:0;}
+  /* Indicador de carga NO bloqueante (mismo tema oscuro/acento): barrita bajo el header + contenido
+     atenuado. Al cambiar de fecha ya no se borra la pantalla: se sigue viendo el día anterior hasta
+     que llega el nuevo. */
+  .loadbar{position:fixed;top:0;left:0;right:0;height:3px;background:rgba(245,166,35,0.15);overflow:hidden;z-index:30;display:none;}
+  .loadbar.on{display:block;}
+  .loadbar::after{content:'';position:absolute;top:0;left:0;height:100%;width:38%;background:linear-gradient(90deg,transparent,var(--accent),var(--accent2),transparent);animation:loadslide 1.05s linear infinite;}
+  @keyframes loadslide{0%{transform:translateX(-100%);}100%{transform:translateX(365%);}}
+  .cargando{opacity:0.5;transition:opacity .15s ease;pointer-events:none;}
+
+  /* ===== PC (D151) — dos columnas ====================================
+   * Izquierda el día (cuadrillas, notas, faltantes); derecha las herramientas
+   * (Excel Navision y gestión de personal). El seguimiento de ausencias no
+   * entra aquí: vive fuera de #container, así que se queda a ancho completo
+   * por sí solo, que es lo que le conviene — tiene su propia tabla.
+   * `display:contents` deja el orden del teléfono intacto.
+   * ================================================================== */
+  .pc-zona,.pc-izq,.pc-der,.pc-pie,.pc-gestion{display:contents;}
+  @media(min-width:1100px){
+    .container{max-width:1240px;}
+    /* min-width:0 en las celdas: sin él, un hijo ancho (la tabla de personal)
+       ensancha su columna en vez de hacer scroll dentro, y descuadra la rejilla. */
+    .pc-zona{display:grid;grid-template-columns:1.3fr 1fr;gap:0 20px;align-items:start;}
+    .pc-izq{display:block;grid-column:1;grid-row:1;min-width:0;}
+    .pc-der{display:block;grid-column:2;grid-row:1;min-width:0;}
+    .pc-pie{display:block;grid-column:1 / -1;grid-row:2;min-width:0;}
+    .pc-gestion{display:block;grid-column:1 / -1;grid-row:3;min-width:0;}
+    .kpis{grid-template-columns:repeat(4,1fr);}
+  }
+
+  /* ===== Tabla de personal (D155) =========================================
+   * Cinco columnas dentro de la columna estrecha de PC. El <select> de
+   * cuadrilla heredaba `width:100%` de la regla global de arriba, así que en
+   * una celda comprimida se quedaba en «JA▾» — el nombre de la cuadrilla no
+   * se leía. Ahora el select tiene ancho propio y la tabla toma el suyo en vez
+   * de encogerse; cuando no cabe, el contenedor que ya la envuelve hace scroll
+   * horizontal en lugar de aplastar las columnas.
+   * ====================================================================== */
+  #persTablaWrap table{width:auto;min-width:100%;}
+  #persTablaWrap th,#persTablaWrap td{white-space:nowrap;}
+  #persTablaWrap td:first-child{white-space:normal;min-width:160px;}   /* el nombre sí envuelve */
+  #persTablaWrap select{
+    width:auto;min-width:158px;font-size:12.5px;
+    padding:6px 30px 6px 10px;background-position:right 10px center;
+  }
+  #persTablaWrap td{vertical-align:middle;}
+
+  /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
+  .u-pb0{padding-bottom:0;}

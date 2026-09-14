@@ -23,6 +23,8 @@
 │  USUARIOS del Apps Script (D108) con token firmado HMAC-SHA256 (D109): index.html ya NO   │
 │  lleva credenciales.                                                                     │
 │  Admin: botón "← Menú" en toda pantalla interna vuelve a menu.html sin cerrar sesión.    │
+│  Marca (D170): símbolo Galca 22 px a la izquierda de cada cabecera (img/galca-simbolo.svg,   │
+│  máscara CSS en tema.css); logotipo horizontal (img/galca-logotipo.svg) en el tablero.       │
 └────────────────────────────────────┬─────────────────────────────────────────────────--┘
 
 **Offline (D82, backlog 2.8/2.8b/2.9):** archivos nuevos `offline.js` (cola localStorage `tm2_cola_envios` + sync FIFO + caché-fallback de catálogos + chip/panel de estado), `sw.js` (service worker network-first, precache del shell + capturas; NUNCA intercepta la API —`api.galca.app` desde D169, antes Apps Script—; fuentes Google cache-first; subir `CACHE_V` si cambia la lista de precache o si un archivo del precache cambia de forma que los HTML nuevos dependen de él, D167), `manifest.json`, `icons/` (192/512/180) y `OFFLINE_README.md`; **D150 suma `tema.css` y `tema.js` al PRECACHE** (por eso `CACHE_V` subió a `tm2-v6`: sin ese salto, el primer arranque sin señal tras desplegar se queda sin tema) (instalación + checklist de pruebas). Flujo de envío de las 4 capturas (capataz, chequeadora, drenajes, asistencia) con rama offline: intento directo (timeout ~15 s) → si no hay red, encola y muestra confirmación NARANJA (distinta del verde de servidor); al volver la señal la cola sube en orden y `Codigo.gs` deduplica por `id_registro` UUID de cliente (asistencia no lo necesita: upsert fecha+cuadrilla idempotente). Encargado/residente/jefe/resúmenes quedan FUERA del offline (D49): sin señal muestran "Esta pantalla necesita conexión".
@@ -47,6 +49,11 @@ tema.js    Bloqueante en el <head> a propósito: aplica data-tema ANTES del prim
            izquierda (arriba está ocupado: el chip de señal de offline.js).
            D167: define además la global esc() (escape de HTML) — ver la sección
            «D167 — Endurecimiento del frontend» al final.
+           D170: despachador de eventos `data-on-*` (sin eval), aplicador de
+           `data-estilo` por CSSOM e `irA()`/`recargar()` — ver «D170» al final.
+           Sin tema.js una pantalla NO responde a ningún botón: es obligatorio.
+<nombre>.js / <nombre>.css   (D170) el JS y el CSS de cada pantalla, que antes
+           iban dentro del HTML; el tablero usa tablero-xlsx.js + tablero-produccion.js.
 ```
 
 Los `:root` locales de las 18 pantallas DESAPARECIERON: la paleta vive solo en `tema.css`.
@@ -404,8 +411,8 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 ┌──────────────────────────────────────────────────────────────────────────────────────────────┐
 │  <meta http-equiv="Content-Security-Policy"> en las 23 pantallas + tablero/index.html         │
 │    default-src 'self'                                                                          │
-│    script-src  'self' 'unsafe-inline'      ← DEUDA (backlog 2.30): JS dentro del HTML y        │
-│    style-src   'self' 'unsafe-inline' fonts.googleapis.com     cientos de onclick=/style=      │
+│    script-src  'self'                      ← D170: ya SIN 'unsafe-inline' (deuda 2.30 cerrada) │
+│    style-src   'self' fonts.googleapis.com    JS/CSS en archivos propios, ver sección D170       │
 │    font-src    'self' fonts.gstatic.com                                                        │
 │    img-src     'self' data:                ← flecha SVG de los <select> en tema.css            │
 │    connect-src 'self' https://api.galca.app     ← D169: el Worker; fuera script.google.com y     │
@@ -422,13 +429,77 @@ Solo navegador. Ni un endpoint, payload, estilo o texto visible cambió; no exig
 │          replace(/'/g,"\\'") y luego esc(). Las 12 copias locales de esc/escapeHtml se borraron.│
 ├──────────────────────────────────────────────────────────────────────────────────────────────┤
 │  sw.js   CACHE_V = tm2-v8 (tema.js está en el precache y los HTML nuevos dependen de esc()).   │
-│          D168 → v9 (entra entorno.js) · D169 → v10 (auth.js con la base de la API, primero).   │
+│          D168 → v9 (entra entorno.js) · D169 → v10 (auth.js con la base de la API, primero)    │
+│          · D170 → v11 (entran los .js/.css de las 7 pantallas precacheadas + galca-simbolo.svg).│
 └──────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Verificación: banco en Chromium con Apps Script simulado — 24 páginas sin violaciones de CSP ni errores, service worker con `tm2-v8`, cola offline encola sin señal y sincroniza al volver.
 
 **Entorno de prueba (D168):** un SEGUNDO proyecto de Apps Script (copia) por cada uno de los dos, con su propio `SHEET_ID` (Sheet copia), su propio `AUTH_SECRETO` y sin disparadores; sus URLs `/exec` se pegan en el bloque `prueba` de `entorno.js`. Una segunda implementación del MISMO proyecto no aísla nada (mismo `SHEET_ID`, mismas Propiedades). Procedimiento: `docs/OPERACIONES.md`.
+
+## D170 — Marca Galca + CSP sin `'unsafe-inline'` (sep-2026)
+
+Solo navegador. Ni un endpoint, payload, texto visible ni comportamiento cambió; no exige redespliegue de Apps Script.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────────────┐
+│  img/galca-simbolo.svg   símbolo solo, blanco, sin texto (290 bytes). En el PRECACHE.          │
+│  img/galca-logotipo.svg  logotipo horizontal, blanco, «Galca» en trazos (sin Red Hat Display). │
+│  tema.css  .galca-simbolo  22×22, máscara CSS sobre currentColor: blanco en oscuro, #0b1f3a en │
+│            claro (la cabecera es blanca), #6f7885 con .galca-pie. Primer hijo de .header y     │
+│            .header-left{margin-right:auto} para que el usuario siga a la derecha.              │
+│            .logout-btn.btn-volver  el «← Menú»/«← Volver» que era un style= en 15 cabeceras.   │
+│            + el CSS que offline.js y entorno.js inyectaban en un <style> (chip, panel, PRUEBA). │
+│  tablero-produccion.css  .galca-logotipo 84×28 sobre --ink (base clara) + copia del chip PRUEBA│
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  CSP de las 22 pantallas + tablero/index.html: script-src 'self' · style-src 'self' fonts…     │
+│  (sin 'unsafe-inline'; resumen-asistencia y Reparto conservan su CDN de SheetJS en script-src) │
+│                                                                                              │
+│  Cada pantalla:  <link rel="stylesheet" href="<nombre>.css">  (donde estaba su <style>)       │
+│                  <script src="<nombre>.js"></script>           (donde estaba su <script>)      │
+│                  1ª línea del .js: TM2Estilos.aplicar()  ← data-estilo del marcado, síncrono   │
+│  Tablero:        tablero-xlsx.js (SheetJS embebido) + tablero-produccion.js (motor + UI)       │
+│                                                                                              │
+│  Manejadores     on<evento>="fn(args)"  →  data-on-<evento>="fn(args)"                        │
+│  (356)           tema.js escucha click/input/change/mousedown/keydown/keyup/submit en          │
+│                  burbuja y focus/blur en captura, recorre del objetivo hacia arriba y ejecuta   │
+│                  el atributo con un intérprete SIN eval: lista de llamadas separadas por `;`,   │
+│                  `nombre` global (o this.x / event.x), argumentos literales: número, cadena    │
+│                  (con \' y \\), true/false/null, JSON {…}/[…], this.value / event.target… │
+│                  `event.stopPropagation()` corta el recorrido; `return false` = preventDefault.│
+│                  Lo que no cabe en esa gramática se convirtió en función con nombre:           │
+│                  irA(url), recargar() (tema.js) · setNotaDia, cerrarModalFondo(event,this),    │
+│                  verMasSugs(this,id), setUfFila(this)… (en el .js de su pantalla).             │
+│                  Error de gramática → console.error('[tm2 data-on-…]') y NO se ejecuta nada.   │
+│                                                                                              │
+│  Estilos         style="…" estático y decorativo  →  clase (u-mt10, u-w360, u-textarea…)      │
+│  (411)           style="…" dinámico o que el JS enciende/apaga  →  data-estilo="…"             │
+│                  tema.js lo aplica por CSSOM (el.style) al entrar el nodo (MutationObserver)   │
+│                  y solo rellena propiedades que el JS no haya fijado ya: `el.style.display=   │
+│                  'block'` tras un innerHTML sigue ganando, igual que ganaba al atributo.        │
+│                  el.style.cssText / el.style.x = … (tablero, pantallas) siguen permitidos.     │
+│                                                                                              │
+│  <style> en línea que quedan: OFFLINE_HTML de sw.js y tablero/index.html → 'sha256-…' en su   │
+│  propia CSP. Cambiar una letra de ese CSS obliga a recalcular el hash (comentario en sw.js).   │
+├──────────────────────────────────────────────────────────────────────────────────────────────┤
+│  sw.js  CACHE_V = tm2-v11. PRECACHE += index/seleccion-reporte/menu/reporte-capataz/           │
+│         reporte-chequeadora/reporte-drenajes/asistencia .js y .css + img/galca-simbolo.svg.    │
+└──────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Verificación (banco en Chromium con la API simulada): 22 páginas sin violaciones de CSP ni errores;
+precache completo de `tm2-v11`; login por clic y por Enter; `addLinea()` por `data-on-click`; cola
+offline: encola sin señal (chip «Sin señal 1 pendiente»), sincroniza al volver, panel con Copiar /
+Descartar / Reintentar / Cerrar; navegación sin señal a `seleccion-reporte.html` desde caché con
+símbolo y tema; tema claro/oscuro; tablero con logotipo, barras y filtro UF; página «Sin conexión»
+con su CSS por hash.
+
+**Rutas sin `.html` — evaluadas y descartadas (D170, backlog 2.33).** GitHub Pages resuelve `/menu`
+→ `menu.html`, pero el SW sirve por URL exacta y los HTML se refrescan antes que el SW: durante la
+transición un teléfono con enlaces nuevos y SW viejo se quedaría sin pantalla al perder la señal.
+Además `redirige` vive en la hoja USUARIOS, los QR de las cabinas apuntan a `parte.html?eq=` y
+`manifest.json`/`OFFLINE_HTML` asumen `.html`.
 
 ## D169 — Worker de Cloudflare `api.galca.app`: proxy único delante de los tres Apps Script (sep-2026)
 

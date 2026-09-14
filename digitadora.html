@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Digitación de Volquetas</title>
 <link rel="manifest" href="manifest.json">
@@ -16,101 +16,19 @@
 <script src="auth.js"></script>
 <script src="entorno.js"></script>
 <script src="tema.js"></script>
-<style>
-  /* Estilos del proyecto (copiados de reporte-chequeadora.html; no rediseñar) */
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 120px;}
-  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
-  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
-  .header-left h1{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;}
-  .header-user{font-size:12px;color:var(--muted);text-align:right;}
-  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
-  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
-  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
-  /* Pantalla pensada para PC (la digitadora trabaja en su puesto con computador): contenedor ancho
-     y renglones en UNA línea tipo tabla, espejando el orden en que teclea en su Excel. */
-  .container{max-width:1180px;margin:0 auto;padding:20px 24px;}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:16px;}
-  .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--accent-txt);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
-  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
-  .section-title .count{font-size:11px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:2px 10px;letter-spacing:0;}
-  .field{margin-bottom:14px;}
-  .field:last-child{margin-bottom:0;}
-  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:5px;letter-spacing:0.5px;text-transform:uppercase;}
-  select,input[type="number"],input[type="text"],input[type="date"],input[type="time"]{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s;appearance:none;}
-  input[type="date"],input[type="time"]{}
-  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;cursor:pointer;}
-  select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,166,35,0.1);}
-  select option{background:var(--surface);}
-  .row-load{display:flex;gap:10px;align-items:flex-end;}
-  .row-load .field{flex:0 0 220px;margin:0;}
-  .btn{padding:11px 16px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:var(--btn-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;letter-spacing:0.5px;transition:all 0.2s;white-space:nowrap;}
-  .btn:hover{transform:translateY(-1px);}
-  .btn:disabled{opacity:0.5;cursor:default;transform:none;}
-  .msg{font-size:13px;border-radius:8px;padding:10px 14px;margin-top:12px;display:none;}
-  .msg.err{display:block;background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);color:var(--error-txt);}
-  .msg.info{display:block;background:var(--surface2);border:1px solid var(--border);color:var(--muted);}
-  /* Grupo (una línea de VOLQUETAS) */
-  .grupo{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;}
-  .grp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-  .grp-placa{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;letter-spacing:1px;}
-  .grp-route{display:block;font-size:12px;color:var(--muted);margin-top:3px;}
-  .grp-route b{color:var(--text);font-weight:600;}
-  .guia{font-style:italic;color:var(--accent-txt);opacity:0.8;}
-  .meta-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
-  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--input-bg);color:var(--muted);}
-  .badge.uf1{border-color:rgba(58,155,220,0.4);background:rgba(58,155,220,0.1);color:var(--uf1-txt);}
-  .badge.uf2{border-color:rgba(155,89,182,0.4);background:rgba(155,89,182,0.1);color:var(--uf2-txt);}
-  .badge.m3{border-color:rgba(245,166,35,0.3);background:rgba(245,166,35,0.08);color:var(--accent-txt);}
-  .badge.m3.warn{border-color:var(--accent);background:rgba(245,166,35,0.16);}
-  .badge .cub-inp{width:64px;background:transparent;border:none;border-bottom:1px solid var(--accent);border-radius:0;color:var(--accent-txt);font-weight:700;padding:0 2px;font-size:12px;text-align:right;}
-  .badge .cub-inp:focus{box-shadow:none;}
-  .seg{display:inline-flex;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:3px;flex-shrink:0;}
-  .seg-btn{background:none;border:none;color:var(--muted);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:6px 14px;border-radius:6px;cursor:pointer;}
-  .seg-btn.active{background:var(--accent);color:var(--btn-txt);}
-  .grp-warn{font-size:11px;color:var(--accent-txt);margin-top:10px;}
-  /* Tabla de renglones (desktop): un viaje = una línea, en el orden en que ella digita */
-  .tblwrap{overflow-x:auto;margin-top:14px;}
-  .tbl{min-width:860px;}
-  .tbl-head,.tbl-row{display:grid;grid-template-columns:44px 1.1fr 1fr 84px 84px 1.4fr 34px;gap:8px;align-items:center;}
-  .tbl.agr .tbl-head,.tbl.agr .tbl-row{grid-template-columns:1.1fr 110px 1fr 1.4fr 34px;}
-  .tbl.ext{min-width:1080px;}
-  .tbl.ext .tbl-head,.tbl.ext .tbl-row{grid-template-columns:100px 1fr 110px 130px 88px 1fr 84px 84px 1.2fr 34px;}
-  .tbl-head{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;padding:0 2px 6px;}
-  .tbl-row{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px;margin-bottom:8px;}
-  .tbl-row input,.tbl-row select{padding:8px 10px;font-size:13px;}
-  .tbl-num{font-size:11px;color:var(--muted);font-weight:700;text-align:center;font-variant-numeric:tabular-nums;}
-  .btn-del{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;width:28px;height:32px;font-size:14px;cursor:pointer;line-height:1;flex-shrink:0;justify-self:center;}
-  .btn-del:hover{border-color:var(--error);color:var(--error-txt);}
-  .pk-inp.pk-diff{border-color:var(--accent);background:rgba(245,166,35,0.12);color:var(--accent-txt);font-weight:600;}
-  .btn-add{width:100%;padding:12px;background:var(--input-bg);border:1px dashed var(--border);border-radius:10px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all 0.2s;text-transform:uppercase;margin-top:2px;}
-  .btn-add:hover{border-color:var(--accent);background:rgba(245,166,35,0.05);}
-  .empty-hint{font-size:12px;color:var(--muted);text-align:center;padding:18px 0;}
-  .paste-hint{font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;}
-  .paste-hint b{color:var(--accent-txt);}
-  /* Barra fija inferior */
-  .foot{position:fixed;bottom:0;left:0;right:0;background:linear-gradient(to top,var(--bg) 65%,transparent);padding:14px 16px 16px;z-index:15;}
-  .foot-inner{max-width:1180px;margin:0 auto;padding:0 8px;}
-  .foot-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
-  .foot-prog{display:flex;gap:24px;align-items:center;font-size:12px;color:var(--muted);}
-  .foot-prog b{font-family:'Syne',sans-serif;color:var(--text);}
-  .foot-btns{display:flex;gap:10px;}
-  .foot-btns .btn{padding:13px 28px;font-size:14px;min-width:170px;}
-  .btn.ghost{background:var(--surface);border:1px solid var(--border);color:var(--text);box-shadow:none;}
-  .btn.copied{background:var(--success);color:var(--btn-txt);}
-  .hidden{display:none;}
-</style>
+<link rel="stylesheet" href="digitadora.css">
 </head>
 <body>
 <div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
   <div class="header-left">
     <div class="label">Reporte Diario · Digitación</div>
     <h1>📋 Volquetas</h1>
   </div>
   <div class="header-user">
     <span id="userDisplay">—</span>
-    <button class="logout-btn" id="btnMenu" onclick="location.href='menu.html'" style="display:none;border-color:var(--accent);color:var(--accent-txt);margin-right:6px;">← Menú</button>
-    <button class="logout-btn" onclick="logout()">Salir</button>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
   </div>
 </div>
 
@@ -118,7 +36,7 @@
   <div class="card">
     <div class="row-load">
       <div class="field"><label>Fecha</label><input type="date" id="fecha"></div>
-      <button class="btn" id="btnCargar" onclick="cargarDia()">Cargar viajes del día</button>
+      <button class="btn" id="btnCargar" data-on-click="cargarDia()">Cargar viajes del día</button>
     </div>
     <div class="msg" id="msg"></div>
   </div>
@@ -128,9 +46,9 @@
 
   <div class="card">
     <div class="section-title">Viajes externos <span class="count" id="cntExt">0</span></div>
-    <div class="empty-hint" id="emptyExt" style="padding:8px 0 14px;">Viajes que llegaron por fuera de la captura (otras personas). Se van en el mismo export.</div>
+    <div class="u-pad-hint empty-hint" id="emptyExt">Viajes que llegaron por fuera de la captura (otras personas). Se van en el mismo export.</div>
     <div id="externosContainer"></div>
-    <button class="btn-add" onclick="addExterno()">＋ Agregar viaje externo</button>
+    <button class="btn-add" data-on-click="addExterno()">＋ Agregar viaje externo</button>
   </div>
 
   <div class="card">
@@ -150,331 +68,12 @@
       <span><b id="progFilas">0</b> renglones a exportar</span>
     </div>
     <div class="foot-btns">
-      <button class="btn ghost" id="btnCopiar" onclick="copiarTodo(this)" disabled>Copiar todo</button>
-      <button class="btn" id="btnCsv" onclick="descargarCsv()" disabled>Descargar CSV</button>
+      <button class="btn ghost" id="btnCopiar" data-on-click="copiarTodo(this)" disabled>Copiar todo</button>
+      <button class="btn" id="btnCsv" data-on-click="descargarCsv()" disabled>Descargar CSV</button>
     </div>
   </div>
 </div>
 
-<script>
-const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
-const TIPOS = ['Terraplén','Puente','UF3','ODL','ODT','Botadero'];
-
-let FECHA = '';
-let grupos = [];   // {gid, placa, origen, destino, tipo_destino, uf, cub, esDefault, viajes, modo, cantAgr, renglones:[{rid,pk,remision,hs,hl,conductor}], renAgr:{pk,remision,conductor}}
-let externos = []; // {eid, placa, origen, pkDestino, tipo_destino, cub, remision, hs, hl, conductor}
-let gidSeq = 0, ridSeq = 0, eidSeq = 0;
-
-window.onload = function(){
-  // Sesión en localStorage (D82). Solo digitadora y admin entran aquí.
-  const rol = localStorage.getItem('rol');
-  const usuario = localStorage.getItem('usuario');
-  if(!rol || (rol!=='digitadora' && rol!=='admin')){ window.location.href='index.html'; return; }
-  document.getElementById('userDisplay').textContent = usuario || 'digitadora';
-  if(rol==='admin'){ const bm=document.getElementById('btnMenu'); if(bm) bm.style.display='inline-block'; }
-  // Fecha por defecto = hoy en America/Bogota (UTC−5), nunca toISOString (D50).
-  document.getElementById('fecha').value = new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
-};
-function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
-
-/* ---------- helpers de PK / UF (mismo criterio que el resto del proyecto, D63/D04) ---------- */
-function pkMeters(s){
-  if(s==null) return null;
-  // el destino de VOLQUETAS viene como "tm2 pk 34+500": quitar el token tm2 ANTES de compactar,
-  // o su "2" se pega al PK ("tm222+000" → 222+000)
-  const t=String(s).toLowerCase().replace(/tm2/g,'').replace(/pk/g,'').replace(/\s+/g,'');
-  const m=t.match(/(\d+)\+(\d+)/);
-  if(m) return parseInt(m[1],10)*1000 + parseInt(m[2],10);
-  const n=parseFloat(t); return isNaN(n)?null:n*1000;
-}
-function pkFmt(meters){ if(meters==null||isNaN(meters)) return ''; const km=Math.floor(meters/1000), r=Math.round(meters-km*1000); return km+'+'+('00'+r).slice(-3); }
-function pkNorm(s){ return pkFmt(pkMeters(s)); }
-function ufDeMetros(m){ return m==null?'':(m<=30000?'UF1':'UF2'); }
-// Mapeo origen → Pk inicial en metros (§5, D63): Masivo2=19800, Masivo1=14400, Diviso=21500.
-// Complementario/Otro = el PK que tecleó la chequeadora (viene en `origen`), convertido a metros.
-function origenPkMeters(origen){
-  const s=String(origen||'').toLowerCase();
-  if(s.indexOf('masivo 2')>=0 || s.indexOf('masivo2')>=0) return 19800;
-  if(s.indexOf('masivo 1')>=0 || s.indexOf('masivo1')>=0) return 14400;
-  if(s.indexOf('diviso')>=0) return 21500;
-  return pkMeters(origen);
-}
-/* ---------- mapeo tipo_destino → I Actividad / J Material / L Centro de costo (§5) ---------- */
-function normTipo(t){ return String(t||'').toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').trim(); }
-function actividadDe(t){ return normTipo(t)==='botadero' ? '' : 'CONFORMACIÓN TERRAPLÉN'; }
-function materialDe(t){ return normTipo(t)==='botadero' ? '' : 'MATERIAL CORTE PARA TERRAPLÉN'; }
-function ccDe(t, pkDestM){
-  const n=normTipo(t);
-  if(n==='terraplen'){ const proy=(pkDestM!=null && pkDestM<=30000)?'3701':'3702'; return proy+'.02.11'; } // proyecto por PK destino (D04) + .02.11
-  if(n==='puente') return '3701.11.03';  // fijo (confirmado por el usuario)
-  return '';                              // UF3 / ODL / ODT / Botadero: CC en blanco, lo pone la digitadora
-}
-function fmtNum(n){ if(n==null||n==='') return ''; const x=Number(n); if(isNaN(x)) return ''; return String(x).replace('.', ','); }
-function fechaExcel(iso){ const p=String(iso||'').slice(0,10).split('-'); if(p.length<3) return ''; return p[2]+'/'+p[1]+'/'+p[0]; } // dd/mm/yyyy
-
-/* ---------- carga del día ---------- */
-function setMsg(txt, tipo){ const m=document.getElementById('msg'); if(!txt){ m.className='msg'; m.textContent=''; return; } m.className='msg '+(tipo||'info'); m.textContent=txt; }
-function hayRemisiones(){ return grupos.some(g=> g.modo==='agrupado' ? !!(g.renAgr.remision||'').trim() : g.renglones.some(r=>(r.remision||'').trim()) ) || externos.some(x=>(x.remision||'').trim()); }
-
-async function cargarDia(){
-  const fecha=document.getElementById('fecha').value;
-  if(!fecha){ setMsg('Elige una fecha primero.','err'); return; }
-  if((grupos.length||externos.length) && hayRemisiones() && !confirm('Recargar del servidor descarta lo que ya tecleaste (remisiones, horas, conductores). ¿Continuar?')) return;
-  const btn=document.getElementById('btnCargar'); btn.disabled=true; btn.textContent='Cargando…'; setMsg('');
-  try{
-    const resp=await fetch(APPS_SCRIPT_URL+'?action=volquetas&fecha='+encodeURIComponent(fecha));
-    const data=await resp.json();
-    if(!data || !data.ok) throw new Error((data&&data.error)||'Respuesta inesperada del servidor');
-    FECHA=fecha; externos=[]; construirGrupos(data.filas||[]);
-    renderExternos();
-    if(!grupos.length) setMsg('No hay viajes capturados en VOLQUETAS para el '+fecha+'. Puedes registrar viajes externos abajo.','info');
-    else setMsg((data.filas.length)+' línea(s) de VOLQUETAS · '+totalGuia()+' viajes guía.','info');
-  }catch(err){
-    setMsg('No se pudo cargar del servidor: '+err.message+'. Revisa la señal e intenta de nuevo.','err');
-  }
-  btn.disabled=false; btn.textContent='Cargar viajes del día';
-}
-function totalGuia(){ return grupos.reduce((s,g)=>s+g.viajes,0); }
-
-function construirGrupos(filas){
-  grupos=[]; gidSeq=0; ridSeq=0;
-  filas.forEach(f=>{
-    const g={
-      gid:gidSeq++, placa:String(f.placa||''), origen:String(f.origen||''), destino:String(f.destino||''),
-      tipo_destino:String(f.tipo_destino||''), uf:String(f.uf||''),
-      cub:Number(f.cubicaje)||0, esDefault:(String(f.cubicaje_origen||'').toLowerCase()==='default'),
-      viajes:Number(f.viajes)||0, modo:'explotar', cantAgr:(Number(f.viajes)||0),
-      renglones:[], renAgr:{pk:pkNorm(f.destino), remision:'', conductor:''}
-    };
-    const n=Math.max(g.viajes,0);
-    for(let i=0;i<n;i++) g.renglones.push(nuevoRen(g));
-    if(g.renglones.length===0) g.renglones.push(nuevoRen(g)); // línea sin viajes → al menos 1 renglón editable
-    grupos.push(g);
-  });
-  renderGrupos();
-}
-function nuevoRen(g){ return {rid:ridSeq++, pk:pkNorm(g.destino), remision:'', hs:'', hl:'', conductor:''}; }
-
-/* ---------- render de grupos ---------- */
-function renderGrupos(){
-  const cont=document.getElementById('gruposContainer');
-  document.getElementById('emptyGrupos').style.display=grupos.length?'none':'block';
-  cont.innerHTML=grupos.map(grupoHTML).join('');
-  refresh();
-}
-function grupoHTML(g){
-  const gi=g.gid;
-  const prog=pkNorm(g.destino)||esc(g.destino);
-  const ufcls=g.uf==='UF1'?'uf1':g.uf==='UF2'?'uf2':'';
-  const cubBadge = g.esDefault
-    ? '<span class="badge m3 warn" title="Placa sin catálogo: verifica el m³ contra el parte">m³/viaje <input type="number" step="any" class="cub-inp" value="'+esc(g.cub)+'" oninput="setCub('+gi+',this.value)"> ⚠</span>'
-    : '<span class="badge m3">'+esc(fmtNum(g.cub))+' m³/viaje</span>';
-  let cuerpo;
-  if(g.modo==='agrupado'){
-    cuerpo='<div class="tblwrap"><div class="tbl agr">'
-      +'<div class="tbl-head"><span>PK destino real</span><span>Cant. viajes</span><span>Remisión</span><span>Conductor</span><span></span></div>'
-      +renAgrHTML(g)
-      +'</div></div>';
-  } else {
-    const items=g.renglones.map((r,k)=>renHTML(g,r,k)).join('');
-    let warn='';
-    if(g.renglones.length!==g.viajes) warn='<div class="grp-warn">⚠ '+g.renglones.length+' renglón(es) vs '+g.viajes+' viajes de la guía — ajusta si el parte físico dice otra cosa.</div>';
-    cuerpo='<div class="tblwrap"><div class="tbl">'
-      +'<div class="tbl-head"><span>#</span><span>PK destino real</span><span>Remisión</span><span>H. salida</span><span>H. llegada</span><span>Conductor</span><span></span></div>'
-      +items
-      +'</div></div>'
-      +warn
-      +'<button class="btn-add" onclick="addRen('+gi+')">＋ Agregar renglón</button>';
-  }
-  return '<div class="grupo" id="grupo_'+gi+'">'
-    +'<div class="grp-head"><div><span class="grp-placa">'+esc(g.placa||'—')+'</span>'
-    +'<span class="grp-route"><b>'+esc(g.origen||'—')+'</b> → <b>'+prog+'</b> <span class="guia">programado · guía</span></span></div>'
-    +'<div class="seg">'
-    +'<button class="seg-btn'+(g.modo==='explotar'?' active':'')+'" onclick="setModo('+gi+',\'explotar\')">Explotar</button>'
-    +'<button class="seg-btn'+(g.modo==='agrupado'?' active':'')+'" onclick="setModo('+gi+',\'agrupado\')">Agrupado</button>'
-    +'</div></div>'
-    +'<div class="meta-row">'
-    +'<span class="badge">'+esc(g.tipo_destino||'—')+'</span>'
-    +(g.uf?'<span class="badge '+ufcls+'">'+esc(g.uf)+'</span>':'')
-    +cubBadge
-    +'<span class="badge">guía: '+g.viajes+' viajes</span></div>'
-    +cuerpo
-    +'</div>';
-}
-function renHTML(g,r,k){
-  const diff = pkDiff(g,r.pk);
-  return '<div class="tbl-row" id="ren_'+g.gid+'_'+r.rid+'">'
-    +'<span class="tbl-num">'+(k+1)+'</span>'
-    +'<input type="text" class="pk-inp'+(diff?' pk-diff':'')+'" value="'+esc(r.pk)+'" placeholder="'+esc(pkNorm(g.destino))+'" oninput="setRenPk('+g.gid+','+r.rid+',this)">'
-    +'<input type="text" value="'+esc(r.remision)+'" placeholder="remisión" oninput="setRen('+g.gid+','+r.rid+',\'remision\',this.value)">'
-    +'<input type="text" inputmode="numeric" placeholder="HH:MM" value="'+esc(r.hs)+'" oninput="setRen('+g.gid+','+r.rid+',\'hs\',this.value)">'
-    +'<input type="text" inputmode="numeric" placeholder="HH:MM" value="'+esc(r.hl)+'" oninput="setRen('+g.gid+','+r.rid+',\'hl\',this.value)">'
-    +'<input type="text" value="'+esc(r.conductor)+'" placeholder="conductor" oninput="setRen('+g.gid+','+r.rid+',\'conductor\',this.value)">'
-    +'<button class="btn-del" title="Quitar renglón" onclick="delRen('+g.gid+','+r.rid+')">✕</button>'
-    +'</div>';
-}
-function renAgrHTML(g){
-  const r=g.renAgr; const diff=pkDiff(g,r.pk);
-  return '<div class="tbl-row">'
-    +'<input type="text" class="pk-inp'+(diff?' pk-diff':'')+'" value="'+esc(r.pk)+'" placeholder="'+esc(pkNorm(g.destino))+'" oninput="setAgrPk('+g.gid+',this)">'
-    +'<input type="number" min="0" step="1" value="'+esc(g.cantAgr)+'" oninput="setCantAgr('+g.gid+',this.value)">'
-    +'<input type="text" value="'+esc(r.remision)+'" placeholder="remisión" oninput="setAgr('+g.gid+',\'remision\',this.value)">'
-    +'<input type="text" value="'+esc(r.conductor)+'" placeholder="conductor" oninput="setAgr('+g.gid+',\'conductor\',this.value)">'
-    +'<span></span>'
-    +'</div>';
-}
-function pkDiff(g,pk){ const a=pkMeters(pk), b=pkMeters(g.destino); return (a!=null && b!=null && a!==b); }
-function grupoById(gid){ return grupos.find(g=>g.gid===gid); }
-
-/* ---------- edición de estado (sin re-render para no perder el foco) ---------- */
-function setCub(gid,val){ const g=grupoById(gid); if(g) g.cub=parseFloat(val)||0; }
-function setRen(gid,rid,campo,val){ const g=grupoById(gid); if(!g) return; const r=g.renglones.find(x=>x.rid===rid); if(r){ r[campo]=val; if(campo==='remision') refresh(); } }
-function setRenPk(gid,rid,el){ const g=grupoById(gid); if(!g) return; const r=g.renglones.find(x=>x.rid===rid); if(r){ r.pk=el.value; el.classList.toggle('pk-diff', pkDiff(g,el.value)); } }
-function setAgr(gid,campo,val){ const g=grupoById(gid); if(g){ g.renAgr[campo]=val; if(campo==='remision') refresh(); } }
-function setAgrPk(gid,el){ const g=grupoById(gid); if(g){ g.renAgr.pk=el.value; el.classList.toggle('pk-diff', pkDiff(g,el.value)); } }
-function setCantAgr(gid,val){ const g=grupoById(gid); if(g){ g.cantAgr=Math.max(0, parseInt(val,10)||0); refresh(); } }
-
-/* ---------- ops estructurales (re-render del grupo) ---------- */
-function rerenderGrupo(gid){ const el=document.getElementById('grupo_'+gid); const g=grupoById(gid); if(el&&g){ el.outerHTML=grupoHTML(g); refresh(); } }
-function setModo(gid,modo){ const g=grupoById(gid); if(g && g.modo!==modo){ g.modo=modo; rerenderGrupo(gid); } }
-function addRen(gid){ const g=grupoById(gid); if(g){ g.renglones.push(nuevoRen(g)); rerenderGrupo(gid); } }
-function delRen(gid,rid){ const g=grupoById(gid); if(g){ g.renglones=g.renglones.filter(r=>r.rid!==rid); rerenderGrupo(gid); } }
-
-/* ---------- viajes externos ---------- */
-function renderExternos(){
-  const cont=document.getElementById('externosContainer');
-  document.getElementById('cntExt').textContent=externos.length;
-  document.getElementById('emptyExt').style.display=externos.length?'none':'block';
-  cont.innerHTML = externos.length
-    ? '<div class="tblwrap"><div class="tbl ext">'
-      +'<div class="tbl-head"><span>Placa</span><span>Origen (PK o texto)</span><span>PK destino</span><span>Tipo destino</span><span>m³/viaje</span><span>Remisión</span><span>H. salida</span><span>H. llegada</span><span>Conductor</span><span></span></div>'
-      +externos.map(externoHTML).join('')
-      +'</div></div>'
-    : '';
-  refresh();
-}
-function externoHTML(x){
-  const ei=x.eid;
-  const tipoOpts=TIPOS.map(t=>'<option'+(t===x.tipo_destino?' selected':'')+'>'+esc(t)+'</option>').join('');
-  return '<div class="tbl-row" id="ext_'+ei+'">'
-    +'<input type="text" value="'+esc(x.placa)+'" placeholder="ABC123" oninput="setExt('+ei+',\'placa\',this.value)">'
-    +'<input type="text" value="'+esc(x.origen)+'" placeholder="19+800 / Masivo 2" oninput="setExt('+ei+',\'origen\',this.value)">'
-    +'<input type="text" value="'+esc(x.pkDestino)+'" placeholder="34+500" oninput="setExt('+ei+',\'pkDestino\',this.value)">'
-    +'<select onchange="setExt('+ei+',\'tipo_destino\',this.value)">'+tipoOpts+'</select>'
-    +'<input type="number" step="any" value="'+esc(x.cub)+'" oninput="setExt('+ei+',\'cub\',this.value)">'
-    +'<input type="text" value="'+esc(x.remision)+'" placeholder="remisión" oninput="setExt('+ei+',\'remision\',this.value)">'
-    +'<input type="text" inputmode="numeric" placeholder="HH:MM" value="'+esc(x.hs)+'" oninput="setExt('+ei+',\'hs\',this.value)">'
-    +'<input type="text" inputmode="numeric" placeholder="HH:MM" value="'+esc(x.hl)+'" oninput="setExt('+ei+',\'hl\',this.value)">'
-    +'<input type="text" value="'+esc(x.conductor)+'" placeholder="conductor" oninput="setExt('+ei+',\'conductor\',this.value)">'
-    +'<button class="btn-del" title="Quitar" onclick="delExterno('+ei+')">✕</button>'
-    +'</div>';
-}
-function addExterno(){ externos.push({eid:eidSeq++, placa:'', origen:'', pkDestino:'', tipo_destino:'Terraplén', cub:'', remision:'', hs:'', hl:'', conductor:''}); renderExternos(); }
-function delExterno(eid){ externos=externos.filter(x=>x.eid!==eid); renderExternos(); }
-function setExt(eid,campo,val){ const x=externos.find(e=>e.eid===eid); if(x){ x[campo]=val; if(campo==='remision') refresh(); } }
-
-/* ---------- export (A→AH, §5) ---------- */
-function grupoCub(g){ return Number(g.cub)||0; }
-function buildRow(o){
-  const ufDest=ufDeMetros(o.pkDestinoM), ufIni=ufDeMetros(o.pkOrigenM);
-  const row=new Array(34).fill('');
-  row[0]=fechaExcel(FECHA);                                 // A  Fecha (dd/mm/yyyy)
-  row[1]=o.remision||'';                                    // B  No. Remisión
-  row[2]=o.placa||'';                                       // C  Código equipo o Placa
-  // D  Contratista → vacío (la empresa no entra a la app, D53)
-  row[4]='N/A';                                             // E  Planta
-  row[5]=fmtNum(o.cubicaje);                                // F  Cant. transportada (m3)
-  row[6]=(o.viajes!=null&&o.viajes!=='')?String(o.viajes):''; // G  Cant. viajes
-  // H  Cant. total transportada → fórmula (F×G): vacío
-  row[8]=actividadDe(o.tipo_destino);                       // I  Descripción Actividad
-  row[9]=materialDe(o.tipo_destino);                        // J  Descripción Material
-  row[10]=ufDest;                                           // K  UF (del destino real)
-  row[11]=ccDe(o.tipo_destino,o.pkDestinoM);                // L  Centro de costo
-  // M  Descripción centro de costo → fórmula: vacío
-  row[13]=o.horaSalida||'';                                 // N  Hora salida
-  row[14]=o.horaLlegada||'';                                // O  Hora llegada
-  row[15]=(o.pkOrigenM!=null)?String(o.pkOrigenM):'';       // P  Pk inicial (origen en metros)
-  row[16]='4513';                                           // Q  Ruta Nacional inicial
-  row[17]=ufIni;                                            // R  UF inicial
-  row[18]=(o.pkDestinoM!=null)?String(o.pkDestinoM):'';     // S  Pk final (destino real en metros)
-  row[19]='4513';                                           // T  Ruta Nacional final
-  row[20]=ufDest;                                           // U  UF final
-  // V  Distancia (km) → fórmula: vacío
-  // W  Transporte de material m3*Km → fórmula: vacío
-  row[23]='m3km';                                           // X  UNIDAD
-  // Y  CATEGORIA → vacío
-  row[25]=o.conductor||'';                                  // Z  Conductor
-  row[26]=o.esDefault?'Pendiente por cubicar':'';           // AA Observaciones
-  // AB–AH (27–33) → AREA RESPONSABLE·TIEMPO·CORTE·TIPO DE VIAJE·volqueta·ACTA·CONTRATISTA: vacío (fórmula / la digitadora)
-  return row;
-}
-function collectRows(){
-  const rows=[];
-  grupos.forEach(g=>{
-    const cub=grupoCub(g);
-    if(g.modo==='agrupado'){
-      const r=g.renAgr;
-      rows.push(buildRow({remision:r.remision, placa:g.placa, cubicaje:cub, viajes:g.cantAgr,
-        tipo_destino:g.tipo_destino, pkOrigenM:origenPkMeters(g.origen), pkDestinoM:pkMeters(r.pk),
-        horaSalida:'', horaLlegada:'', conductor:r.conductor, esDefault:g.esDefault}));
-    } else {
-      g.renglones.forEach(r=>{
-        rows.push(buildRow({remision:r.remision, placa:g.placa, cubicaje:cub, viajes:1,
-          tipo_destino:g.tipo_destino, pkOrigenM:origenPkMeters(g.origen), pkDestinoM:pkMeters(r.pk),
-          horaSalida:r.hs, horaLlegada:r.hl, conductor:r.conductor, esDefault:g.esDefault}));
-      });
-    }
-  });
-  externos.forEach(x=>{
-    rows.push(buildRow({remision:x.remision, placa:x.placa, cubicaje:x.cub, viajes:1,
-      tipo_destino:x.tipo_destino, pkOrigenM:pkMeters(x.origen), pkDestinoM:pkMeters(x.pkDestino),
-      horaSalida:x.hs, horaLlegada:x.hl, conductor:x.conductor, esDefault:false}));
-  });
-  return rows;
-}
-
-/* ---------- progreso / totales ---------- */
-function refresh(){
-  let tot=0, rem=0;
-  grupos.forEach(g=>{
-    if(g.modo==='agrupado'){ tot++; if((g.renAgr.remision||'').trim()) rem++; }
-    else g.renglones.forEach(r=>{ tot++; if((r.remision||'').trim()) rem++; });
-  });
-  externos.forEach(x=>{ tot++; if((x.remision||'').trim()) rem++; });
-  document.getElementById('progRem').textContent=rem;
-  document.getElementById('progTot').textContent=tot;
-  document.getElementById('progFilas').textContent=tot;
-  const vacio=(tot===0);
-  document.getElementById('btnCopiar').disabled=vacio;
-  document.getElementById('btnCsv').disabled=vacio;
-}
-
-/* ---------- copiar / descargar ---------- */
-function copiarTodo(btn){
-  const rows=collectRows();
-  if(!rows.length){ alert('No hay renglones para copiar.'); return; }
-  const tsv=rows.map(r=>r.join('\t')).join('\n');
-  const ok=()=>{ const o=btn.innerHTML; btn.classList.add('copied'); btn.innerHTML='✓ Copiado'; setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=o;},1600); };
-  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).then(ok).catch(()=>fallbackCopiar(tsv,ok));
-  else fallbackCopiar(tsv,ok);
-}
-function fallbackCopiar(text, ok){
-  const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
-  document.body.appendChild(ta); ta.focus(); ta.select();
-  try{ document.execCommand('copy'); ok(); }catch(e){ alert('No se pudo copiar automáticamente.'); }
-  document.body.removeChild(ta);
-}
-function csvCell(v){ const s=String(v==null?'':v); return /[;"\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
-function descargarCsv(){
-  const rows=collectRows();
-  if(!rows.length){ alert('No hay renglones para exportar.'); return; }
-  const csv='﻿'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n');   // UTF-8 con BOM, separador ;
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='volquetas_'+(FECHA||'export')+'.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-}
-</script>
+<script src="digitadora.js"></script>
 </body>
 </html>

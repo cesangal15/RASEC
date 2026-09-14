@@ -105,14 +105,8 @@ var GALCA_ENV = (function(){
     if(document.getElementById('galca-env-chip')) return;
     try{ if(document.title.indexOf('PRUEBA') !== 0) document.title = 'PRUEBA · ' + document.title; }catch(e){}
 
-    var st = document.createElement('style');
-    st.textContent =
-      '.galca-env-chip{display:inline-block;vertical-align:middle;margin-left:10px;padding:3px 9px;' +
-        'border-radius:6px;background:#d81b60;color:#fff;font:700 11px/1.3 "DM Sans",system-ui,sans-serif;' +
-        'letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35);}' +
-      '.galca-env-fijo{position:fixed;top:8px;left:50%;transform:translateX(-50%);margin:0;z-index:9999;' +
-        'pointer-events:none;}';
-    (document.head || document.documentElement).appendChild(st);
+    // D170: el CSS del chip vivía aquí en un <style> inyectado; la CSP ya no lo admite. Está en
+    // tema.css (y en tablero-produccion.css, la única pantalla que no carga tema.css).
 
     var chip = document.createElement('span');
     chip.id = 'galca-env-chip';

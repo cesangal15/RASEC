@@ -1,0 +1,529 @@
+// D170: aplica los data-estilo del marcado ANTES de que corra la lógica de la pantalla (ver tema.js).
+if(window.TM2Estilos) TM2Estilos.aplicar();
+const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
+
+/* Panel del residente de drenajes (D70/D84). Hace de "encargado" de su(s) área(s): la bandeja se pide
+ * con &area= (el backend filtra por la columna `area`/CC), el envío a DATA pisa el día SOLO en esa área
+ * (enmienda operativa de D03) y el WhatsApp usa el formato propio de drenajes.
+ * D84: el residente UNIFICADO (residente_dren) ve ODT y ODL JUNTOS en un solo panel:
+ *   - la bandeja se consulta UNA VEZ POR ÁREA y se fusiona en cliente (sin cambiar el contrato del endpoint);
+ *   - chips de filtro Todas/ODT/ODL (solo presentación, no altera qué se envía);
+ *   - al enviar dispara UNA llamada enviar_data POR ÁREA presente (nunca un envío mezclado, rompería D70(c));
+ *   - guard anti-borrado: un área sin NINGUNA fila en la bandeja de ese día NO se llama (un payload vacío
+ *     con `area` borraría lo que esa área ya tuviera en DATA ese día). */
+let AREAS=['odt'];   // áreas del panel (residente_dren = ['odt','odl'])
+let MULTI=false;     // true = panel combinado ODT+ODL
+let AREA='odt';      // área "activa" en modo de una sola área (compat)
+let FILTRO='all';    // chip de presentación: 'all' | 'odt' | 'odl'
+const WA_KEY='dren_wa_modo';   // recuerda la última elección del toggle de WhatsApp ('combinado'|'porarea')
+
+// D84: helper único de áreas por rol (mismo criterio que el backend). residente_dren/admin ven ambas.
+function resolverAreas(rol){
+  if(rol==='residente_odt') return ['odt'];
+  if(rol==='residente_odl') return ['odl'];
+  if(rol==='residente_dren'||rol==='admin') return ['odt','odl'];
+  return ['odt'];
+}
+
+// Capataces nominales por área (D70): la sección "quién falta" del panel los compara contra los que
+// reportaron ese día. Mismo criterio que CAPATACES_ESPERADOS de tierras (encargado.html). NO cambia con
+// D84: cada capataz sigue esperado solo en su área primaria (D84 §3).
+const CAPATACES_ESPERADOS_POR_AREA={ odt:['mauricio','eduardo','enrique'], odl:['jairo'] };
+
+// STATE.cantidades/maquinas/observaciones llevan cada una su `_area` (odt/odl), fijada al fusionar las
+// bandejas de cada área. El resto de campos vienen crudos del backend (bandeja).
+let STATE={ fecha:'', cantidades:[], maquinas:[], observaciones:[] };
+/* catálogo de la BASE (?action=drenajes) para el add-line del residente */
+let MARCADORES=[], ITEMS=[];
+
+window.onload = async function(){
+  const rol=localStorage.getItem('rol'), usuario=localStorage.getItem('usuario');
+  const OK=['residente_odt','residente_odl','residente_dren','admin'];
+  if(!rol || OK.indexOf(rol)<0){ window.location.href='index.html'; return; }
+  document.getElementById('userDisplay').textContent=usuario||'residente';
+  AREAS=resolverAreas(rol); MULTI=AREAS.length>1; AREA=AREAS[0];
+  // D84: el admin ve las dos áreas combinadas (los chips filtran la vista); el selector de área de una
+  // sola área ya no aplica y queda oculto. Solo se muestra el botón de menú del admin.
+  if(rol==='admin'){ var _bm=document.getElementById('btnMenu'); if(_bm) _bm.style.display='inline-block'; }
+  /* D131 — el residente de drenajes entra al panel del jefe (`jefe.html`): el resumen post-DATA por
+   * rango que ya tenía tierras. Es SOLO LECTURA sobre lo ya enviado, así que no le da ninguna capacidad
+   * nueva sobre la bandeja; le da la vista de lo que quedó en el maestro. El admin llega por el menú. */
+  var _br=document.getElementById('btnResumen'); if(_br && rol!=='admin') _br.style.display='inline-block';
+  pintarTitulo();
+  document.getElementById('fecha').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); // D50
+  cargarCatalogo();
+};
+function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
+function pintarTitulo(){
+  const n = MULTI ? 'ODT + ODL' : ((AREA==='odt')?'ODT · Transversal':'ODL · Longitudinal');
+  const tag = MULTI ? 'ODT+ODL' : (AREA==='odt'?'ODT':'ODL');
+  document.getElementById('hdrLabel').textContent='Bandeja · Drenajes '+tag;
+  document.getElementById('hdrTitle').textContent='🚧 Drenajes — '+n;
+}
+// (Selector de área del admin — dead en D84; se conserva por si se reactivara una sola área.)
+function cambiarArea(){
+  AREA=document.getElementById('areaSel').value==='odl'?'odl':'odt'; AREAS=[AREA]; MULTI=false;
+  pintarTitulo();
+  document.getElementById('resultados').innerHTML='<div class="empty-state"><div class="icon">🗓️</div><p>Consulta de nuevo para ver la bandeja de '+AREA.toUpperCase()+'</p></div>';
+}
+async function cargarCatalogo(){
+  try{
+    const resp=await fetch(APPS_SCRIPT_URL+'?action=drenajes');
+    const data=await resp.json();
+    if(data && data.ok){ MARCADORES=data.marcadores||[]; ITEMS=data.items||[]; }
+  }catch(err){ /* el add-line avisará si no hay catálogo */ }
+}
+
+/* helpers PK — mismos del resto de pantallas */
+function pkToMeters(pk){ if(!pk) return null; pk=String(pk).toLowerCase().replace(/pk/g,'').trim().replace(/\s/g,''); if(pk.includes('+')){const p=pk.split('+');const km=parseInt(p[0]);const m=parseInt(p[1]||'0');if(isNaN(km))return null;return km*1000+(isNaN(m)?0:m);} const n=parseFloat(pk);return isNaN(n)?null:n*1000; }
+function ufFromPk(pk){ const m=pkToMeters(pk); if(m==null) return ''; return m<=30000?'UF1':'UF2'; }
+function pkNorm(s){ const m=pkToMeters(s); if(m==null) return ''; const km=Math.floor(m/1000), r=Math.round(m-km*1000); return km+'+'+('00'+r).slice(-3); }
+function buildElemento(pki,pkf){
+  let ini=pki, fin=pkf;
+  if((fin==null||fin==='') && pki!=null){ const p=String(pki).split(/\s*-\s*/); if(p.length>=2){ ini=p[0]; fin=p.slice(1).join(' - '); } }
+  const a=pkNorm(ini); if(!a) return '';
+  const b=pkNorm(fin); return b? ('tm2 pk '+a+' - '+b) : ('tm2 pk '+a);
+}
+function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO'); }
+function numH(v){ const n=parseFloat(v); return isNaN(n)?0:n; }
+function esNoche(c){ return String(c.turno_noche||'').toUpperCase()==='SI' || c.turno_noche===true; }
+function nombreArea(ar){ return (ar==='odt')?'Drenaje Transversal (ODT)':'Drenaje Longitudinal (ODL)'; }
+/* D86: ¿la observación general pertenece al área consultada? Espejo de `obsEnArea` del backend: la
+ * columna `area` de OBSERVACIONES puede traer una lista ('odt,odl') y, si viene vacía o no viene
+ * (backend anterior a D86), la fila es de tierras — nunca de drenajes. */
+function obsEsDelArea(o, ar){
+  const raw=String((o&&o.area)||'').trim().toLowerCase();
+  const lista = raw ? raw.split(',').map(s=>s.trim()).filter(s=>!!s) : ['tierras'];
+  return lista.indexOf(ar)>=0;
+}
+
+/* áreas visibles según el chip de presentación (no altera qué se envía) */
+function areasVisibles(){ if(!MULTI) return AREAS.slice(); if(FILTRO==='odt') return ['odt']; if(FILTRO==='odl') return ['odl']; return AREAS.slice(); }
+function setFiltro(v){ FILTRO=v; render(); }
+
+async function consultar(){
+  const fecha=document.getElementById('fecha').value;
+  if(!fecha){ alert('Selecciona una fecha'); return; }
+  document.getElementById('resultados').innerHTML='<div class="loading">⏳ Cargando bandeja de '+(MULTI?'ODT + ODL':AREA.toUpperCase())+'...</div>';
+  try{
+    STATE.fecha=fecha; STATE.cantidades=[]; STATE.maquinas=[]; STATE.observaciones=[];
+    // D84: una consulta a la bandeja POR ÁREA (sin cambiar el contrato del endpoint) y fusión en cliente.
+    for(const ar of AREAS){
+      const url=`${APPS_SCRIPT_URL}?action=bandeja&fecha=${fecha}&area=${ar}`;
+      const resp=await fetch(url); const data=await resp.json();
+      (data.cantidades||[]).forEach(c=>STATE.cantidades.push(Object.assign({}, c, {
+        _area:ar, largo:parseFloat(c.largo)||0,
+        _inc:(c.estado!=='descartado'&&c.estado!=='no_data'), _nodata:(c.estado==='no_data') })));
+      (data.maquinas||[]).forEach(m=>STATE.maquinas.push(Object.assign({}, m, {_area:ar})));
+      // D86: la observación GENERAL del día es de quien la escribe, no de la bandeja completa. El
+      // backend ya la filtra por área, pero el filtro se repite aquí (y trata la fila SIN `area` como
+      // tierras, que es lo que son todas las anteriores a D86) para que el WhatsApp de ODT/ODL no
+      // arrastre las observaciones de tierras ni siquiera contra un backend sin redesplegar.
+      (data.observaciones||[]).forEach(o=>{ if(!obsEsDelArea(o, ar)) return;
+        STATE.observaciones.push(Object.assign({}, o, {_area:ar})); });
+    }
+    render();
+  }catch(err){
+    document.getElementById('resultados').innerHTML=`<div class="empty-state"><div class="icon">⚠️</div><p>No se pudo consultar. Revisa el Apps Script o la conexión.</p></div>`;
+  }
+}
+
+/* agrupación por ACTIVIDAD dentro de UN área — drenajes no usa las categorías de tierras; los totales
+ * NUNCA se suman entre áreas (capítulos distintos, D84).
+ * D113c: la llave es `actividad` con respaldo a `descripcion`, no al revés. Para todo lo reportado
+ * hasta ahora es EL MISMO string (los dos frontends guardaban `actividad = descripcion = ítem de la
+ * BASE`), así que nada cambia de aspecto; lo que gana es que las variantes por material (relleno con
+ * crudo de río / de UF3) salen separadas del ítem normal en vez de fundirse con él, que es justo lo
+ * que se quiere ver. La DESCRIPCION que va al maestro sigue siendo la del ítem. */
+function actKey(c){ return c.actividad||c.descripcion||'—'; }
+function calcTotalesArea(ar){
+  const t={}, order=[];
+  STATE.cantidades.forEach(c=>{ if(c._area!==ar || !c._inc) return;
+    const k=actKey(c)+'||'+(c.unidad||'');
+    if(!t[k]){ t[k]={desc:actKey(c), uni:c.unidad||'', total:0}; order.push(k); }
+    t[k].total+=c.largo;
+  });
+  return {t, order};
+}
+function ubicTxt(c){
+  if(/^\s*odt/i.test(String(c.elemento||''))) return c.elemento;
+  const pk=c.pk_inicial+(c.pk_final?(' - '+c.pk_final):'');
+  return pk?('PK '+pk):(c.elemento||'—');
+}
+function persTxt(c){
+  const of=String(c.personal_oficiales||'').trim(), ay=String(c.personal_ayudantes||'').trim();
+  let s='';
+  if(of&&numH(of)>0) s+=of+' of.';
+  if(ay&&numH(ay)>0) s+=(s?' · ':'')+ay+' ayu.';
+  if(esNoche(c)) s+=(s?' · ':'')+'🌙 noche';
+  return s;
+}
+
+function render(){
+  const cont=document.getElementById('resultados');
+  const vis=areasVisibles();
+  let html='';
+  if(MULTI){
+    const nOdt=STATE.cantidades.filter(c=>c._area==='odt').length, nOdl=STATE.cantidades.filter(c=>c._area==='odl').length;
+    const chip=(val,lbl,n)=>`<button class="fchip ${FILTRO===val?'act':''}" data-on-click="setFiltro('${val}')">${lbl} (${n})</button>`;
+    // D151: los chips van FUERA de la rejilla PC, a ancho completo arriba.
+    html+='<div class="filtro-chips">'+chip('all','Todas',STATE.cantidades.length)+chip('odt','ODT',nOdt)+chip('odl','ODL',nOdl)+'</div>';
+  }
+
+  // D151: pc-a = columna derecha (estado · totales · notas). En móvil el envoltorio desaparece.
+  html+='<div class="pc-zona"><div class="pc-a">';
+  // Estado de reportes — por área visible
+  vis.forEach(ar=>{ html+=renderEstadoArea(ar); });
+
+  // Totales del día — separados por área (encabezado con el total de líneas de cada área)
+  html+='<div class="section-title">Totales del día (solo incluidos)</div>';
+  vis.forEach(ar=>{ html+=renderTotalesArea(ar); });
+
+  // Notas generales del día (D103): una por envío de capataz, del día completo. No cuelgan de ninguna
+  // línea (las notas POR actividad se ven en cada línea de la bandeja) y ya salían al WhatsApp; aquí se
+  // muestran también en el panel para que el residente las lea antes de enviar a DATA.
+  html+='<div class="section-title">Notas generales del día</div>'+renderObsGenerales(vis);
+
+  // D151: pc-b = columna izquierda — la bandeja y las máquinas (lo que se scrollea).
+  html+='</div><div class="pc-b">';
+  html+='<div class="section-title">Bandeja del día <span data-estilo="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-size:11px;">(prende/apaga para incluir en DATA)</span></div>';
+  html+='<div id="bandejaBox">'+renderBandeja()+'</div>';
+  html+=renderAddCard();
+
+  const maqVis=STATE.maquinas.filter(m=>vis.indexOf(m._area)>=0);
+  html+='<div class="section-title">Máquinas'+(MULTI?'':' del área')+' ('+maqVis.length+')</div>'+renderMaquinas();
+
+  // D151: pc-c = pie a ancho completo — los botones de envío/WhatsApp y el mensaje.
+  html+='</div><div class="pc-c">';
+  html+='<div class="actions">'+
+    '<button class="btn-action primary" data-on-click="enviar()">📤 Enviar a DATA ('+(MULTI?'ODT + ODL':AREA.toUpperCase())+')<span class="saved-flag" id="savedFlag">enviado ✓</span></button>'+
+    '<button class="btn-action" data-on-click="generarMensaje()">📲 Generar WhatsApp</button>'+
+    '</div>';
+  if(MULTI){
+    const porArea=waModo()==='porarea';
+    html+='<div class="wa-toggle-row"><label class="wa-toggle"><input type="checkbox" data-on-change="toggleWa()" '+(porArea?'checked':'')+'> WhatsApp: uno por área (si no, un solo mensaje)</label></div>';
+  }
+  html+='<div class="msg-box" id="msgBox"></div>';
+  html+='</div></div>';   // cierra pc-c y pc-zona
+  cont.innerHTML=html;
+}
+
+function renderEstadoArea(ar){
+  const esperados=CAPATACES_ESPERADOS_POR_AREA[ar]||[];
+  const repC=new Set(STATE.cantidades.filter(c=>c._area===ar).map(c=>c.reporta)
+    .concat(STATE.maquinas.filter(m=>m._area===ar).map(m=>m.reporta)).filter(Boolean));
+  const faltC=esperados.filter(c=>!repC.has(c));
+  let html='<div class="section-title">Estado de reportes ('+ar.toUpperCase()+')</div><div class="estado-grid">';
+  html+='<div class="estado-box"><h3>Reportaron</h3><div class="chips">'+
+    ([...repC].length? [...repC].map(c=>`<span class="chip ok">✓ ${esc(c)}</span>`).join(''):'<span class="chip">—</span>')+'</div></div>';
+  html+='<div class="estado-box"><h3>Capataces que faltan</h3><div class="chips">'+
+    (faltC.length? faltC.map(c=>`<span class="chip no">${esc(c)}</span>`).join(''):'<span class="chip ok">Todos</span>')+'</div></div>';
+  html+='</div>';
+  return html;
+}
+function renderTotalesArea(ar){
+  const {t,order}=calcTotalesArea(ar);
+  const nInc=STATE.cantidades.filter(c=>c._area===ar && c._inc).length;
+  let html='<div class="totales">';
+  html+=`<div class="tot-row"><span class="cat tot-area-hdr">${ar.toUpperCase()}</span><span class="val">${nInc} línea${nInc!==1?'s':''}</span></div>`;
+  if(order.length){
+    order.forEach(k=>{ const o=t[k];
+      html+=`<div class="tot-row"><span class="cat">${esc(o.desc)}</span><span class="val">${fmt(o.total)} ${esc(o.uni)}</span></div>`; });
+  } else html+='<div class="cat" data-estilo="color:var(--muted)">Sin cantidades incluidas</div>';
+  html+='</div>';
+  return html;
+}
+
+/* D103 — notas GENERALES del día (hoja OBSERVACIONES) de las áreas visibles. Distintas de la nota por
+ * actividad (`nota_libre`, que se pinta dentro de cada línea): estas son del día completo. */
+function renderObsGenerales(vis){
+  // Una nota de un capataz con las DOS áreas (D84) se sella 'odt,odl' y entra a STATE una vez por área;
+  // en el panel se muestra UNA sola vez con las áreas a las que pertenece (en el WhatsApp sí va en las dos).
+  const uniq={}, orden=[];
+  STATE.observaciones.forEach(o=>{
+    const txt=String(o.observacion||'').trim();
+    if(!txt || vis.indexOf(o._area)<0) return;
+    const k=(o.reporta||'?')+'||'+txt;
+    if(!uniq[k]){ uniq[k]={reporta:o.reporta||'?', txt:txt, areas:[]}; orden.push(k); }
+    if(uniq[k].areas.indexOf(o._area)<0) uniq[k].areas.push(o._area);
+  });
+  if(!orden.length) return '<div class="obs-box"><span class="obs-vacio">Sin notas generales del día.</span></div>';
+  let html='<div class="obs-box">';
+  orden.forEach(k=>{
+    const o=uniq[k];
+    const badges = MULTI ? o.areas.map(a=>`<span class="badge ${a}">${a.toUpperCase()}</span>`).join('') : '';
+    html+=`<div class="obs-item"><div class="obs-quien">${esc(o.reporta)}${badges}</div>`
+       +`<div class="obs-txt">${esc(o.txt)}</div></div>`;
+  });
+  return html+'</div>';
+}
+
+function lineaHtml(c, idx){
+  const uf=c.uf||ufFromPk(c.pk_inicial);
+  const pers=persTxt(c);
+  const nota=String(c.nota_libre||'').trim();
+  const areaBadge = MULTI ? ` <span class="badge ${c._area}">${c._area.toUpperCase()}</span>` : '';
+  return `<div class="linea-item ${c._inc?'':'off'}" id="li_${idx}">
+    <button class="tog ${c._inc?'on':'no'}" data-on-click="toggleInc(${idx})">${c._inc?'✓':'✕'}</button>
+    <div class="li-main"><div class="li-act">${esc(ubicTxt(c))}</div>
+    <div class="li-sub"><span class="src ${c.rol==='encargado'||String(c.rol||'').indexOf('residente')===0?'enc':'cap'}">${esc(c.rol||'?')}·${esc(c.reporta||'?')}</span>${areaBadge}${uf?` <span class="badge ${esc(uf.toLowerCase())}">${esc(uf)}</span>`:''} ${esc(c.centro_costo||'')}</div>
+    ${pers?`<div class="li-pers">👷 ${esc(pers)}</div>`:''}
+    ${nota?`<div class="li-nota">📝 ${esc(nota)}</div>`:''}</div>
+    <div class="li-largo"><input type="number" step="any" value="${c.largo}" data-on-change="editLargo(${idx},this.value)"></div>
+    <div class="li-unit">${esc(c.unidad||'')}</div>
+  </div>`;
+}
+function renderBandeja(){
+  const vis=areasVisibles();
+  const items=STATE.cantidades.map((c,idx)=>({c,idx})).filter(x=>vis.indexOf(x.c._area)>=0);
+  if(!items.length) return '<div class="empty-state" data-estilo="padding:20px;"><p>La bandeja está vacía para esta fecha'+(MULTI&&FILTRO!=='all'?(' en '+FILTRO.toUpperCase()):'')+'.</p></div>';
+  let html='';
+  vis.forEach(ar=>{
+    const arr=items.filter(x=>x.c._area===ar);
+    if(!arr.length) return;
+    if(MULTI) html+='<div class="grupo-area">'+(ar==='odt'?'ODT · Transversal':'ODL · Longitudinal')+' ('+arr.length+')</div>';
+    const byAct={}, orderAct=[];
+    arr.forEach(({c,idx})=>{ const k=actKey(c);                     // D113c
+      if(!byAct[k]){ byAct[k]=[]; orderAct.push(k); } byAct[k].push({c,idx}); });
+    orderAct.forEach(k=>{
+      html+=`<div class="grupo-cat">${esc(k)}</div>`;
+      byAct[k].forEach(({c,idx})=>{ html+=lineaHtml(c,idx); });
+    });
+  });
+  return html;
+}
+/* add-line del residente: actividad del catálogo (de las áreas del panel) + marcador (ODT) o PK (ODL).
+ * D84: el área de la línea se DERIVA del CC del ítem elegido (nunca se teclea); en modo combinado la
+ * ubicación (marcador/PK) se ajusta al ítem elegido. */
+function itemsAddArea(){
+  const seen={}, its=[];
+  // D113c: la llave incluye `actividad` — las variantes por material (crudo de río / UF3) comparten
+  // CC y descripción con su ítem, así que sin esto la deduplicación se las comía.
+  ITEMS.forEach(it=>{ if(AREAS.indexOf(it.area)<0) return; const k=(it.corto||it.cc)+'|'+String(it.desc||'').trim()+'|'+String(it.actividad||''); if(seen[k])return; seen[k]=1; its.push(it); });
+  return its;
+}
+/* D113c — nombre de la ACTIVIDAD de un ítem del catálogo: la descripción del ítem de la BASE, salvo
+ * en las variantes por material, donde es el nombre de la variante. Es lo que se guarda en la columna
+ * interna `actividad`; la DESCRIPCION que viaja al maestro no cambia. */
+function nombreAct(it){ return (it && it.actividad) ? it.actividad : (it ? it.desc : ''); }
+// Etiqueta del desplegable: en una variante, el nombre + el ítem contractual del que sale.
+function actOpt(it){ return (it.actividad ? (it.actividad+' · '+it.desc) : it.desc)+(it.unidad?(' ['+it.unidad+']'):''); }
+function renderAddCard(){
+  if(!ITEMS.length) return '<div class="add-card"><div class="nota-maq">⚠ Catálogo de la BASE no cargado; recarga la página para poder agregar líneas.</div></div>';
+  const its=itemsAddArea();
+  window._ADD_ITEMS=its;
+  let opts='<option value="">— Actividad —</option>';
+  if(MULTI){
+    [['odt','ODT · Transversal (06.*)'],['odl','ODL · Longitudinal (07.*)']].forEach(g=>{
+      if(AREAS.indexOf(g[0])<0) return;
+      const grp=its.map((it,i)=>({it,i})).filter(x=>x.it.area===g[0]);
+      if(!grp.length) return;
+      opts+='<optgroup label="'+esc(g[1])+'">';
+      grp.forEach(x=>{ opts+=`<option value="${x.i}">${esc(actOpt(x.it))}</option>`; });
+      opts+='</optgroup>';
+    });
+  } else {
+    its.forEach((it,i)=>{ opts+=`<option value="${i}">${esc(actOpt(it))}</option>`; });
+  }
+  // En combinado la ubicación se llena según el ítem (onAddActChange); en una sola área es estática.
+  const ubic = MULTI ? '<div id="addUbic"></div>' : (AREA==='odt' ? addUbicOdtHtml() : addUbicOdlHtml());
+  return `<div class="add-card"><div class="add-grid">
+    <div><label>Agregar (residente)</label><select id="addAct" data-on-change="onAddActChange()">${opts}</select></div>
+    ${ubic}
+    <div><label>Cantidad</label><input type="number" step="any" id="addCant" placeholder="0"></div>
+    <button class="btn-add" data-on-click="addLinea()">+ Añadir</button>
+  </div></div>`;
+}
+function addUbicOdtHtml(){
+  let mo='<option value="">— Marcador —</option>';
+  MARCADORES.forEach((m,i)=>{ mo+=`<option value="${i}">${esc(m.elemento)}${m.pk?(' · '+esc(m.pk)):''}</option>`; });
+  return `<div><label>Marcador ODT</label><select id="addMarc">${mo}</select></div>`;
+}
+function addUbicOdlHtml(){
+  return `<div><label>PK inicial</label><input type="text" id="addPk" placeholder="14+635"></div>`;
+}
+// D84 (combinado): al elegir la actividad, muestra el marcador (ítem 06→ODT) o el PK (ítem 07→ODL).
+function onAddActChange(){
+  if(!MULTI) return;
+  const its=window._ADD_ITEMS||[]; const v=document.getElementById('addAct').value;
+  const it=v!==''?its[parseInt(v,10)]:null;
+  const cont=document.getElementById('addUbic'); if(!cont) return;
+  cont.innerHTML = it ? (it.area==='odt'?addUbicOdtHtml():addUbicOdlHtml()) : '';
+}
+function renderMaquinas(){
+  const vis=areasVisibles();
+  const maqs=STATE.maquinas.filter(m=>vis.indexOf(m._area)>=0);
+  if(!maqs.length) return '<div class="empty-state" data-estilo="padding:16px;"><p>Sin máquinas reportadas'+(MULTI?'':' en '+AREA.toUpperCase())+'</p></div>'
+    +'<div class="nota-maq">Sin catálogo de máquinas de drenajes (V1): se listan solo las reportadas por los capataces; no hay lista de faltantes.</div>';
+  let html='';
+  maqs.forEach(m=>{
+    const h=(m.horas_operadas===''||m.horas_operadas==null)?'':(fmt(numH(m.horas_operadas))+'h');
+    const areaBadge = MULTI ? ` <span class="badge ${m._area}">${m._area.toUpperCase()}</span>` : '';
+    html+=`<div class="linea-item">
+      <span class="maq-id">${esc(m.id_maquina||'—')}</span>
+      <div class="li-main"><div class="li-sub">${esc(m.operador||'s/op')} · <span class="src cap">${esc(m.reporta||'?')}</span>${areaBadge}</div></div>
+      <div data-estilo="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;white-space:nowrap;">${h||'—'}</div></div>`;
+  });
+  html+='<div class="nota-maq">Captura libre (V1): estas máquinas no pasan a Captura_Diaria (a_captura=NO); van al WhatsApp del área.</div>';
+  return html;
+}
+
+function toggleInc(idx){ STATE.cantidades[idx]._inc=!STATE.cantidades[idx]._inc; render(); }
+function editLargo(idx,val){ STATE.cantidades[idx].largo=parseFloat(val)||0; render(); }
+
+function addLinea(){
+  const its=window._ADD_ITEMS||[];
+  const ai=document.getElementById('addAct').value;
+  if(ai===''){ alert('Elige una actividad'); return; }
+  const it=its[parseInt(ai,10)];
+  const cant=parseFloat(document.getElementById('addCant').value)||0;
+  // D84: el área de la línea la fija el CC del ítem (en combinado) o el área del panel (una sola área).
+  const lineArea = MULTI ? it.area : AREA;
+  let elemento='', pk='', abs=null;
+  if(lineArea==='odt'){
+    const marcEl=document.getElementById('addMarc');
+    const mi=marcEl?marcEl.value:'';
+    if(mi===''){ alert('Elige el marcador ODT'); return; }
+    const mk=MARCADORES[parseInt(mi,10)];
+    elemento=mk.elemento; pk=mk.pk||''; abs=(mk.abs===''||mk.abs==null)?null:Number(mk.abs);
+  } else {
+    const pkEl=document.getElementById('addPk');
+    pk=pkEl?pkEl.value.trim():'';
+    if(!pk){ alert('Escribe el PK'); return; }
+    elemento=buildElemento(pk,''); abs=pkToMeters(pk);
+  }
+  const uf=abs==null?'':(abs<=30000?'UF1':'UF2'), proy=uf==='UF1'?'3701':uf==='UF2'?'3702':'';
+  STATE.cantidades.push({ id_registro:'', reporta:'(residente)', rol:localStorage.getItem('rol')||'residente',
+    grupo:'DRENAJES Y ESTRUCTURAS',
+    // capítulo por defecto del área; los ítems "extra" (D71: Demolición de Estructuras) traen el suyo
+    capitulo: it.capitulo || ((lineArea==='odt')?'DRENAJE TRANSVERSAL':'DRENAJE LONGITUDINAL'),
+    area: lineArea, _area: lineArea,   // D71/D84: fija el área de la línea (envío y agrupación)
+    // D113c: `descripcion` = la del ítem de la BASE (la que va al maestro); `actividad` = la variante
+    // por material cuando la hay.
+    actividad:nombreAct(it), descripcion:it.desc,
+    centro_costo:proy?`${proy}.${it.corto||it.cc}`:(it.cc||''), unidad:it.unidad||'', uf, proyecto:proy,
+    elemento, pk_inicial:pk, pk_final:'', abs_inicial:abs, abs_final:abs,
+    liberacion:'CAMPO', largo:cant, observacion:'',
+    personal_oficiales:'', personal_ayudantes:'', turno_noche:'', nota_libre:'', _inc:true });
+  render();
+}
+
+/* ---------- envío a DATA: UNA llamada enviar_data POR ÁREA presente (D84, crítico) ----------
+ * Nunca un envío mezclado (rompería D70(c)). Guard anti-borrado: un área sin NINGUNA fila en la bandeja
+ * de ese día NO se llama — un payload vacío con `area` borraría lo que esa área ya tuviera en DATA ese
+ * día. Envío secuencial; si una llamada falla, NO se continúa con la siguiente y se dice cuál quedó sin
+ * enviar. Resultado: conteo REAL devuelto por el servidor por área (D30). */
+let enviandoDren=false;   // D110: candado anti doble envío (dos toques seguidos = dos pisadas del día)
+async function enviar(){
+  if(enviandoDren) return;
+  // Guard: solo áreas que TIENEN al menos una fila en la bandeja de ese día.
+  const areasEnvio=AREAS.filter(ar=> STATE.cantidades.some(c=>c._area===ar));
+  if(!areasEnvio.length){ alert('No hay filas en la bandeja para enviar en este día.'); return; }
+  const plan=areasEnvio.map(ar=>{
+    const rows=STATE.cantidades.filter(c=>c._area===ar);
+    const incluidas=rows.filter(c=>c._inc);
+    return { ar, incluidas, inc:incluidas.length, desc:rows.length-incluidas.length };
+  });
+  // D110: el guard de arriba cubre el área SIN filas, pero no el área con filas y TODAS apagadas —
+  // ese envío manda cero filas y el pisado por día+área deja esa área en blanco en DATA. Se avisa.
+  const vacias=plan.filter(p=>!p.inc).map(p=>p.ar.toUpperCase());
+  if(vacias.length){
+    if(!confirm('⚠️ ATENCIÓN — sin ninguna fila incluida en '+vacias.join(' y ')+'.\n\nSi envías así, DATA queda SIN NADA de '+vacias.join(' ni ')+' para el '+STATE.fecha+' (se borra lo que ya hubiera).\n\n¿Enviar de todas formas?')) return;
+  }
+  let txt='Vas a enviar a DATA para el '+STATE.fecha+':\n\n';
+  plan.forEach(p=>{ txt+='• '+p.ar.toUpperCase()+': '+p.inc+' incluidas'+(p.desc?(' · '+p.desc+' descartadas'):'')+'\n'; });
+  txt+='\nSe PISA ese día '+(plan.length>1?'en cada una de esas áreas':'en '+plan[0].ar.toUpperCase())+' (tierras'+(plan.length>1?' y la otra área':'')+' no se tocan). ¿Continuar?';
+  if(!confirm(txt)) return;
+
+  enviandoDren=true;
+  const hechas=[];
+  for(let i=0;i<plan.length;i++){
+    const p=plan[i];
+    try{
+      const resp=await fetch(APPS_SCRIPT_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'enviar_data', fecha:STATE.fecha, area:p.ar, cantidades:p.incluidas})});
+      const res=await resp.json();
+      if(!res||!res.ok) throw new Error((res&&res.error)||'Respuesta inesperada');
+      hechas.push({ar:p.ar, n:(res.enviadas!=null?res.enviadas:p.inc)});
+    }catch(err){
+      enviandoDren=false;
+      const pend=plan.slice(i).map(x=>x.ar.toUpperCase());
+      const box=document.getElementById('msgBox'); box.style.display='block';
+      box.textContent='⚠ Falló el envío de '+p.ar.toUpperCase()+': '+err.message+'\n\n'
+        +'Enviadas: '+(hechas.length? hechas.map(h=>h.ar.toUpperCase()+' ('+h.n+')').join(' · '):'ninguna')+'\n'
+        +'SIN enviar: '+pend.join(', ')+'. Vuelve a intentar (solo se reenvían las que faltan).';
+      return;
+    }
+  }
+  enviandoDren=false;
+  const f=document.getElementById('savedFlag'); if(f){ f.style.display='inline'; setTimeout(()=>f.style.display='none',3000); }
+  const box=document.getElementById('msgBox'); box.style.display='block';
+  box.textContent='✅ Enviado a DATA ('+STATE.fecha+'):\n'+hechas.map(h=>'• '+h.ar.toUpperCase()+': '+h.n+' fila'+(h.n!==1?'s':'')+' ✓').join('\n');
+}
+
+/* ---------- WhatsApp de drenajes (D70/D84) ----------
+ * Default (un solo mensaje del día): en combinado lleva las dos secciones tituladas; en una sola área,
+ * el formato de siempre. Toggle "uno por área" (recordado en localStorage): un mensaje independiente por
+ * área, cada uno con su botón de copiar. */
+function waModo(){ return localStorage.getItem(WA_KEY)==='porarea' ? 'porarea' : 'combinado'; }
+function toggleWa(){
+  localStorage.setItem(WA_KEY, waModo()==='porarea'?'combinado':'porarea');
+  const box=document.getElementById('msgBox'); if(box && box.style.display==='block') generarMensaje();
+}
+function copiarWa(ar){ const t=window['_WA_'+ar]||''; if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>{},()=>{}); }
+function copiarTxt(t){ if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>{},()=>{}); }
+function waFecha(){ const f=new Date(STATE.fecha+'T12:00:00');
+  return String(f.getDate()).padStart(2,'0')+'/'+String(f.getMonth()+1).padStart(2,'0')+'/'+String(f.getFullYear()).slice(2); }
+// Cuerpo de UN área (actividades · personal · máquinas · observaciones), sin el encabezado del mensaje.
+function buildCuerpoArea(ar){
+  const {t}=calcTotalesArea(ar);
+  const byAct={}, orderAct=[];
+  STATE.cantidades.forEach(c=>{ if(c._area!==ar || !c._inc) return; const k=actKey(c)+'||'+(c.unidad||'');   // D113c
+    if(!byAct[k]){ byAct[k]=[]; orderAct.push(k); } byAct[k].push(c); });
+  let msg='';
+  orderAct.forEach(k=>{
+    const o=t[k], lines=byAct[k];
+    msg+=`\n* *${o.desc}: ${fmt(o.total)} ${o.uni}\n`;
+    lines.forEach(c=>{
+      msg+=`${ubicTxt(c)}  ${fmt(c.largo)} ${c.unidad||''}${esNoche(c)?' 🌙':''}\n`;
+      const pers=persTxt(c); if(pers) msg+=`  👷 ${pers}\n`;
+      const nota=String(c.nota_libre||'').trim(); if(nota) msg+=`  📝 ${nota}\n`;
+    });
+  });
+  let totOf=0, totAy=0, hayNoche=false;
+  STATE.cantidades.forEach(c=>{ if(c._area!==ar || !c._inc) return; totOf+=numH(c.personal_oficiales); totAy+=numH(c.personal_ayudantes); if(esNoche(c)) hayNoche=true; });
+  if(totOf||totAy) msg+=`\n*Personal:* ${fmt(totOf)} oficiales · ${fmt(totAy)} ayudantes${hayNoche?' · incluye turno de noche 🌙':''}\n`;
+  const maqs=STATE.maquinas.filter(m=>m._area===ar);
+  if(maqs.length){
+    msg+='\n*Máquinas:*\n';
+    maqs.forEach(m=>{ const h=(m.horas_operadas===''||m.horas_operadas==null)?'':(' '+fmt(numH(m.horas_operadas))+'h');
+      msg+=`- ${m.id_maquina||'—'}${m.operador?(' ('+m.operador+')'):''}${h}\n`; });
+  }
+  const obsArr=STATE.observaciones.filter(o=>o._area===ar && o.observacion);
+  if(obsArr.length){ msg+='\n*OBSERVACIONES:*\n'; obsArr.forEach(o=>{ msg+=`${o.reporta||'?'}: ${o.observacion}\n`; }); }
+  return msg;
+}
+function generarMensaje(){
+  const box=document.getElementById('msgBox'); box.style.display='block';
+  const dfx=waFecha();
+  if(!MULTI){
+    const msg=`*Reporte de actividades de ${nombreArea(AREA)} ${dfx}*\n——————————\n`+buildCuerpoArea(AREA);
+    box.textContent=msg; copiarTxt(msg); return;
+  }
+  if(waModo()==='porarea'){
+    let html='';
+    AREAS.forEach(ar=>{
+      const msg=`*Reporte de actividades de ${nombreArea(ar)} ${dfx}*\n——————————\n`+buildCuerpoArea(ar);
+      window['_WA_'+ar]=msg;
+      html+='<div class="wa-sub"><button class="btn-add" data-on-click="copiarWa(\''+ar+'\')">📋 Copiar '+ar.toUpperCase()+'</button><pre>'+esc(msg)+'</pre></div>';
+    });
+    box.innerHTML=html;
+  } else {
+    let msg=`*Reporte de drenajes ${dfx}*\n——————————\n`;
+    AREAS.forEach(ar=>{
+      const cuerpo=buildCuerpoArea(ar);
+      msg+=`\n*${(ar==='odt'?'DRENAJE TRANSVERSAL':'DRENAJE LONGITUDINAL')}*\n`+(cuerpo.trim()?cuerpo:'(sin actividades incluidas)\n')+'——————————\n';
+    });
+    box.textContent=msg; copiarTxt(msg);
+  }
+}
