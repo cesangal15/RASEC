@@ -50,8 +50,8 @@ var GALCA_ENV = (function(){
     // Pegar aquí las URLs `/exec` de las copias de PRUEBA (docs/OPERACIONES.md). Mientras estén
     // vacías, `?env=prueba` no hace nada.
     prueba: {
-      obra:        '',
-      asistencias: ''
+      obra:        'https://script.google.com/macros/s/AKfycbwpJn5bMqbzg_iAvdLfTM1OCU2UuHE-WGteeVpWNbWWJvCax_grUm0FzrkNoIeMrHFoTQ/exec',
+      asistencias: 'https://script.google.com/macros/s/AKfycbwxV2EzHtbpCDWlkwtwwoBfZomsuWnhdQDerLLPbmk_FQQl1TZbibXO7Y09NGTY0FaBwA/exec'
     }
   };
 
