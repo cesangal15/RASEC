@@ -248,7 +248,7 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │      las filas huérfanas con el día de su `timestamp`.                 │
 └────────────────────────┬────────────────────────────────────────────--┘
                           ▼
-┌── GOOGLE SHEET NUEVO (1KrhzaIg3BSspyi0oH0gHkAJnSRXaOIdel_pKaMVHX9w) ───┐
+┌── GOOGLE SHEET NUEVO (ID en el Script de asistencias) ─────────────────┐
 │  PERSONAL · CUADRILLAS · ASISTENCIA · CONFIG · FESTIVOS ·              │
 │  CAT_TRABAJADORES · CAT_CC · CAT_MOTIVOS (catálogo completo, D78) ·    │
 │  MOTIVOS_USADOS (frecuentes, D78) · EXTRAS_ADMIN (D73) —               │

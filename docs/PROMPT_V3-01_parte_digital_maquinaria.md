@@ -44,7 +44,7 @@ Un equipo puede tener 2+ tramos el mismo día cuando cambia de centro de coste (
 
 ---
 
-## 3. Hojas nuevas en el mismo Google Sheet (ID 1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM)
+## 3. Hojas nuevas en el mismo Google Sheet (ID en `Codigo.gs`)
 
 **`PARTE_EQUIPOS`** (catálogo; se siembra con `PARTE_EQUIPOS_semilla.csv`):
 `codigo, tipo, placa, proveedor, medidor (HOROMETRO|KM), activo (SI|NO), ultimo_final_manual` (solo para arrancar el primer día si no hay historial en la hoja).
