@@ -6,7 +6,8 @@
  * script de cada página y expone el objeto global TM2Offline.
  *
  * Páginas que lo cargan: shell (index, seleccion-reporte, menu) + capturas
- * (reporte-capataz, reporte-chequeadora, reporte-drenajes, asistencia).
+ * (reporte-capataz, reporte-chequeadora, reporte-drenajes, asistencia) y, desde D176, el
+ * Parte Digital de maquinaria (parte.html, público por QR: tipo 'parte', sin usuario).
  * Las pantallas de consolidación (encargado/residente/jefe/resúmenes) NO lo usan (D49/D82).
  *
  * Cola en localStorage clave `tm2_cola_envios`. Un ítem SOLO sale de la cola por éxito
@@ -144,7 +145,26 @@
     if (!A || !A.esAPI) return it.url;
     if (A.esAPI(it.url)) return it.url;
     var u = (window.GALCA_ENV && GALCA_ENV.url) || A.url || {};
-    return (it.tipo === 'asistencia' ? u.asistencias : u.obra) || it.url;
+    return (it.tipo === 'asistencia' ? u.asistencias : it.tipo === 'parte' ? u.parte : u.obra) || it.url;
+  }
+
+  // Etiqueta legible de cada tipo de ítem (panel de la cola y confirmación de descarte).
+  function etiquetaTipo(tipo){
+    if (tipo === 'asistencia') return '👷 Asistencia';
+    if (tipo === 'parte') return '🚜 Parte de maquinaria';
+    return '📋 Reporte';
+  }
+
+  /**
+   * D176: copia de solo lectura de los ítems pendientes (opcionalmente filtrados). Lo usa
+   * parte.html para precargar el medidor inicial con el final del último parte que todavía
+   * espera señal en este teléfono: si no, el operador vería el último final que conoce el
+   * servidor (de anteayer) y cada parte encolado llegaría con INICIAL_DISTINTO sin motivo.
+   */
+  function pendientes(filtro){
+    var cola = leerCola();
+    try{ cola = JSON.parse(JSON.stringify(cola)); }catch(e){}
+    return typeof filtro === 'function' ? cola.filter(filtro) : cola;
   }
 
   /**
@@ -306,7 +326,7 @@
     var html = '<h3>📥 Envíos pendientes ('+cola.length+')</h3>';
     cola.forEach(function(it){
       html += '<div class="tm2off-item">'
-        + '<div class="t">'+(it.tipo==='asistencia'?'👷 Asistencia':'📋 Reporte')+' · fecha de obra '+escUI(it.fecha_obra||'—')+'</div>'
+        + '<div class="t">'+etiquetaTipo(it.tipo)+' · fecha de obra '+escUI(it.fecha_obra||'—')+'</div>'
         + '<div class="d">'+escUI(it.usuario||'')+' · guardado '+escUI((it.creado||'').replace('T',' ').slice(0,16))+' · '+(it.intentos||0)+' intento'+(it.intentos===1?'':'s')+'</div>'
         + ((it.ultimo_error)?('<div class="e">Último error: '+escUI(it.ultimo_error)+'</div>'):'')
         + '<div class="acc">'
@@ -336,7 +356,7 @@
   function _descartarItem(id){
     var it = leerCola().filter(function(x){ return x.id===id; })[0];
     if (!it) return;
-    if (!confirm('⚠️ Vas a DESCARTAR un envío pendiente ('+(it.tipo==='asistencia'?'asistencia':'reporte')+' del '+(it.fecha_obra||'—')+').\n\nEste reporte NO está en el servidor y se perderá para siempre.\n\n¿Continuar?')) return;
+    if (!confirm('⚠️ Vas a DESCARTAR un envío pendiente ('+(it.tipo==='asistencia'?'asistencia':it.tipo==='parte'?'parte de maquinaria':'reporte')+' del '+(it.fecha_obra||'—')+').\n\nEste reporte NO está en el servidor y se perderá para siempre.\n\n¿Continuar?')) return;
     if (!confirm('ÚLTIMA CONFIRMACIÓN:\n\n¿Seguro que quieres borrar este envío pendiente definitivamente?\n\nSi tienes duda, usa antes "Copiar texto" como respaldo.')) return;
     quitarDeCola(id);
     pintarEstado();
@@ -394,6 +414,7 @@
     sincronizar: sincronizar,
     enviarConCola: enviarConCola,
     getEstado: getEstado,
+    pendientes: pendientes,
     catalogoCache: catalogoCache,
     fechaCorta: fechaCorta,
     bannerCatalogoViejo: bannerCatalogoViejo,

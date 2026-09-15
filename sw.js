@@ -50,11 +50,13 @@
 // de la API y se carga el PRIMERO; `entorno.js` deja de tener URLs y depende de él. Un teléfono sin
 // señal con el auth.js/entorno.js viejos y un HTML nuevo (orden de scripts cambiado, CSP sin
 // script.google.com) no arrancaría, o saldría a Google y la CSP lo frenaría. Por eso se sube.
-const CACHE_V = 'tm2-v12';  // v12 (D171): flota.js gana `equiposCapataz` y reporte-capataz.js depende de él
+const CACHE_V = 'tm2-v13';  // v13 (D176): entra el Parte Digital (parte.html/.js/.css) al precache y offline.js gana
+                            //   `pendientes()` + tipo 'parte', de los que parte.js depende (cola sin señal por QR)
+                            // v12 (D171): flota.js gana `equiposCapataz` y reporte-capataz.js depende de él
                             // v11 (D170): JS/CSS de cada pantalla en archivos propios + símbolo Galca; tema.js nuevo
 const FONT_CACHE = CACHE_V + '-fonts';
 
-// Lista explícita: shell + capturas + app. NO precachear las páginas fuera de alcance
+// Lista explícita: shell + capturas + app (incluido el parte de maquinaria, D176). NO precachear las páginas fuera de alcance
 // (encargado, residente, residente-drenajes, jefe, estado, produccion-maquinaria,
 // resumen-asistencia, mis-extras necesitan datos vivos, D49/D82).
 const PRECACHE = [
@@ -65,6 +67,7 @@ const PRECACHE = [
   './reporte-chequeadora.html', './reporte-chequeadora.js', './reporte-chequeadora.css',
   './reporte-drenajes.html', './reporte-drenajes.js', './reporte-drenajes.css',
   './asistencia.html', './asistencia.js', './asistencia.css',
+  './parte.html', './parte.js', './parte.css',          // D176: parte digital por QR, sin señal
   './img/galca-simbolo.svg',
   './entorno.js',
   './auth.js',
@@ -94,7 +97,7 @@ const OFFLINE_HTML = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"
   + 'border-radius:10px;color:#0f1117;font-weight:700;text-decoration:none;}</style></head><body>'
   + '<div class="card"><div class="ico">📡</div><h1>Esta pantalla necesita conexión</h1>'
   + '<p>Los paneles de revisión y resúmenes leen datos vivos del servidor y no funcionan sin señal. '
-  + 'Los reportes de campo (capataz, chequeadora, drenajes, asistencia) sí funcionan sin señal.</p>'
+  + 'Los reportes de campo (capataz, chequeadora, drenajes, asistencia) y el parte de maquinaria sí funcionan sin señal.</p>'
   + '<a href="./index.html">← Volver al inicio</a></div></body></html>';
 
 self.addEventListener('install', function(ev){
