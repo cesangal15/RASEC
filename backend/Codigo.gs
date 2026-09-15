@@ -169,10 +169,11 @@ function esTipoSinProduccion(tipo){
 /* D171 — catálogo único de máquinas para el reporte del capataz: la hoja PARTE_EQUIPOS del Parte
  * Digital (D165), `activo=SI`. Se lee con el lector de CodigoParte.gs (mismo proyecto); si ese
  * archivo no está o la hoja no existe, devuelve [] y el capataz cae a `maquinas` (flota.js). */
-function equiposCapataz_(){
+function equiposCapataz_(fecha){
   try{
     if(typeof parteEquiposActivos_!=='function') return [];
-    return parteEquiposActivos_().map(function(q){ return { codigo:q.codigo, tipo:q.tipo||'', placa:q.placa||'' }; })
+    // D173: los vigentes en la flota ESE día (hoja MAQUINAS, frente del parte), no `activo` a secas.
+    return parteEquiposActivos_(fecha||'').map(function(q){ return { codigo:q.codigo, tipo:q.tipo||'', placa:q.placa||'' }; })
       .sort(function(a,b){ const ta=a.tipo.toUpperCase(), tb=b.tipo.toUpperCase();
         return ta<tb?-1:ta>tb?1:(a.codigo<b.codigo?-1:a.codigo>b.codigo?1:0); });
   }catch(err){ return []; }
@@ -1507,9 +1508,11 @@ const MAQ_COMPLEM = {
 const MAQ_CATALOGO = {
   BL005:{tipo:'BULLDOZER',prog:6.4},
   EXC015:{tipo:'EXCAVADORA',prog:6.4},
-  MO03:{tipo:'MOTONIVELADORA',prog:6.4}, MO04:{tipo:'MOTONIVELADORA',prog:6.4}, MO09:{tipo:'MOTONIVELADORA',prog:6.4},
-  FNG02:{tipo:'FINISHER',prog:6.4},
-  CR019:{tipo:'VIBROCOMPACTADOR',prog:6.4}, CR013:{tipo:'VIBROCOMPACTADOR',prog:6.4}, CR016:{tipo:'VIBROCOMPACTADOR',prog:6.4}, CR08:{tipo:'VIBROCOMPACTADOR',prog:6.4},
+  // D173: códigos del PARTE (los del Excel de partes y de PARTE_EQUIPOS), no los dim_maquinaria viejos
+  // (MO03/CR08/FNG02): el capataz reporta con estos desde D171 y las faltantes cruzan por id.
+  MO003:{tipo:'MOTONIVELADORA',prog:6.4}, MO004:{tipo:'MOTONIVELADORA',prog:6.4}, MO009:{tipo:'MOTONIVELADORA',prog:6.4},
+  NG002:{tipo:'FINISHER',prog:6.4},
+  CR019:{tipo:'VIBROCOMPACTADOR',prog:6.4}, CR013:{tipo:'VIBROCOMPACTADOR',prog:6.4}, CR016:{tipo:'VIBROCOMPACTADOR',prog:6.4}, CR008:{tipo:'VIBROCOMPACTADOR',prog:6.4},
   NH403:{tipo:'VIBROCOMPACTADOR',prog:5},
   CR026:{tipo:'MINIBULDOZER',prog:6.4},
   'RT-02':{tipo:'RETROEXCAVADORA',prog:5}
@@ -1527,7 +1530,7 @@ const MAQ_FLOTA_ESPERADA = Object.keys(MAQ_CATALOGO);
 // pareja: son caros de tener parados y solo se traen cuando hay BTC). Siguen siendo reportables,
 // pero NO se esperan cada día, así que no ensucian las faltantes con una falsa alarma diaria.
 // Solo aplica al respaldo en código: con la hoja MAQUINAS viva la distinción la dan las FECHAS.
-const MAQ_INTERMITENTES = ['FNG02','CR08'];
+const MAQ_INTERMITENTES = ['NG002','CR008'];
 
 /* ============ D138 — CATÁLOGO VIVO DE LA FLOTA (hoja MAQUINAS, backlog 2.28) ============
  *
@@ -1566,13 +1569,45 @@ const MAQ_INTERMITENTES = ['FNG02','CR08'];
  * `RT-02` va con guion). Como ahora el ID lo teclea el usuario en una hoja, el endpoint devuelve
  * `avisos` con lo que encuentre raro en vez de tragárselo.
  */
-const MAQUINAS_HEADERS = ['id_maquina','tipo','horas_prog','propiedad','fecha_ingreso','fecha_retiro','notas'];
-// Tipos que el sistema sabe tratar (05_CATALOGO §4). Un tipo fuera de esta lista no rompe nada, pero
-// se avisa: `esTipoSinProduccion` no lo reconocería y la máquina se trataría como productiva.
-const MAQ_TIPOS_VALIDOS = ['BULLDOZER','EXCAVADORA','MOTONIVELADORA','FINISHER','VIBROCOMPACTADOR',
-                           'MINICARGADOR','MINIBULDOZER','RETROEXCAVADORA'];
-// Orden de presentación en los desplegables (el mismo que tenían escrito a mano los frontends).
-const MAQ_ORDEN_TIPO = MAQ_TIPOS_VALIDOS;
+/* D173 (sep-2026) — LA HOJA MAQUINAS ES LA FLOTA COMPLETA, NO SOLO LA PESADA.
+ * Hasta D173 aquí vivían solo bulldozers, excavadoras, motoniveladoras, vibros… (lo que produce). Las
+ * volquetas, camabajas, carrotanques, camiones, turbos y luminarias las llevaba el residente en un
+ * Excel aparte (hoja «Control de partes» del Excel de partes), y el Parte Digital (D165) decidía qué
+ * equipos esperar con una casilla `activo` en PARTE_EQUIPOS que nadie mantenía por fecha. Ahora:
+ *   · MAQUINAS = UNA fila por ESTANCIA de CUALQUIER equipo (columna nueva `frente`: `UF1-UF2` o
+ *     `UF3`; vacío = UF1-UF2). Es el registro de ENTRADA y SALIDA de toda la flota: una volqueta
+ *     que se vara y la reemplazan otra dos días son una baja y un alta de dos días.
+ *   · PARTE_EQUIPOS = la FICHA de cada equipo (placa · proveedor · medidor · último medidor): quién
+ *     es. NO dice si está en obra: eso lo dicen las estancias. `activo` queda como respaldo cuando
+ *     MAQUINAS está vacía.
+ *   · El Parte Digital espera cada día a los equipos VIGENTES ESE DÍA en el frente que atiende
+ *     (`PARTE_FRENTES`, hoy solo UF1-UF2); el panel de producción y la chequeadora siguen viendo
+ *     SOLO los tipos que producen (`MAQ_TIPOS_PRODUCCION`), así que no ven volquetas.
+ *   · Los `id_maquina` son los CÓDIGOS DEL PARTE (MO003, CR008, NG002…), que son los del Excel de
+ *     partes y los chips del capataz desde D171; los `dim_maquinaria` del modelo viejo (MO03, CR08,
+ *     FNG02) ya no cruzan con nada (D171 retiró ese maestro). */
+const MAQUINAS_HEADERS = ['id_maquina','tipo','horas_prog','propiedad','fecha_ingreso','fecha_retiro','notas','frente'];
+// Tipos CON regla de producción (05_CATALOGO §4): son los que ve el panel de producción del día, la
+// chequeadora y `?action=maquinas`. `esTipoSinProduccion` decide dentro de este conjunto.
+const MAQ_TIPOS_PRODUCCION = ['BULLDOZER','EXCAVADORA','MOTONIVELADORA','FINISHER','VIBROCOMPACTADOR',
+                              'MINICARGADOR','MINIBULDOZER','RETROEXCAVADORA'];
+const MAQ_TIPOS_VALIDOS = MAQ_TIPOS_PRODUCCION;   // nombre histórico (D138); mismo conjunto
+// Tipos de TODA la flota (D173): los de producción + transporte y equipos menores. Un tipo fuera de
+// esta lista se acepta con aviso: no produce y solo aparece en la flota y en el Parte Digital.
+const MAQ_TIPOS_FLOTA = MAQ_TIPOS_PRODUCCION.concat(['VOLQUETA','CAMABAJA','TRACTOCAMION','CARROTANQUE',
+                              'CAMION','TURBO','CISTERNA','LUMINARIA']);
+// Frentes (D173): a qué proyecto atiende la estancia. Vacío en la hoja = el primero (UF1-UF2).
+const FLOTA_FRENTES = ['UF1-UF2','UF3'];
+const FLOTA_FRENTE_DEFECTO = FLOTA_FRENTES[0];
+function normFrente_(v){
+  const s=String(v==null?'':v).toUpperCase().replace(/\s+/g,'').replace(/[_/·]/g,'-').trim();
+  if(!s) return FLOTA_FRENTE_DEFECTO;
+  if(s==='UF1-UF2'||s==='UF1'||s==='UF2'||s==='UF2-UF1'||s==='UF12') return 'UF1-UF2';
+  if(s==='UF3') return 'UF3';
+  return s;   // desconocido: se conserva tal cual y se avisa
+}
+// Orden de presentación en los desplegables (producción primero, como siempre; luego transporte).
+const MAQ_ORDEN_TIPO = MAQ_TIPOS_FLOTA;
 
 function normMaqId(s){ return String(s==null?'':s).trim().toUpperCase(); }
 // Horas programadas por defecto cuando la hoja no las trae: 5 h alquiladas / 6.4 h propias (D10).
@@ -1588,7 +1623,7 @@ function getFlotaRows_(){
   const sh=ss_().getSheetByName('MAQUINAS');
   if(!sh || sh.getLastRow()<2) return _flotaRows;
   const v=leerRango_(sh, 1, 1, sh.getLastRow(), sh.getLastColumn()), h=v[0];
-  const idx={id:0, tipo:1, prog:2, prop:3, ing:4, ret:5, nota:6};
+  const idx={id:0, tipo:1, prog:2, prop:3, ing:4, ret:5, nota:6, frente:-1};
   for(let j=0;j<h.length;j++){
     const k=String(h[j]==null?'':h[j]).toLowerCase().trim();
     if(k.indexOf('maquina')>=0 || k.indexOf('máquina')>=0 || k==='id')  idx.id=j;
@@ -1598,10 +1633,12 @@ function getFlotaRows_(){
     else if(k.indexOf('ingreso')>=0 || k.indexOf('entrada')>=0)         idx.ing=j;
     else if(k.indexOf('retiro')>=0 || k.indexOf('salida')>=0)           idx.ret=j;
     else if(k.indexOf('nota')>=0 || k.indexOf('observ')>=0)             idx.nota=j;
+    else if(k.indexOf('frente')>=0 || k==='uf' || k.indexOf('proyecto')>=0) idx.frente=j;   // D173
   }
   for(let i=1;i<v.length;i++){
     _flotaRows.push({ id:v[i][idx.id], tipo:v[i][idx.tipo], prog:v[i][idx.prog], propiedad:v[i][idx.prop],
-                      ing:v[i][idx.ing], ret:v[i][idx.ret], nota:v[i][idx.nota], _row:i+1 });
+                      ing:v[i][idx.ing], ret:v[i][idx.ret], nota:v[i][idx.nota],
+                      frente:(idx.frente>=0 ? v[i][idx.frente] : ''), _row:i+1 });
   }
   return _flotaRows;
 }
@@ -1611,8 +1648,14 @@ function getFlotaRows_(){
  *   esperadas = ids de los que se espera saber si reportaron (D137: todo el catálogo vigente)
  *   fuente    = 'hoja' | 'codigo' (respaldo)
  * Una máquina con varias estancias está vigente si CUALQUIERA de sus filas cubre la fecha. */
-function flotaEnFecha_(fecha){
+/* D173 — `opts` (opcional): { todos:true } devuelve TODA la flota (transporte y equipos menores
+ * incluidos: lo que usa el Parte Digital); sin `opts` devuelve SOLO los tipos con regla de producción
+ * (lo que consumen el panel de producción, la chequeadora y `?action=maquinas`, como siempre).
+ * `opts.frentes` acota por frente (por defecto solo UF1-UF2, el proyecto que este sistema atiende). */
+function flotaEnFecha_(fecha, opts){
+  opts=opts||{};
   const f = fdateValida_(fecha) || fdate(new Date());
+  const frentes = (opts.frentes && opts.frentes.length) ? opts.frentes : [FLOTA_FRENTE_DEFECTO];
   const catalogo={}, avisos=[];
   let validas=0;
   getFlotaRows_().forEach(function(r){
@@ -1627,19 +1670,25 @@ function flotaEnFecha_(fecha){
     validas++;
     if(!(ing<=f && (!ret || f<ret))) return;           // ventana semiabierta [ingreso, retiro)
     const tipo=String(r.tipo==null?'':r.tipo).toUpperCase().trim();
-    if(!tipo)                                  avisos.push('Fila '+r._row+' ('+id+'): sin tipo; se tratará como máquina CON producción.');
-    else if(MAQ_TIPOS_VALIDOS.indexOf(tipo)<0) avisos.push('Fila '+r._row+' ('+id+'): tipo "'+tipo+'" no está en la lista conocida; se tratará como máquina CON producción.');
+    const frente=normFrente_(r.frente);
+    if(frentes.indexOf(frente)<0) return;              // D173: otro frente (UF3): no es de esta flota
+    if(!tipo)                                  avisos.push('Fila '+r._row+' ('+id+'): sin tipo; no lleva producción y solo sale en la flota del parte.');
+    else if(MAQ_TIPOS_FLOTA.indexOf(tipo)<0)   avisos.push('Fila '+r._row+' ('+id+'): tipo "'+tipo+'" no está en la lista conocida; no lleva producción y solo sale en la flota del parte.');
+    // Sin `todos`: solo los tipos con regla de producción (panel del día, chequeadora, capataz).
+    if(!opts.todos && MAQ_TIPOS_PRODUCCION.indexOf(tipo)<0) return;
     let prog=parseFloat(r.prog);
     if(isNaN(prog) || prog<=0) prog=progPorPropiedad_(r.propiedad);
     // Varias estancias vigentes el mismo día (traslape en la hoja): gana la última fila, y se avisa.
     if(catalogo[id]) avisos.push('Fila '+r._row+' ('+id+'): hay dos estancias vigentes el '+f+'; se usa la última.');
     catalogo[id]={ tipo:tipo, prog:prog, propiedad:String(r.propiedad==null?'':r.propiedad).trim(),
-                   notas:String(r.nota==null?'':r.nota).trim() };
+                   notas:String(r.nota==null?'':r.nota).trim(), frente:frente,
+                   produce_tipo: MAQ_TIPOS_PRODUCCION.indexOf(tipo)>=0 };
   });
   if(!validas){
     // Respaldo: la hoja no existe, está vacía o no tiene una sola fila utilizable.
     Object.keys(MAQ_CATALOGO).forEach(function(id){
-      catalogo[id]={ tipo:MAQ_CATALOGO[id].tipo, prog:MAQ_CATALOGO[id].prog, propiedad:'', notas:'' };
+      catalogo[id]={ tipo:MAQ_CATALOGO[id].tipo, prog:MAQ_CATALOGO[id].prog, propiedad:'', notas:'',
+                     frente:FLOTA_FRENTE_DEFECTO, produce_tipo:true };
     });
     return { fecha:f, fuente:'codigo', catalogo:catalogo, avisos:avisos,
              esperadas:Object.keys(catalogo).filter(function(id){ return MAQ_INTERMITENTES.indexOf(id)<0; }) };
@@ -1661,7 +1710,7 @@ function maquinasCatalogo(e){
     return ((ta<0?99:ta)-(tb<0?99:tb)) || (a.id_maquina<b.id_maquina?-1:a.id_maquina>b.id_maquina?1:0);
   });
   // D171: `equipos` = PARTE_EQUIPOS activos (código·tipo·placa), la lista que usa el reporte del capataz.
-  return json({ ok:true, fecha:fl.fecha, fuente:fl.fuente, maquinas:maquinas, equipos:equiposCapataz_(), avisos:fl.avisos });
+  return json({ ok:true, fecha:fl.fecha, fuente:fl.fuente, maquinas:maquinas, equipos:equiposCapataz_(fl.fecha), avisos:fl.avisos });
 }
 /* ============ D139 — ALTA Y BAJA DE MÁQUINAS DESDE LA PANTALLA (backlog 2.29) ============
  *
@@ -1747,6 +1796,8 @@ function flotaSugerencia_(id){
   if(hist.ids[objetivo]) return { conocido:true, sugerencia:'' };
   const enHoja=getFlotaRows_().filter(function(r){ return normMaqId(r.id)===objetivo; });
   if(enHoja.length) return { conocido:true, sugerencia:'' };
+  // D173: un equipo con FICHA en PARTE_EQUIPOS (el catálogo del parte, D171) tampoco es un typo.
+  if(fichasParte_()[normMaqClave_(objetivo)]) return { conocido:true, sugerencia:'' };
   const cand=(hist.porClave[clave]||[]).slice();
   getFlotaRows_().forEach(function(r){
     const x=normMaqId(r.id);
@@ -1767,8 +1818,28 @@ function _flotaFilasNorm_(){
     return { id:normMaqId(r.id), ing:fdateValida_(r.ing), ret:(retCrudo?fdateValida_(r.ret):''),
              retCrudo:retCrudo, tipo:String(r.tipo==null?'':r.tipo).toUpperCase().trim(),
              prog:r.prog, propiedad:String(r.propiedad==null?'':r.propiedad).trim(),
-             nota:String(r.nota==null?'':r.nota).trim(), fila:r._row };
+             nota:String(r.nota==null?'':r.nota).trim(), frente:normFrente_(r.frente),
+             frenteCrudo:String(r.frente==null?'':r.frente).trim(), fila:r._row };
   }).filter(function(r){ return !!r.id; });   // fila en blanco: ni error ni aviso (D138)
+}
+
+/* D173 — Fichas de PARTE_EQUIPOS (placa · proveedor · medidor) indexadas por código normalizado.
+ * La pestaña Flota las muestra junto a cada estancia y avisa cuando un equipo en obra NO tiene ficha
+ * (sin ficha el QR no le abre el parte). Memo de ejecución; si CodigoParte.gs no está, mapa vacío. */
+var _fichasParte;
+function fichasParte_(){
+  if(_fichasParte) return _fichasParte;
+  _fichasParte={};
+  try{
+    if(typeof parteEquipos_!=='function') return _fichasParte;
+    const m=parteEquipos_();
+    Object.keys(m).forEach(function(k){
+      const q=m[k];
+      _fichasParte[normMaqClave_(q.codigo)]={ codigo:q.codigo, tipo:q.tipo, placa:q.placa, proveedor:q.proveedor,
+                                              medidor:q.medidor_crudo||q.medidor||'', activo:q.activo };
+    });
+  }catch(err){ /* sin módulo Parte: la flota sigue funcionando sin fichas */ }
+  return _fichasParte;
 }
 
 /* Todas las ESTANCIAS de la hoja (no solo las vigentes: la pestaña muestra el historial) + los avisos
@@ -1781,10 +1852,14 @@ function flotaEstancias_(fecha){
     if(!r.ing) avisos.push('Fila '+r.fila+' ('+r.id+'): sin fecha_ingreso válida (yyyy-mm-dd); esa estancia se ignora.');
     if(r.retCrudo && !r.ret) avisos.push('Fila '+r.fila+' ('+r.id+'): fecha_retiro "'+r.retCrudo+'" no se entiende; se toma como si siguiera en obra.');
     if(r.ing && r.ret && r.ret<r.ing) avisos.push('Fila '+r.fila+' ('+r.id+'): fecha_retiro anterior al ingreso; esa estancia nunca está vigente.');
-    if(!r.tipo) avisos.push('Fila '+r.fila+' ('+r.id+'): sin tipo; se tratará como máquina CON producción.');
-    else if(MAQ_TIPOS_VALIDOS.indexOf(r.tipo)<0) avisos.push('Fila '+r.fila+' ('+r.id+'): tipo "'+r.tipo+'" no está en la lista conocida; se tratará como máquina CON producción.');
+    if(!r.tipo) avisos.push('Fila '+r.fila+' ('+r.id+'): sin tipo; no lleva producción y solo sale en la flota del parte.');
+    else if(MAQ_TIPOS_FLOTA.indexOf(r.tipo)<0) avisos.push('Fila '+r.fila+' ('+r.id+'): tipo "'+r.tipo+'" no está en la lista conocida; no lleva producción y solo sale en la flota del parte.');
+    if(FLOTA_FRENTES.indexOf(r.frente)<0) avisos.push('Fila '+r.fila+' ('+r.id+'): frente "'+r.frenteCrudo+'" no se reconoce ('+FLOTA_FRENTES.join(' · ')+'); ese equipo no lo espera ningún parte.');
+    const ficha=fichasParte_()[normMaqClave_(r.id)]||null;
     const progHoja=parseFloat(r.prog);
     const e={ id_maquina:r.id, tipo:r.tipo, propiedad:r.propiedad, notas:r.nota, fila:r.fila,
+              frente:r.frente, produce_tipo: MAQ_TIPOS_PRODUCCION.indexOf(r.tipo)>=0,
+              placa:ficha?ficha.placa:'', proveedor:ficha?ficha.proveedor:'', medidor:ficha?ficha.medidor:'', con_ficha:!!ficha,
               horas_prog:(isNaN(progHoja)||progHoja<=0) ? '' : progHoja,
               prog:(isNaN(progHoja)||progHoja<=0) ? progPorPropiedad_(r.propiedad) : progHoja,
               fecha_ingreso:r.ing, fecha_retiro:r.ret, valida:!!r.ing,
@@ -1827,7 +1902,9 @@ function flotaPayload_(fecha){
   const fl=flotaEstancias_(fecha);
   return { ok:true, fecha:fl.fecha, estancias:fl.estancias, avisos:fl.avisos,
            fuente: fl.filas_utiles ? 'hoja' : 'vacia',
-           tipos:MAQ_TIPOS_VALIDOS, orden_tipo:MAQ_ORDEN_TIPO,
+           tipos:MAQ_TIPOS_FLOTA, tipos_produccion:MAQ_TIPOS_PRODUCCION, orden_tipo:MAQ_ORDEN_TIPO,
+           frentes:FLOTA_FRENTES, frente_defecto:FLOTA_FRENTE_DEFECTO,
+           frentes_parte:(typeof PARTE_FRENTES!=='undefined' ? PARTE_FRENTES : [FLOTA_FRENTE_DEFECTO]),
            historico_maquinaria: idsMaquinariaHistorico_().n };
 }
 
@@ -1936,9 +2013,19 @@ function flotaGuardar(body){
   if(retTxt && !ret) return json({ok:false, error:ERROR_FECHA_RETIRO});
   if(ret && ret<=ing) return json({ok:false, error:'La fecha de retiro ('+ret+') tiene que ser POSTERIOR al ingreso ('+ing+'). '
     + 'La ventana es semiabierta: el retiro es el primer día que la máquina YA NO estuvo.'});
-  const tipo=String(body.tipo||'').toUpperCase().trim();
-  if(MAQ_TIPOS_VALIDOS.indexOf(tipo)<0) return json({ok:false, error:'El tipo "'+(body.tipo||'')+'" no está en la lista conocida ('
-    + MAQ_TIPOS_VALIDOS.join(' · ')+'). El tipo decide si la máquina lleva producción propia, así que no puede ir a ojo.'});
+  const tipo=String(body.tipo||'').toUpperCase().replace(/\s+/g,' ').trim();
+  if(!tipo) return json({ok:false, error:'Falta el tipo de equipo. Elige uno de la lista ('+MAQ_TIPOS_FLOTA.join(' · ')+') o escribe uno nuevo.'});
+  // D173: un tipo fuera de la lista se acepta (no produce; sale solo en la flota y en el parte), pero
+  // los de PRODUCCIÓN tienen que ir exactos, porque de ahí sale la regla de producción nula.
+  const tipoAviso = (MAQ_TIPOS_FLOTA.indexOf(tipo)<0)
+    ? ('El tipo «'+tipo+'» no está en la lista conocida: se guardó igual, sin regla de producción (solo flota y parte).') : '';
+  const frente=normFrente_(body.frente);
+  if(FLOTA_FRENTES.indexOf(frente)<0) return json({ok:false, error:'El frente "'+(body.frente||'')+'" no se reconoce. Opciones: '+FLOTA_FRENTES.join(' · ')+'.'});
+  const ficha={ placa:String(body.placa==null?'':body.placa).trim().toUpperCase(),
+                proveedor:String(body.proveedor==null?'':body.proveedor).trim(),
+                medidor:String(body.medidor==null?'':body.medidor).trim().toUpperCase() };
+  if(ficha.medidor && ficha.medidor!=='HOROMETRO' && ficha.medidor!=='KM')
+    return json({ok:false, error:'El medidor tiene que ser HOROMETRO o KM (o quedar vacío si aún no se sabe).'});
   const propiedad=String(body.propiedad||'').trim().toLowerCase();
   if(propiedad!=='propia' && propiedad!=='alquilada')
     return json({ok:false, error:'La propiedad tiene que ser "propia" o "alquilada": de ahí salen las horas programadas (6.4 / 5, D10).'});
@@ -1987,16 +2074,64 @@ function flotaGuardar(body){
     }
   }
 
-  const valores=[id, tipo, (prog===''?'':prog), propiedad, ing, ret, notas];
+  const valores=[id, tipo, (prog===''?'':prog), propiedad, ing, ret, notas, frente];
+  // D173: la FICHA del equipo (placa · proveedor · medidor) vive en PARTE_EQUIPOS. Un alta desde aquí
+  // la crea si no existe (sin ficha el QR no abre el parte) y completa lo que venga en blanco.
+  const fichaMsg = fichaParteAsegurar_(id, tipo, ficha);
+  const extra = (tipoAviso ? ' '+tipoAviso : '') + (fichaMsg ? ' '+fichaMsg : '');
   if(op==='corregir'){
     sh.getRange(filaDestino, 1, 1, MAQUINAS_HEADERS.length).setValues([valores]);
     return fin({ op:'corregir', id_maquina:id, fecha_ingreso:ing,
-                 mensaje:'Estancia de '+id+' corregida (fila '+filaDestino+').' });
+                 mensaje:'Estancia de '+id+' corregida (fila '+filaDestino+').'+extra });
   }
   ensureRows_(sh, 1);                                   // D93: capacidad antes de anexar
   sh.getRange(sh.getLastRow()+1, 1, 1, MAQUINAS_HEADERS.length).setValues([valores]);
   return fin({ op:'alta', id_maquina:id, fecha_ingreso:ing,
-               mensaje:id+' entra a la obra desde el '+ing+(ret?(' y sale el '+ret):'')+'.' });
+               mensaje:id+' entra a la obra desde el '+ing+(ret?(' y sale el '+ret):'')+'.'+extra });
+}
+
+/* D173 — Asegura la FICHA del equipo en PARTE_EQUIPOS al dar de alta/corregir una estancia.
+ *   · Sin ficha  → fila nueva (codigo · tipo · placa · proveedor · medidor · activo=SI).
+ *   · Con ficha  → completa SOLO los campos que estén vacíos en la hoja y lleguen con valor
+ *                  (placa / proveedor / medidor); nunca pisa lo que ya está escrito ni toca el
+ *                  último medidor. `activo` pasa a SI si estaba en NO (vuelve a la obra).
+ * Devuelve un texto corto para el mensaje de la pantalla ('' si no hizo nada). Si el módulo Parte
+ * no está cargado, no hace nada: la flota no depende de él. */
+function fichaParteAsegurar_(id, tipo, ficha){
+  try{
+    if(typeof PARTE_EQUIPOS_HEADERS==='undefined') return '';
+    const sh=getSheet('PARTE_EQUIPOS', PARTE_EQUIPOS_HEADERS);
+    const h=leerRango_(sh, 1, 1, 1, sh.getLastColumn())[0].map(function(x){ return String(x==null?'':x).trim().toLowerCase(); });
+    const col=function(n){ const i=h.indexOf(n); return i<0 ? 0 : i+1; };
+    const cCod=col('codigo'), cTipo=col('tipo'), cPlaca=col('placa'), cProv=col('proveedor'), cMed=col('medidor'), cAct=col('activo');
+    if(!cCod) return '';
+    const clave=normMaqClave_(id);
+    let fila=0;
+    if(sh.getLastRow()>=2){
+      const v=leerRango_(sh, 2, cCod, sh.getLastRow()-1, 1);
+      for(let i=0;i<v.length;i++){ if(normMaqClave_(v[i][0])===clave){ fila=i+2; break; } }
+    }
+    const cambios=[];
+    if(!fila){
+      ensureRows_(sh, 1);
+      fila=sh.getLastRow()+1;
+      const row=PARTE_EQUIPOS_HEADERS.map(function(){ return ''; });
+      const pon=function(c,val){ if(c) row[c-1]=val; };
+      pon(cCod,id); pon(cTipo,tipo); pon(cPlaca,ficha.placa); pon(cProv,ficha.proveedor); pon(cMed,ficha.medidor); pon(cAct,'SI');
+      sh.getRange(fila, 1, 1, row.length).setValues([row]);
+      cambios.push('ficha nueva en PARTE_EQUIPOS'+(ficha.medidor?'':' (sin medidor: completa HOROMETRO o KM para que el parte no avise SIN_MEDIDOR)'));
+    }else{
+      const fil=leerRango_(sh, fila, 1, 1, sh.getLastColumn())[0];
+      const vacio=function(c){ return !c || String(fil[c-1]==null?'':fil[c-1]).trim()===''; };
+      const escribe=function(c,val,que){ if(c && val && vacio(c)){ sh.getRange(fila, c).setValue(val); cambios.push(que); } };
+      escribe(cPlaca, ficha.placa, 'placa');
+      escribe(cProv, ficha.proveedor, 'proveedor');
+      escribe(cMed, ficha.medidor, 'medidor');
+      if(cAct && String(fil[cAct-1]==null?'':fil[cAct-1]).trim().toUpperCase()==='NO'){ sh.getRange(fila, cAct).setValue('SI'); cambios.push('activo=SI'); }
+    }
+    if(cambios.length){ invalidarHoja_('PARTE_EQUIPOS'); _fichasParte=undefined; }
+    return cambios.length ? ('Ficha: '+cambios.join(', ')+'.') : '';
+  }catch(err){ return 'No se pudo tocar la ficha en PARTE_EQUIPOS ('+err+'); la estancia sí quedó guardada.'; }
 }
 
 // Bucket de una fila de MAQUINARIA a partir de su par H/I derivado (CAPTURA_ACT_MAP). '' = no editable.
@@ -2802,7 +2937,8 @@ const VAL_OBRA_NUEVA    = { id_maquina:['t',50], bucket:['t',50], complem:['t',5
                             horas:['n',0,VAL_MAX_HORAS], motivo:['t',300], proyecto:['t',20], operador:['t',200] };
 const VAL_OBRA_FLOTA    = { op:['l',['alta','baja','corregir']], id_maquina:['t',50], tipo:['t',50], horas_prog:['n',0,VAL_MAX_HORAS],
                             propiedad:['t',50], fecha_ingreso:['f',VAL_DIAS_FUTURO_FLOTA], fecha_retiro:['f',VAL_DIAS_FUTURO_FLOTA],
-                            notas:['tl'], fecha:['f',VAL_DIAS_FUTURO_FLOTA] };
+                            notas:['tl'], fecha:['f',VAL_DIAS_FUTURO_FLOTA],
+                            frente:['t',20], placa:['t',30], proveedor:['t',80], medidor:['t',20] };   // D173
 const VAL_OBRA_FLOTA_CLAVE = { id_maquina:['t',50], fecha_ingreso:['f',VAL_DIAS_FUTURO_FLOTA] };
 const VAL_OBRA_LOGIN    = { usuario:['t',60], clave:['t',200] };
 const VAL_MAX_FOTO_CHARS = 4000000;   // tablero: 100 trozos de TABLERO_TROZO

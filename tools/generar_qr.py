@@ -9,15 +9,17 @@ cuenta, servicio ni impresora especial. El personal rota; el equipo no — por e
 la da la máquina (principio 1 del módulo). `parte.html` lee el parámetro `eq` tal cual y el
 backend lo normaliza (mayúsculas/minúsculas y guiones no importan: `rt-02` = `RT-02`).
 
-FUENTE DE VERDAD DE LOS EQUIPOS: la hoja `PARTE_EQUIPOS` del Google Sheet de obra. Por defecto
-este script lee la semilla del repo (`backend/seeds/parte/PARTE_EQUIPOS_semilla.csv`), que es
-una foto de esa hoja. Cuando el usuario haya cambiado `activo` (o dado de alta un equipo) en el
-Sheet, exporta la hoja (Archivo → Descargar → Valores separados por comas) y la pasa con `--csv`.
+FUENTE DE VERDAD DE LOS EQUIPOS (D173): la FICHA de cada equipo vive en la hoja `PARTE_EQUIPOS`
+(codigo · tipo · placa · medidor) y QUIÉN ESTÁ EN OBRA lo dicen las estancias de la hoja `MAQUINAS`
+(una fila por estancia, ventana [ingreso, retiro), columna `frente`). Por defecto este script lee
+las dos semillas del repo (`backend/seeds/parte/PARTE_EQUIPOS_semilla.csv` y
+`backend/seeds/MAQUINAS.tsv`), fotos de esas hojas. Cuando cambien en el Sheet, exporta cada hoja
+(Archivo → Descargar → CSV / TSV) y pásalas con `--csv` y `--maquinas`.
 
-Qué entra: filas con `activo = SI` (vacío también cuenta como activo, igual que el backend) que
-tengan `codigo` y `tipo`. Quedan fuera: `activo = NO`, códigos vacíos / `#N/A` / `None`, y las
-placas sueltas sin `tipo` (p. ej. GQW139, SJQ401, TAR538 en la semilla): hasta que el usuario
-les ponga tipo en `PARTE_EQUIPOS` no se les imprime QR.
+Qué entra: equipos VIGENTES en `--fecha` (hoy por defecto) en un frente de `--frentes` (UF1-UF2)
+que tengan ficha con `codigo` y `tipo`. Sin `--maquinas` (o con `--maquinas ""`) se cae al criterio
+antiguo: `activo = SI` en `PARTE_EQUIPOS` (vacío también cuenta como activo). Quedan fuera y se
+listan al final: los no vigentes, los de otro frente, `activo = NO` y las placas sueltas sin `tipo`.
 
 Salida (carpeta `qr/`, se crea si no existe):
     qr/<codigo>.png      — un PNG por equipo activo (corrección de errores H = 30 %, ≥ 600 px)
@@ -48,6 +50,8 @@ LEYENDA = "Escanea para reportar tu parte"
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 CSV_DEFECTO = os.path.join(AQUI, "..", "backend", "seeds", "parte", "PARTE_EQUIPOS_semilla.csv")
+MAQUINAS_DEFECTO = os.path.join(AQUI, "..", "backend", "seeds", "MAQUINAS.tsv")
+FRENTES_DEFECTO = "UF1-UF2"      # los que espera el Parte Digital (PARTE_FRENTES en CodigoParte.gs)
 SALIDA_DEFECTO = os.path.join(AQUI, "..", "qr")
 CODIGOS_INVALIDOS = {"", "#N/A", "N/A", "NONE", "NULL", "#REF!"}
 
@@ -77,12 +81,48 @@ def limpio(v):
     return "" if s.upper() in CODIGOS_INVALIDOS else s
 
 
-def leer_equipos(ruta, solo=None):
+def norm_cod(s):
+    return "".join(ch for ch in (s or "") if ch.isalnum()).upper()
+
+
+def norm_frente(v):
+    s = (v or "").strip().upper().replace(" ", "").replace("_", "-").replace("/", "-")
+    if s in ("", "UF1", "UF2", "UF1-UF2", "UF2-UF1", "UF12"):
+        return "UF1-UF2"
+    return s
+
+
+def leer_vigentes(ruta, fecha, frentes):
+    """Estancias de la hoja MAQUINAS (TSV o CSV, por nombre de columna) vigentes en `fecha`:
+    ventana semiabierta [fecha_ingreso, fecha_retiro) y frente en `frentes` (vacío = UF1-UF2).
+    Devuelve {codigo_normalizado: frente}. Sin archivo → None (se cae al criterio `activo`)."""
+    if not ruta or not os.path.exists(ruta):
+        return None
+    with open(ruta, newline="", encoding="utf-8-sig") as f:
+        muestra = f.read(4096); f.seek(0)
+        dialecto = csv.excel_tab if "\t" in muestra else csv.excel
+        filas = list(csv.DictReader(f, dialect=dialecto))
+    vig = {}
+    for r in filas:
+        cod = norm_cod(r.get("id_maquina") or r.get("codigo"))
+        ing = (r.get("fecha_ingreso") or "").strip()[:10]
+        ret = (r.get("fecha_retiro") or "").strip()[:10]
+        fr = norm_frente(r.get("frente"))
+        if not cod or not ing:
+            continue
+        if ing <= fecha and (not ret or fecha < ret) and fr in frentes:
+            vig[cod] = fr
+    return vig
+
+
+def leer_equipos(ruta, solo=None, vigentes=None):
     """Lee el CSV por NOMBRE de columna (mismo criterio que el backend): codigo, tipo, placa, medidor, activo.
+    Con `vigentes` (D173) entra quien está vigente en la flota; sin él, quien tiene `activo=SI`.
     Devuelve (equipos, excluidos) — los excluidos se listan para que no pasen desapercibidos."""
     with open(ruta, newline="", encoding="utf-8-sig") as f:
         filas = list(csv.DictReader(f))
     out, excluidos = [], []
+    vistos = set()
     for r in filas:
         cod = limpio(r.get("codigo"))
         tipo = limpio(r.get("tipo"))
@@ -91,7 +131,11 @@ def leer_equipos(ruta, solo=None):
             continue                                   # fila en blanco / #N/A: ni se lista
         if solo and cod.upper() not in solo:
             continue
-        if not activo:
+        vistos.add(norm_cod(cod))
+        if vigentes is not None:
+            if norm_cod(cod) not in vigentes:
+                excluidos.append((cod, "no vigente hoy en la flota (hoja MAQUINAS) o de otro frente")); continue
+        elif not activo:
             excluidos.append((cod, "activo=NO")); continue
         if not tipo:
             excluidos.append((cod, "sin tipo (placa suelta): completar `tipo` en PARTE_EQUIPOS")); continue
@@ -101,8 +145,17 @@ def leer_equipos(ruta, solo=None):
             "placa": limpio(r.get("placa")),
             "medidor": limpio(r.get("medidor")),
         })
+    if vigentes is not None:
+        for cod in sorted(vigentes):
+            if cod not in vistos and not (solo and cod not in solo):
+                excluidos.append((cod, "vigente en MAQUINAS pero SIN FICHA en PARTE_EQUIPOS: crear la ficha (placa, medidor)"))
     out.sort(key=lambda q: (q["tipo"].upper(), q["codigo"].upper()))
     return out, excluidos
+
+
+def _hoy_bogota():
+    from datetime import datetime, timedelta, timezone
+    return datetime.now(timezone(timedelta(hours=-5))).strftime("%Y-%m-%d")
 
 
 def url_de(base, codigo):
@@ -224,11 +277,11 @@ def generar_pdf(equipos, carpeta, ruta_pdf, url_base):
     c.save()
 
 
-def generar_listado(equipos, excluidos, ruta_md, url_base, csv_origen):
+def generar_listado(equipos, excluidos, ruta_md, url_base, csv_origen, criterio):
     lineas = [
         "# LISTADO — QR del Parte Digital de Maquinaria",
         "",
-        f"**Total: {len(equipos)} equipos activos con QR** (fuente: `{os.path.relpath(csv_origen, os.path.join(AQUI, '..'))}`; "
+        f"**Total: {len(equipos)} equipos con QR** — {criterio} (fichas: `{os.path.relpath(csv_origen, os.path.join(AQUI, '..'))}`; "
         f"URL base `{url_base}`). Generado por `tools/generar_qr.py`; ordenado por tipo y código.",
         "",
         "Inventario para saber qué se imprimió (`etiquetas.pdf`, 6 por hoja en este mismo orden) y qué se pegó en cabina: "
@@ -242,8 +295,9 @@ def generar_listado(equipos, excluidos, ruta_md, url_base, csv_origen):
         lineas.append(f"| {n} | **{q['codigo']}** | {q['tipo']} | {q['placa'] or '—'} | {q['medidor'] or '—'} | [{u}]({u}) | `{q['codigo']}.png` | ☐ |")
     if excluidos:
         lineas += ["", f"## Sin QR ({len(excluidos)})", "",
-                   "Están en el CSV pero no se generaron. Para incluirlos: corregir la fila en `PARTE_EQUIPOS`, "
-                   "exportar el CSV y correr el script con `--csv` (ver `README.md`).", "",
+                   "Tienen ficha (o estancia) pero no se generaron. Para incluirlos: dar de alta la estancia en "
+                   "Maquinaria › Flota (hoja `MAQUINAS`) o completar la ficha en `PARTE_EQUIPOS`, exportar y "
+                   "correr el script con `--csv` / `--maquinas` (ver `README.md`).", "",
                    "| Código | Motivo |", "|---|---|"]
         for cod, motivo in excluidos:
             lineas.append(f"| {cod} | {motivo} |")
@@ -257,10 +311,19 @@ def main():
     ap.add_argument("--salida", default=SALIDA_DEFECTO, help="carpeta de salida (default: qr/)")
     ap.add_argument("--url-base", default=URL_BASE, help="URL base del sitio, sin barra final")
     ap.add_argument("--solo", default="", help="códigos separados por coma para generar solo esos PNG (p. ej. VOL048,CR026); el PDF y el listado también se acotan")
+    ap.add_argument("--maquinas", default=MAQUINAS_DEFECTO, help="hoja MAQUINAS (TSV/CSV, estancias con fechas y frente). Vacío = usar solo `activo` de PARTE_EQUIPOS")
+    ap.add_argument("--fecha", default="", help="día para el que se calcula la flota vigente (yyyy-mm-dd; default hoy, hora de Bogotá)")
+    ap.add_argument("--frentes", default=FRENTES_DEFECTO, help="frentes cuyos equipos espera el parte, separados por coma (default UF1-UF2)")
+    ap.add_argument("--limpiar", action="store_true", help="borra de la carpeta de salida los <codigo>.png que ya no correspondan a un equipo con QR")
     args = ap.parse_args()
 
     solo = {s.strip().upper() for s in args.solo.split(",") if s.strip()} or None
-    equipos, excluidos = leer_equipos(args.csv, solo)
+    fecha = args.fecha.strip() or _hoy_bogota()
+    frentes = {norm_frente(x) for x in args.frentes.split(",") if x.strip()} or {"UF1-UF2"}
+    vigentes = leer_vigentes(args.maquinas.strip(), fecha, frentes) if args.maquinas.strip() else None
+    criterio = (f"vigentes el {fecha} en la flota (`{os.path.relpath(os.path.abspath(args.maquinas), os.path.join(AQUI, '..'))}`, frente {' · '.join(sorted(frentes))})"
+                if vigentes is not None else "con `activo=SI` en PARTE_EQUIPOS")
+    equipos, excluidos = leer_equipos(args.csv, solo, vigentes)
     if not equipos:
         sys.exit("No hay equipos activos que generar (revisa el CSV o --solo).")
     os.makedirs(args.salida, exist_ok=True)
@@ -270,7 +333,13 @@ def main():
     pdf = os.path.join(args.salida, "etiquetas.pdf")
     generar_pdf(equipos, args.salida, pdf, args.url_base)
     listado = os.path.join(args.salida, "LISTADO.md")
-    generar_listado(equipos, excluidos, listado, args.url_base, os.path.abspath(args.csv))
+    generar_listado(equipos, excluidos, listado, args.url_base, os.path.abspath(args.csv), criterio)
+    if args.limpiar and not solo:
+        con_qr = {f"{q['codigo']}.png" for q in equipos}
+        for nombre in os.listdir(args.salida):
+            if nombre.lower().endswith(".png") and nombre not in con_qr:
+                os.remove(os.path.join(args.salida, nombre))
+                print(f"  borrado {nombre} (ya no está en la flota)")
     print(f"{len(equipos)} QR en {os.path.abspath(args.salida)}  ·  etiquetas: {os.path.abspath(pdf)}  ·  listado: {os.path.abspath(listado)}")
     for q in equipos:
         print(f"  {q['codigo']:<8} {q['tipo']:<28} {url_de(args.url_base, q['codigo'])}")

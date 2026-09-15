@@ -15,24 +15,36 @@ pip install "qrcode[pil]" reportlab
 python3 tools/generar_qr.py
 ```
 
-Lee por defecto `backend/seeds/parte/PARTE_EQUIPOS_semilla.csv`. La **fuente de verdad es la hoja
-`PARTE_EQUIPOS` del Sheet**: si cambiaste `activo` o agregaste equipos, exporta la hoja (Archivo →
-Descargar → CSV) y pásala:
+Lee por defecto las dos semillas del repo: `backend/seeds/parte/PARTE_EQUIPOS_semilla.csv` (la
+**ficha** de cada equipo: código, tipo, placa, medidor) y `backend/seeds/MAQUINAS.tsv` (las
+**estancias**: quién está en obra, desde cuándo y en qué frente — D173). **Entra al listado quien está
+vigente HOY en la flota del frente UF1-UF2 y tiene ficha.** La fuente de verdad son las hojas del
+Sheet: si diste altas o bajas en Maquinaria › Flota, exporta `MAQUINAS` (y `PARTE_EQUIPOS` si hay
+fichas nuevas) y pásalas:
 
 ```bash
-python3 tools/generar_qr.py --csv ~/Descargas/PARTE_EQUIPOS.csv
+python3 tools/generar_qr.py --csv ~/Descargas/PARTE_EQUIPOS.csv --maquinas ~/Descargas/MAQUINAS.tsv
+python3 tools/generar_qr.py --fecha 2026-10-01          # la flota de otro día
+python3 tools/generar_qr.py --maquinas ""               # criterio antiguo: activo=SI en PARTE_EQUIPOS
+python3 tools/generar_qr.py --limpiar                   # además borra los PNG de equipos ya fuera
 ```
 
-Entran los equipos con `activo=SI` (vacío = activo) que tengan `tipo`; las placas sueltas sin tipo y
-los códigos vacíos / `#N/A` quedan fuera y se listan al final de `LISTADO.md`.
+Quedan fuera y se listan al final de `LISTADO.md`: los no vigentes o de otro frente (UF3), los
+vigentes **sin ficha** (hay que crearla: placa y medidor) y las placas sueltas sin `tipo`.
 
 ## Agregar un equipo nuevo
 
-1. Fila nueva en `PARTE_EQUIPOS` (código, tipo, placa, medidor, `activo=SI`).
-2. Archivo → Descargar → CSV.
-3. `python3 tools/generar_qr.py --csv PARTE_EQUIPOS.csv --solo CODIGO` → genera solo ese PNG y un
-   `etiquetas.pdf` con esa etiqueta (imprime solo esa hoja). Para dejar el repo completo, vuelve a
-   correrlo sin `--solo` y sube la carpeta `qr/`.
+1. **Maquinaria › Flota → Dar de alta** (código del parte, tipo, frente, propiedad, fecha de ingreso,
+   placa, medidor, proveedor). El alta crea sola la ficha en `PARTE_EQUIPOS` si no existe.
+2. Exportar `MAQUINAS` (y `PARTE_EQUIPOS`) como CSV/TSV.
+3. `python3 tools/generar_qr.py --csv PARTE_EQUIPOS.csv --maquinas MAQUINAS.tsv --solo CODIGO` →
+   genera solo ese PNG y un `etiquetas.pdf` con esa etiqueta (imprime solo esa hoja). Para dejar el
+   repo completo, vuelve a correrlo sin `--solo` (con `--limpiar`) y sube la carpeta `qr/`.
+
+Un equipo que **sale** de la obra es una **baja** en la misma pestaña (fecha de retiro = primer día
+que ya no estuvo): deja de esperarse en «Equipos sin parte» y su QR deja de abrir el parte; la
+etiqueta física se retira de la cabina. Si vuelve (una volqueta de reemplazo por dos días, una
+camabaja alquilada el mes siguiente), es un **reingreso**: fila nueva, mismo código, mismo QR.
 
 ## Impresión y pegado
 

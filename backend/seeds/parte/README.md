@@ -30,7 +30,9 @@ BANDEJA/DATA; ID `1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM`). Son CSV con co
 4. Redesplegar: Implementar → Administrar implementaciones → editar → **Nueva versión** (misma URL).
 5. Los QR **ya están generados en `qr/`** (D171: `qr/etiquetas.pdf`, un PNG por equipo activo con tipo, inventario `qr/LISTADO.md`) con la URL base confirmada `https://tm2.galca.app`. Solo hay que imprimir. Para regenerar tras cambiar `activo` o dar de alta un equipo: exportar `PARTE_EQUIPOS` como CSV y `python3 tools/generar_qr.py --csv <archivo>` (ver `qr/README.md`).
 
-**D171 (sep-2026):** `PARTE_EQUIPOS` es además el **catálogo único de máquinas** del sistema: el reporte del capataz toma de aquí sus chips de equipo (`activo=SI`).
+**D171 (sep-2026):** `PARTE_EQUIPOS` es además el **catálogo único de máquinas** del sistema: el reporte del capataz toma de aquí sus chips de equipo.
+
+**D173 (sep-2026):** `PARTE_EQUIPOS` es la **FICHA** de cada equipo (quién es: placa, proveedor, medidor, último medidor). **Quién está en obra lo dice la hoja `MAQUINAS`** (una fila por estancia con `fecha_ingreso`, `fecha_retiro` y `frente`; semilla `backend/seeds/MAQUINAS.tsv`, se administra desde Maquinaria › Flota). El parte espera cada día a los equipos vigentes ese día en el frente UF1-UF2; `activo` de esta hoja solo manda si `MAQUINAS` está vacía. La semilla trae `activo=SI` en los 25 vigentes al 15-sep-2026 y `NO` en el resto (histórico y UF3), pero no hace falta mantenerla a mano: un alta desde la Flota crea la ficha si falta.
 
 `activo` vacío cuenta como activo en las cuatro hojas. Todo se lee **por nombre de columna**, así que
 se pueden añadir columnas al final sin tocar código.

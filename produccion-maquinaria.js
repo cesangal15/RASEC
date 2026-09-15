@@ -348,18 +348,30 @@ async function guardar(){
  * editarla perdería el hueco en que la máquina no estuvo (lección de D85 con el personal). "Corregir"
  * existe aparte, para una estancia mal escrita.
  */
+/* D173: la flota es TODA la maquinaria de la obra, no solo la pesada — volquetas, camabajas,
+ * carrotanques, camiones, turbos y luminarias entran y salen igual (y más seguido: una volqueta varada
+ * se reemplaza por otra dos días). Cada estancia lleva además el FRENTE (UF1-UF2 / UF3) y la ficha
+ * del equipo (placa · medidor · proveedor) que vive en PARTE_EQUIPOS: es lo que el Parte Digital
+ * usa para saber a quién esperar cada día. El panel de producción solo mira los tipos que producen. */
 const TIPOS_RESPALDO=['BULLDOZER','EXCAVADORA','MOTONIVELADORA','FINISHER','VIBROCOMPACTADOR',
                       'MINICARGADOR','MINIBULDOZER','RETROEXCAVADORA'];
-let FLOTA={ cargada:false, fecha:'', estancias:[], avisos:[], tipos:[], orden:[], fuente:'', historico:0 };
+const TIPOS_FLOTA_RESPALDO=TIPOS_RESPALDO.concat(['VOLQUETA','CAMABAJA','TRACTOCAMION','CARROTANQUE','CAMION','TURBO','CISTERNA','LUMINARIA']);
+const FRENTES_RESPALDO=['UF1-UF2','UF3'];
+let FLOTA={ cargada:false, fecha:'', estancias:[], avisos:[], tipos:[], tiposProd:[], orden:[], fuente:'', historico:0,
+            frentes:[], frenteDef:'UF1-UF2', frentesParte:['UF1-UF2'] };
 // Formulario abierto (uno a la vez) + sus valores. Se guardan en el estado, no en el DOM: la lista se
 // vuelve a pintar entera después de cada cambio, como en el resto de la pantalla.
 // `q` = filtro del buscador · `pleg` = qué bloques plegados están abiertos · `hist` = qué máquinas
 // muestran sus estancias anteriores. Nada de esto viaja al servidor: es solo cómo se está mirando.
-let FL={ op:'', clave:null, vals:{}, hist:{}, pleg:{fuera:false}, q:'', msg:null, guardando:false };
+let FL={ op:'', clave:null, vals:{}, hist:{}, pleg:{fuera:false}, q:'', frente:'todos', msg:null, guardando:false };
 
 function hoyCol(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
-function flTipos(){ return (FLOTA.tipos&&FLOTA.tipos.length)?FLOTA.tipos:TIPOS_RESPALDO; }
-function flOrden(){ return (FLOTA.orden&&FLOTA.orden.length)?FLOTA.orden:TIPOS_RESPALDO; }
+function flTipos(){ return (FLOTA.tipos&&FLOTA.tipos.length)?FLOTA.tipos:TIPOS_FLOTA_RESPALDO; }
+function flOrden(){ return (FLOTA.orden&&FLOTA.orden.length)?FLOTA.orden:TIPOS_FLOTA_RESPALDO; }
+function flTiposProd(){ return (FLOTA.tiposProd&&FLOTA.tiposProd.length)?FLOTA.tiposProd:TIPOS_RESPALDO; }
+function flFrentes(){ return (FLOTA.frentes&&FLOTA.frentes.length)?FLOTA.frentes:FRENTES_RESPALDO; }
+function flEsProd(tipo){ return flTiposProd().indexOf(String(tipo||'').toUpperCase())>=0; }
+function flFrenteDe(e){ return e.frente || FLOTA.frenteDef || 'UF1-UF2'; }
 
 async function cargarFlota(){
   const cont=document.getElementById('flotaCont');
@@ -381,6 +393,8 @@ async function cargarFlota(){
 function aplicarFlota(d){
   FLOTA.cargada=true; FLOTA.fecha=d.fecha||hoyCol(); FLOTA.estancias=d.estancias||[];
   FLOTA.avisos=d.avisos||[]; FLOTA.tipos=d.tipos||[]; FLOTA.orden=d.orden_tipo||[];
+  FLOTA.tiposProd=d.tipos_produccion||[]; FLOTA.frentes=d.frentes||[]; FLOTA.frenteDef=d.frente_defecto||'UF1-UF2';
+  FLOTA.frentesParte=d.frentes_parte||[FLOTA.frenteDef];
   FLOTA.fuente=d.fuente||''; FLOTA.historico=d.historico_maquinaria||0;
   renderFlota();
 }
@@ -415,22 +429,38 @@ function flAbrir(op, id, ing){
   if(op!=='alta' && !e) return;
   FL.op=(op==='reingreso'?'alta':op); FL.msg=null;
   FL.clave = (op==='corregir'||op==='baja') ? { id_maquina:e.id_maquina, fecha_ingreso:e.fecha_ingreso } : null;
-  if(op==='alta')      FL.vals={ id_maquina:'', tipo:'', propiedad:'propia', fecha_ingreso:hoyCol(), horas_prog:'', notas:'' };
+  const fr=(FL.frente!=='todos' && FL.frente) ? FL.frente : (FLOTA.frenteDef||'UF1-UF2');
+  if(op==='alta')      FL.vals={ id_maquina:'', tipo:'', propiedad:'propia', fecha_ingreso:hoyCol(), horas_prog:'', notas:'',
+                                 frente:fr, placa:'', proveedor:'', medidor:'' };
   if(op==='reingreso') FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
-                                 fecha_ingreso:hoyCol(), horas_prog:e.horas_prog===''?'':String(e.horas_prog), notas:'' };
+                                 fecha_ingreso:hoyCol(), horas_prog:e.horas_prog===''?'':String(e.horas_prog), notas:'',
+                                 frente:flFrenteDe(e), placa:e.placa||'', proveedor:e.proveedor||'', medidor:e.medidor||'' };
   if(op==='baja')      FL.vals={ fecha_retiro:hoyCol() };
   if(op==='corregir')  FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
                                  fecha_ingreso:e.fecha_ingreso, fecha_retiro:e.fecha_retiro||'',
-                                 horas_prog:e.horas_prog===''?'':String(e.horas_prog), notas:e.notas||'' };
+                                 horas_prog:e.horas_prog===''?'':String(e.horas_prog), notas:e.notas||'',
+                                 frente:flFrenteDe(e), placa:e.placa||'', proveedor:e.proveedor||'', medidor:e.medidor||'' };
   renderFlota();
 }
 function flCerrar(){ FL.op=''; FL.clave=null; FL.vals={}; renderFlota(); }
 function flSet(campo, val){ FL.vals[campo]=val; }
 function flToggleHist(id){ FL.hist[id]=!FL.hist[id]; renderFlotaLista(); }
 
+// Tipo: lista + texto libre (datalist). Los tipos de PRODUCCIÓN tienen que ir exactos (de ahí sale la
+// regla de producción nula); uno nuevo (p. ej. GRUA) se acepta y solo sale en la flota y en el parte.
 function flSelTipo(){
-  return '<select data-on-change="flSet(\'tipo\',this.value)"><option value="">— tipo —</option>'+
-    flTipos().map(function(t){ return '<option value="'+esc(t)+'"'+(t===FL.vals.tipo?' selected':'')+'>'+esc(t)+'</option>'; }).join('')+
+  return '<input type="text" list="flTiposList" value="'+esc(FL.vals.tipo||'')+'" data-on-input="flSet(\'tipo\',this.value)" '+
+           'placeholder="VOLQUETA, EXCAVADORA…" autocapitalize="characters">'+
+         '<datalist id="flTiposList">'+flTipos().map(function(t){ return '<option value="'+esc(t)+'"></option>'; }).join('')+'</datalist>';
+}
+function flSelFrente(){
+  return '<select data-on-change="flSet(\'frente\',this.value)">'+
+    flFrentes().map(function(f){ return '<option value="'+esc(f)+'"'+(f===FL.vals.frente?' selected':'')+'>'+esc(f)+'</option>'; }).join('')+
+    '</select>';
+}
+function flSelMedidor(){
+  return '<select data-on-change="flSet(\'medidor\',this.value)"><option value="">— no sé aún —</option>'+
+    ['HOROMETRO','KM'].map(function(m){ return '<option value="'+m+'"'+(m===FL.vals.medidor?' selected':'')+'>'+(m==='KM'?'KM (kilometraje)':'HORÓMETRO')+'</option>'; }).join('')+
     '</select>';
 }
 function flSelProp(){
@@ -445,15 +475,21 @@ function flFormDatos(titulo){
     '<div class="f"><label>Código (id_maquina)</label><input type="text" value="'+esc(FL.vals.id_maquina||'')+'" '+
       'data-on-input="flSet(\'id_maquina\',this.value)" placeholder="EXC015" autocapitalize="characters"></div>'+
     '<div class="f wide"><label>Tipo</label>'+flSelTipo()+'</div>'+
+    '<div class="f"><label>Frente</label>'+flSelFrente()+'</div>'+
     '<div class="f"><label>Propiedad</label>'+flSelProp()+'</div>'+
     '<div class="f"><label>Ingreso</label><input type="date" value="'+esc(FL.vals.fecha_ingreso||'')+'" data-on-input="flSet(\'fecha_ingreso\',this.value)"></div>'+
     (esCorregir ? '<div class="f"><label>Retiro</label><input type="date" value="'+esc(FL.vals.fecha_retiro||'')+'" data-on-input="flSet(\'fecha_retiro\',this.value)"></div>' : '')+
     '<div class="f"><label>Horas prog.</label><input type="number" step="0.1" value="'+esc(FL.vals.horas_prog||'')+'" '+
       'data-on-input="flSet(\'horas_prog\',this.value)" placeholder="auto"></div>'+
+    '<div class="f"><label>Placa</label><input type="text" value="'+esc(FL.vals.placa||'')+'" data-on-input="flSet(\'placa\',this.value)" placeholder="NNM203" autocapitalize="characters"></div>'+
+    '<div class="f"><label>Medidor (parte)</label>'+flSelMedidor()+'</div>'+
+    '<div class="f wide"><label>Proveedor</label><input type="text" value="'+esc(FL.vals.proveedor||'')+'" data-on-input="flSet(\'proveedor\',this.value)" placeholder="ORTIZ · DINISSAN · ASOVOLSAT…"></div>'+
     '<div class="f wide"><label>Notas</label><input type="text" value="'+esc(FL.vals.notas||'')+'" data-on-input="flSet(\'notas\',this.value)"></div>'+
     '</div>'+
-    '<div class="fhint">Horas programadas en blanco = se deducen de la propiedad: <b>5 h</b> alquilada · <b>6.4 h</b> propia (D10). '+
-      'El código tiene que coincidir <b>letra por letra</b> con el maestro (por eso <b>RT-02</b> lleva guion): si no se reconoce, se avisa antes de guardar.'+
+    '<div class="fhint"><b>Frente</b>: a qué proyecto atiende (el Parte Digital espera cada día a los de <b>'+esc((FLOTA.frentesParte||[]).join(' · '))+'</b>). '+
+      '<b>Placa · medidor · proveedor</b> son la ficha del equipo en <code>PARTE_EQUIPOS</code>: si no existe se crea con el alta (sin ficha el QR no abre el parte); si ya existe, solo se rellena lo que esté en blanco. '+
+      'Horas programadas en blanco = se deducen de la propiedad: <b>5 h</b> alquilada · <b>6.4 h</b> propia (D10); solo cuentan para los tipos que producen. '+
+      'El código es el del <b>parte</b> (MO003, CR008, VOL048, RT-02 con guion): si no se reconoce, se avisa antes de guardar.'+
       (esCorregir ? ' Corregir es para una estancia <b>mal escrita</b>; si la máquina volvió a la obra, va un <b>reingreso</b> (fila nueva), que conserva el hueco en que no estuvo.' : '')+
     '</div>'+
     '<div class="actions">'+
@@ -523,7 +559,10 @@ async function flEnviar(payload){
  */
 function flGrupos(){
   const q=String(FL.q||'').trim().toUpperCase();
-  const pasa=function(e){ return !q || (e.id_maquina+' '+(e.tipo||'')+' '+(e.notas||'')).toUpperCase().indexOf(q)>=0; };
+  const pasa=function(e){
+    if(FL.frente && FL.frente!=='todos' && flFrenteDe(e)!==FL.frente) return false;
+    return !q || (e.id_maquina+' '+(e.tipo||'')+' '+(e.notas||'')+' '+(e.placa||'')+' '+(e.proveedor||'')).toUpperCase().indexOf(q)>=0;
+  };
   const porMaq=flPorMaquina();
   const hoy={}, fuera=[], porLlegar=[], rotas=[];
   porMaq.ids.forEach(function(id){
@@ -550,12 +589,22 @@ function flGrupos(){
 
 function renderFlota(){ renderFlotaCabecera(); renderFlotaLista(); }
 function flFiltro(v){ FL.q=v; renderFlotaLista(); }
+function flFrente(f){ FL.frente=f||'todos'; renderFlota(); }
 
 function renderFlotaCabecera(){
   const cont=document.getElementById('flotaCont'), puede=PUEDE_FLOTA;
-  // El resumen se calcula SIN el filtro: es el estado de la obra, no de la búsqueda.
+  // El resumen se calcula SIN el filtro de búsqueda: es el estado de la obra, no de la búsqueda.
+  // (El filtro de FRENTE sí aplica: «cuántas máquinas tengo hoy» se pregunta por proyecto.)
   const qGuardada=FL.q; FL.q=''; const g=flGrupos(); FL.q=qGuardada;
+  const sinFicha=Object.keys(g.hoy).reduce(function(n,t){ return n+g.hoy[t].filter(function(x){ return x.e.con_ficha===false; }).length; },0);
   let html='';
+  // D173: chips de frente. La flota es de toda la obra; el parte espera solo a los de su frente.
+  const frs=flFrentes();
+  html+='<div class="frente-chips">'+
+          '<button class="fchip'+(FL.frente==='todos'?' on':'')+'" data-on-click="flFrente(\'todos\')">Toda la obra</button>'+
+          frs.map(function(f){ return '<button class="fchip'+(FL.frente===f?' on':'')+'" data-on-click="flFrente('+JSON.stringify(f).replace(/"/g,'&quot;')+')">'+esc(f)+
+                 ((FLOTA.frentesParte||[]).indexOf(f)>=0?' <span class="fparte" title="El Parte Digital espera a estos equipos cada día">· parte</span>':'')+'</button>'; }).join('')+
+        '</div>';
 
   if(FL.msg) html+='<div class="msg-box '+FL.msg.tipo+'" data-estilo="display:block;margin:0 0 16px">'+esc(FL.msg.txt)+'</div>';
 
@@ -563,6 +612,7 @@ function renderFlotaCabecera(){
   html+='<div class="flota-kpis">'+
           '<div class="fk"><div class="k-val">'+g.nHoy+'</div><div class="k-lbl">en obra hoy</div></div>'+
           '<div class="fk gris"><div class="k-val">'+g.fuera.length+'</div><div class="k-lbl">fuera</div></div>'+
+          (sinFicha?'<div class="fk alerta"><div class="k-val">'+sinFicha+'</div><div class="k-lbl">sin ficha (QR)</div></div>':'')+
           '<div class="fk-tipos">'+
             (g.tiposHoy.length
               ? g.tiposHoy.map(function(t){ return '<span class="tchip"><b>'+g.hoy[t].length+'</b>'+esc(flTipoCorto(t))+'</span>'; }).join('')
@@ -571,7 +621,8 @@ function renderFlotaCabecera(){
         '</div>';
   html+='<div class="est-note" data-estilo="margin:-8px 0 16px;font-size:11.5px;color:var(--muted)">Flota vigente el <b>'+esc(FLOTA.fecha)+'</b>'+
         (g.porLlegar.length?(' · '+g.porLlegar.length+' por llegar'):'')+
-        ' · una fila por <b>estancia</b>, ventana semiabierta: la fecha de retiro es el <b>primer día que ya no estuvo</b>.</div>';
+        ' · una fila por <b>estancia</b>, ventana semiabierta: la fecha de retiro es el <b>primer día que ya no estuvo</b>. '+
+        'Toda la maquinaria (pesada, volquetas, camabajas, carrotanques, luminarias): el <b>Parte Digital</b> espera cada día a los equipos vigentes del frente <b>'+esc((FLOTA.frentesParte||[]).join(' · '))+'</b>.</div>';
 
   if(FLOTA.fuente==='vacia'){
     html+='<div class="avisos"><b>La hoja MAQUINAS está vacía o no tiene ninguna fila utilizable.</b> '+
@@ -599,7 +650,9 @@ function renderFlotaCabecera(){
 // Etiqueta corta para los chips del resumen (la lista de tipos completa vive en la tabla).
 function flTipoCorto(t){
   const m={ BULLDOZER:'bulldozer', EXCAVADORA:'excavadora', MOTONIVELADORA:'motoniveladora', FINISHER:'finisher',
-            VIBROCOMPACTADOR:'vibro', MINICARGADOR:'minicargador', MINIBULDOZER:'minibuldózer', RETROEXCAVADORA:'retro' };
+            VIBROCOMPACTADOR:'vibro', MINICARGADOR:'minicargador', MINIBULDOZER:'minibuldózer', RETROEXCAVADORA:'retro',
+            VOLQUETA:'volqueta', CAMABAJA:'camabaja', TRACTOCAMION:'tractocamión', CARROTANQUE:'carrotanque',
+            CAMION:'camión', TURBO:'turbo', CISTERNA:'cisterna', LUMINARIA:'luminaria' };
   const l=m[t]||String(t||'').toLowerCase();
   return l;
 }
@@ -635,9 +688,10 @@ function renderFlotaLista(){
             const filas=g.hoy[t];
             // La regla de producción es por TIPO (D41/D44/D111), así que se dice una vez en el
             // separador y no como un chip repetido en cada fila.
-            const sinProd=filas.length && !filas[0].e.produce;
+            const esProd=flEsProd(t), sinProd=esProd && filas.length && !filas[0].e.produce;
             return '<div class="tr sep">'+esc(t)+' <span class="n">'+filas.length+'</span>'+
                      (sinProd?'<span class="nota-tipo">sin producción propia · apoyan frentes de otras máquinas</span>':'')+
+                     (!esProd?'<span class="nota-tipo">transporte / equipo menor · solo flota y parte digital</span>':'')+
                    '</div>'+
                    filas.map(function(x){ return flFila(x.e, puede, 'hoy', x.ls); }).join('');
           }).join('')+
@@ -694,10 +748,18 @@ function flFila(e, puede, modo, ls){
              : modo==='rota'  ? 'sin fecha de ingreso'
              : esc(e.fecha_ingreso)+' → '+esc(e.fecha_retiro||'sigue en obra');
   const marca = '';   // la regla de producción nula es por TIPO: se dice en el separador, no por fila
+  // D173: ficha (placa · medidor) bajo el código; frente cuando se mira toda la obra; aviso sin ficha.
+  const ficha=[e.placa, (e.medidor==='KM'?'km':(e.medidor?'horóm.':''))].filter(Boolean).join(' · ');
+  const fr=flFrenteDe(e);
+  const sub='<small class="csub">'+
+              (e.con_ficha===false ? '<span class="sinficha" title="Sin ficha en PARTE_EQUIPOS: el QR no abre el parte. Corrige la estancia y guarda placa/medidor.">⚠ sin ficha</span>' : esc(ficha||(e.proveedor||'')))+
+              ((FL.frente==='todos' && fr!==(FLOTA.frenteDef||'UF1-UF2')) ? ' <span class="frchip">'+esc(fr)+'</span>' : '')+
+            '</small>';
+  const prog = flEsProd(e.tipo) ? esc(e.prog)+' h' : '—';
   let html='<div class="tr'+(modo==='fuera'?' fuera-fila':'')+'">'+
-             '<span class="cid">'+esc(id)+'</span>'+
+             '<span class="cid">'+esc(id)+sub+'</span>'+
              '<span class="cmut">'+col2+marca+'</span>'+
-             '<span class="cmut">'+esc(e.prog)+' h</span>'+
+             '<span class="cmut">'+prog+'</span>'+
              '<span class="cfecha'+(modo==='rota'?' cmut':'')+'">'+col4+'</span>'+
              '<span class="cnota" title="'+esc(e.notas||'')+'">'+esc(e.notas||'')+'</span>'+
              '<span class="cacts">'+acts.join('')+'</span>'+

@@ -33,8 +33,8 @@
  *   · Rate limit del envío público (`op=reporte`): 20 envíos/hora por equipo y 200/hora global, ambos
  *     con CacheService; al excederlo {ok:false, error:'rate_limit'} sin tocar el Sheet. Las operaciones
  *     con token pasan por `puerta_` (60/min por usuario+action).
- *   · Validación estricta: el código debe existir en PARTE_EQUIPOS y estar activo — si no,
- *     {ok:false, error:'equipo'} (antes un equipo inactivo se guardaba con aviso). Tipos, rangos y
+ *   · Validación estricta: el código debe estar VIGENTE en la flota el día del parte (hoja MAQUINAS,
+ *     D173; sin esa hoja, `activo` de PARTE_EQUIPOS) — si no, {ok:false, error:'equipo'}. Tipos, rangos y
  *     longitudes de cada tramo y de cada cambio de revisión: {ok:false, error:'payload', campo}.
  *   · Respaldo: el Parte vive en el MISMO Sheet que la obra, así que `respaldoDiario()` ya lo cubre;
  *     si algún día se separa, basta fijar la propiedad del script `PARTE_SHEET_ID` y `respaldoIdsExtra_`
@@ -71,6 +71,10 @@ const PARTE_CC_PSEUDO = [
 // `parte_maquinaria` para la persona dedicada al parte (alta = fila en USUARIOS con
 // redirige=revision-maquinaria.html, D108; cero código). El jefe NO: solo lectura en obra.
 const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria'];
+// D173: frentes cuyos equipos espera ESTE parte. Hoy solo UF1-UF2 (el proyecto que atiende el
+// sistema); cuando la UF3 entre al ecosistema (backlog) basta añadir 'UF3' aquí — sus estancias ya
+// caben en la hoja MAQUINAS con `frente=UF3`.
+const PARTE_FRENTES = ['UF1-UF2'];
 // Topes por medidor: `bloquea` rechaza el envío (también lo bloquea el cliente); `alerta` marca
 // TOTAL_ALTO para que lo mire quien revisa.
 const PARTE_TOPES = { HOROMETRO:{ bloquea:24, alerta:12, unidad:'h' }, KM:{ bloquea:700, alerta:400, unidad:'km' } };
@@ -214,10 +218,40 @@ function parteEquipos_(){
   });
   return out;
 }
-function parteEquiposActivos_(){
-  const m=parteEquipos_();
-  return Object.keys(m).map(function(k){ return m[k]; }).filter(function(q){ return q.activo; })
-    .sort(function(a,b){ return a.codigo<b.codigo?-1:a.codigo>b.codigo?1:0; });
+/* D173 — Equipos que el parte ESPERA en una fecha = los VIGENTES ese día en la hoja MAQUINAS
+ * (estancias de toda la flota, frente en PARTE_FRENTES), con su ficha de PARTE_EQUIPOS. Consultar
+ * un día viejo devuelve la flota que había ESE día, no la de hoy (mismo criterio que D138/D85).
+ *   · Un equipo vigente SIN ficha entra igual (ficha mínima: tipo de la estancia, sin medidor → el
+ *     parte avisa SIN_MEDIDOR) y se marca `sin_ficha` para que la revisión lo vea.
+ *   · Un equipo con ficha pero SIN estancia vigente NO se espera ni puede reportar ese día.
+ *   · Respaldo: si la hoja MAQUINAS está vacía (fuente 'codigo'), manda `activo` de PARTE_EQUIPOS
+ *     como antes de D173 — nunca una flota vacía. */
+function parteFlotaVigente_(fecha){
+  try{
+    if(typeof flotaEnFecha_!=='function') return null;
+    const fl=flotaEnFecha_(fecha||'', { todos:true, frentes:PARTE_FRENTES });
+    return (fl && fl.fuente==='hoja') ? fl : null;
+  }catch(err){ return null; }
+}
+function parteEquiposActivos_(fecha){
+  const m=parteEquipos_(), fl=parteFlotaVigente_(fecha);
+  let lista;
+  if(!fl){
+    lista=Object.keys(m).map(function(k){ return m[k]; }).filter(function(q){ return q.activo; });
+  }else{
+    lista=Object.keys(fl.catalogo).map(function(id){
+      const c=fl.catalogo[id], q=m[parteNormCod_(id)];
+      if(q) return Object.assign({}, q, { activo:true, frente:c.frente, propiedad:c.propiedad, sin_ficha:false });
+      return { codigo:id, tipo:c.tipo, placa:'', proveedor:c.propiedad||'', medidor:'', medidor_crudo:'', activo:true,
+               ultimo_final_manual:null, ultima_fecha:'', frente:c.frente, propiedad:c.propiedad, sin_ficha:true };
+    });
+  }
+  return lista.sort(function(a,b){ return a.codigo<b.codigo?-1:a.codigo>b.codigo?1:0; });
+}
+// ¿Se espera este equipo en esa fecha? Devuelve la ficha (con `frente`) o null.
+function parteEquipoVigente_(cod, fecha){
+  const k=parteNormCod_(cod);
+  return parteEquiposActivos_(fecha).filter(function(q){ return parteNormCod_(q.codigo)===k; })[0] || null;
 }
 function parteOperadores_(){
   const vistos={}, out=[];
@@ -341,8 +375,15 @@ function parteEquipo(e){
   logIdentidad_(eq, 'equipo');   // D166: identidad pública = código de equipo
   const lista=parteEquiposActivos_().map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa }; });
   if(!eq) return json({ ok:true, equipo:null, equipos:lista, hoy:parteHoy_() });
-  const q=mapa[parteNormCod_(eq)];
-  if(!q) return json({ ok:false, error:'El código «'+eq+'» no está en la hoja PARTE_EQUIPOS. Elige tu equipo en la lista o avisa a maquinaria.', equipos:lista, hoy:parteHoy_() });
+  // D173: el equipo tiene que estar VIGENTE hoy en la flota (o ayer: el parte admite la víspera).
+  const q=parteEquipoVigente_(eq) || parteEquipoVigente_(eq, parteFechaMasDias_(parteHoy_(), -1));
+  if(!q){
+    const ficha=mapa[parteNormCod_(eq)];
+    const msg = ficha
+      ? ('El equipo «'+ficha.codigo+'» no figura en la flota de hoy (dado de baja, de otro frente o aún sin alta). Si acaba de llegar a la obra, pide en Maquinaria › Flota que lo den de alta; si te equivocaste de QR, elige tu equipo en la lista.')
+      : ('El código «'+eq+'» no está en la flota ni tiene ficha en PARTE_EQUIPOS. Elige tu equipo en la lista o avisa a maquinaria.');
+    return json({ ok:false, error:msg, equipos:lista, hoy:parteHoy_() });
+  }
   const ultimo=parteUltimoFinal_(q);
   return json({ ok:true,
     equipo:{ codigo:q.codigo, tipo:q.tipo, placa:q.placa, proveedor:q.proveedor, medidor:q.medidor, activo:q.activo },
@@ -418,9 +459,16 @@ function parteReporte(body, ses){
   if(!rlE.ok) return respuestaRateLimit_(rlE);
   const vp=parteValidarReporte_(body); if(vp) return vp;
   const mapa=parteEquipos_();
-  const q=mapa[parteNormCod_(cod)];
-  if(!q) return parteRechazoEquipo_(cod, 'no está en la hoja PARTE_EQUIPOS');
-  if(!q.activo) return parteRechazoEquipo_(cod, 'figura INACTIVO en PARTE_EQUIPOS');
+  // D173: vigente en la flota el DÍA DEL PARTE (primer tramo; sin fecha → hoy). Sin hoja MAQUINAS
+  // manda `activo` de PARTE_EQUIPOS, como antes.
+  const crudos0=Array.isArray(body.tramos) ? body.tramos : (body.tramo ? [body.tramo] : []);
+  const fechaParte=fdateValida_((crudos0[0]&&crudos0[0].fecha)||body.fecha||'') || parteHoy_();
+  const q=parteEquipoVigente_(cod, fechaParte);
+  if(!q){
+    const ficha=mapa[parteNormCod_(cod)];
+    if(!ficha) return parteRechazoEquipo_(cod, 'no está en la hoja PARTE_EQUIPOS ni en la flota (hoja MAQUINAS)');
+    return parteRechazoEquipo_(cod, 'no está VIGENTE en la flota el '+fechaParte+' (Maquinaria › Flota: dado de baja, de otro frente o sin alta)');
+  }
   // Los rechazos de negocio de abajo conservan su texto (lo muestra parte.html) y quedan en LOG.
   const rechazo=function(msg){ logMarcar_('rechazado', msg); return json({ ok:false, error:msg }); };
   const crudos=Array.isArray(body.tramos) ? body.tramos : (body.tramo ? [body.tramo] : []);
@@ -535,10 +583,13 @@ function parteBandeja(e){
   });
   const ordena=function(a,b){ return (a.codigo+a.hora_de)<(b.codigo+b.hora_de)?-1:1; };
   pendientes.sort(ordena); revisadas.sort(ordena);
-  const faltantes=parteEquiposActivos_().filter(function(q){ return !conParte[parteNormCod_(q.codigo)]; })
-    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, ultimo:parteUltimoFinal_(q) }; });
+  // D173: se esperan los equipos VIGENTES ESE DÍA en la flota (hoja MAQUINAS, frente del parte).
+  const vigentes=parteEquiposActivos_(fecha);
+  const faltantes=vigentes.filter(function(q){ return !conParte[parteNormCod_(q.codigo)]; })
+    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, ultimo:parteUltimoFinal_(q), sin_ficha:!!q.sin_ficha }; });
   return json({ ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes,
-    listas:{ operadores:parteOperadores_(), cc:parteCC_(), equipos:parteEquiposActivos_().map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor }; }) },
+    flota_fuente: parteFlotaVigente_(fecha) ? 'hoja' : 'activo',
+    listas:{ operadores:parteOperadores_(), cc:parteCC_(), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor }; }) },
     topes:PARTE_TOPES });
 }
 
