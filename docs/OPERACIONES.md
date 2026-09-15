@@ -237,3 +237,19 @@ guardado con una URL que ya no sea de la API activa (los que se encolaron contra
 suben a Google, y al deshacer el rollback, al revés). Los Apps Script no cambian en ningún momento:
 siguen validando el token como siempre. Para volver al Worker se revierte la edición (o se hace
 `git revert` del commit del rollback).
+
+## 10. Altas y bajas de maquinaria y de personal (D173)
+
+**Maquinaria — un solo sitio: Maquinaria › Flota** (`produccion-maquinaria.html`, pestaña Flota; roles admin, residente y jeisson). La hoja `MAQUINAS` es la flota completa de UF1-UF2 (pesada, volquetas, camabajas, carrotanques, turbo, camiones, luminarias), una fila por estancia; `PARTE_EQUIPOS` es la ficha (placa, medidor, proveedor).
+
+| Situación | Qué se hace |
+|---|---|
+| Llega un equipo (nuevo o alquilado) | **Dar de alta**: código del parte, tipo, frente, propiedad, ingreso, placa, medidor, proveedor. Crea la ficha si falta. Después `python3 tools/generar_qr.py --solo CODIGO`, imprimir y pegar el QR en cabina. |
+| Se vara y lo reemplazan uno o dos días | **Nada en la Flota.** La varada se cierra como «Taller» en «Equipos sin parte» (revisión); el reemplazo reporta por su QR de siempre y llega con la alerta `FUERA_DE_FLOTA`. |
+| Se va (devolución, taller largo, otra obra) | **Dar de baja** con el PRIMER día que ya no estuvo. Deja de esperarse; el histórico no se toca; el QR sigue abriendo con alerta. |
+| Vuelve | **Reingreso** desde «Ya no están en la obra»: fila nueva, mismo código, mismo QR. Nunca corregir la estancia vieja. |
+| Cambia de frente (UF1-UF2 ↔ UF3) | Baja en un frente y alta en el otro. |
+| Fecha o dato mal escrito | **Corregir** (solo para eso). |
+| Regenerar los QR | Exportar `MAQUINAS` y `PARTE_EQUIPOS`; `python3 tools/generar_qr.py --csv PARTE_EQUIPOS.csv --maquinas MAQUINAS.tsv --limpiar`. |
+
+**Personal — módulo Asistencias** (`resumen-asistencia.html` › gestión de personal; roles residente, admin, angie, duvan, residente_uf3, D84/D85/D119): alta con fecha de ingreso (retroactiva permitida), retiro con fecha = primer día no trabajado, mover entre cuadrillas. Un reingreso es un **alta nueva** con la fecha de reingreso, no «reactivar» (perdería el hueco). Personal eventual = `estado=eventual` (no se espera cada día, se marca desde «Completar faltantes»). Usuarios (logins) = fila en la hoja `USUARIOS` (D108).
