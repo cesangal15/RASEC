@@ -21,9 +21,10 @@
  *   GET  ?action=maquinaria_produccion&fecha=...  -> cruce MAQUINARIA(CC 02.05-08) × volumen oficial DATA (2.4/D55)
  *   POST {action:'maquinaria_produccion', fecha, ajustes:[{id_registro,produccion}]} -> parcha SOLO col T de MAQUINARIA
  *   GET  ?action=debug&fecha=...
- *   POST  reporte: {fecha,rol,capataz,cantidades:[{...,equipos:[]}],volquetas:[{origen,destino,tipo_destino,uf,placas:[{placa,viajes}]}],maquinaria:[{id_maquina,...}]}
+ *   POST  reporte: {fecha,rol,capataz,cantidades:[{...,equipos:[]}],volquetas:[{origen,destino,tipo_destino,uf,placas:[{placa,viajes}]}],maquinaria:['EXC015'|{id_registro,id_maquina,tipo_equipo}]}
  *           -> BANDEJA (+ MAQUINARIA) ; chequeadora además -> VOLQUETAS (una fila por placa)
- *           y, si envía maquinaria, sus excavadoras -> MAQUINARIA (producción = total excavado ÷ nº máquinas, D54)
+ *           y, si envía maquinaria, sus excavadoras -> MAQUINARIA recortada (SOLO código; horas/operador/
+ *           motivo/ESTADO vacíos, salen del Parte Digital, V3-06(b)/D177; producción = total excavado ÷ nº excavadoras, D54)
  *           D82: cada fila puede traer id_registro UUID de CLIENTE → dedupe por fecha (reenvíos de la
  *           cola offline no duplican); payload sin ids = comportamiento viejo. Respuesta incluye
  *           {guardadas, duplicadas} además de los conteos de siempre.
@@ -1296,38 +1297,57 @@ function guardarReporte(body){
         '', uProd, c.actividad, (esDrenaje?'NO':der.aCaptura), '', areaCol]);
     });
   });
-  // Maquinaria de la chequeadora (D54): excavadoras que alimentaron el origen. Una vez por reporte.
-  // Producción = total excavado del día (Σ líneas, con cubicaje real) REPARTIDO en partes iguales
-  // entre las máquinas (cada una cumple su papel). Va a MAQUINARIA; el encargado reconcilia si un
-  // capataz reportó la misma máquina (D51). D06: el volumen sigue viniendo de la chequeadora.
+  // Maquinaria de la chequeadora (D54, recortada por V3-06(b)/D177): SOLO los códigos de las
+  // excavadoras que alimentaron el origen. Una vez por reporte. Igual que el capataz desde D171, cada
+  // máquina puede venir como objeto {id_registro,id_maquina,tipo_equipo} (frontend actual) o como
+  // string 'EXC015' (lista de códigos); un payload VIEJO de la cola offline (D82) trae además
+  // operador/horas_operadas/programadas/muertas/motivo: se ACEPTAN y se DESCARTAN en silencio (no se
+  // rechazan, no se escriben). G operador · L horas · O h_mant · R ESTADO · app_horas_programadas ·
+  // app_horas_muertas · motivo quedan VACÍAS: esos datos salen del Parte Digital (D165).
+  // T Producción = total excavado del día (Σ líneas, cubicaje real D53) REPARTIDO en partes iguales
+  // entre las excavadoras marcadas (D54, confirmado sep-2026). Va a MAQUINARIA; el encargado reconcilia
+  // si un capataz reportó la misma máquina (D51, mismo id_maquina con dos `reporta`). D06: el volumen
+  // sigue viniendo de la chequeadora.
   (function(){
     const maqList=body.maquinaria||[];
     if(!maqList.length) return;
+    // Normaliza a objetos {id_maquina,id_registro,tipo_equipo}. Un código suelto no trae id_registro
+    // (no deduplica por sí solo, pero el reenvío de la cola manda el mismo objeto con su id, D82).
+    const norm=maqList.map(function(m0){
+      return (typeof m0==='string' || typeof m0==='number')
+        ? { id_maquina:String(m0).trim(), id_registro:'' }
+        : (m0||{});
+    }).filter(function(m){ return m.id_maquina; });
+    if(!norm.length) return;
+    // tipo informativo: el que manda el cliente o, si no viene, el de PARTE_EQUIPOS (catálogo único).
+    norm.forEach(function(m){ if(!m.tipo_equipo){ if(!eqMapa) eqMapa=equiposCapatazMapa_(); const q=eqMapa[String(m.id_maquina).replace(/[^A-Za-z0-9]/g,'').toUpperCase()]; m.tipo_equipo=q?q.tipo:''; } });
     // totalExc (Σ líneas) ya calculado arriba para la excavación acumulada al origen (Problema 2.12).
-    const nProd=maqList.filter(m=>!esTipoSinProduccion(m.tipo_equipo)).length || 1;
+    const nProd=norm.filter(m=>!esTipoSinProduccion(m.tipo_equipo)).length || 1;
     const prodCada=totalExc/nProd;
     // proyecto y actividad del frente de excavación (todas las líneas comparten origen)
     let proyMaq='', actMaq='';
     (body.cantidades||[]).forEach(c=>{ if(!actMaq && String(c.actividad||'').indexOf('Excavaci')>=0){ actMaq=c.actividad; proyMaq=c.proyecto||''; } });
     if(!proyMaq && (body.cantidades||[]).length) proyMaq=body.cantidades[0].proyecto||'';
     const der=derivarActividad({actividad:actMaq});
-    maqList.forEach(m=>{
+    norm.forEach(m=>{
       // D82: mismo dedupe por id de cliente que los equipos del capataz.
       const idM=m.id_registro||Utilities.getUuid();
       if(m.id_registro && maqIds[String(m.id_registro)]){ dupMaq++; return; }
       const esVibro=esTipoSinProduccion(m.tipo_equipo);
-      const prod=esVibro ? '' : prodCada;          // vibros/minis nunca llevan producción (D44)
+      const prod=esVibro ? '' : prodCada;          // vibros/minis/retros nunca llevan producción (D44)
       const uProd=(prod==='') ? '' : 'm3';
-      const esMant=(m.motivo||'').trim().toLowerCase().indexOf('mantenimiento')>=0;
-      const hMant=esMant ? Math.max(0,(parseFloat(m.horas_programadas)||0)-(parseFloat(m.horas_operadas)||0)) : '';
-      const estado=derivarEstado(m.motivo, m.horas_muertas);
       maqRows.push([
-        '', fecha, '', proyMaq, m.id_maquina, '', m.operador,
-        der.h, der.i, '', '', m.horas_operadas, '',
-        '', hMant, '', '', estado, '',
+        // A vacío · B fecha · C vacío · D proyecto · E id_maquina · F vacío · G operador (VACÍO, D177)
+        '', fecha, '', proyMaq, m.id_maquina, '', '',
+        // H actividad(der) · I sub(der) · J vacío · K vacío · L horas_operadas (VACÍO, D177) · M vacío
+        der.h, der.i, '', '', '', '',
+        // N vacío · O h_mantenimiento (VACÍO, D177) · P vacío · Q vacío · R estado (VACÍO, D177) · S vacío
+        '', '', '', '', '', '',
+        // T produccion · U–X vacío · Y vacío · Z vacío · AA observacion (sin nota por máquina)
         prod, '', '', '', '', '', '', '',
-        idM, '', ts, reporta, m.tipo_equipo, m.horas_programadas, m.horas_muertas,
-        m.motivo, uProd, actMaq, der.aCaptura, '', '']);
+        // internos del app (app_horas_programadas · app_horas_muertas · motivo VACÍOS, D177)
+        idM, '', ts, reporta, m.tipo_equipo||'', '', '',
+        '', uProd, actMaq, der.aCaptura, '', '']);
     });
   })();
   // D93: se valida la capacidad de la grilla ANTES de cada escritura en bloque (la hoja crece sola
@@ -2983,7 +3003,11 @@ function validarPayloadObra_(body){
         f = valListaDe_(l.placas, VAL_OBRA_PLACA, 'volquetas['+i+'].placas', 300);
       }
     }
-    if(!f) f = valListaDe_(body.maquinaria, VAL_OBRA_EQUIPO, 'maquinaria', 200);
+    // V3-06(b)/D177: la maquinaria de la chequeadora se recortó a SOLO códigos (igual que `equipos` del
+    // capataz, D171). `valEquiposCapataz_` acepta una lista de códigos ('EXC015') O de objetos con el
+    // esquema VAL_OBRA_EQUIPO, así que un payload NUEVO (códigos/objetos sin horas) y uno VIEJO de la
+    // cola offline (objetos con operador/horas/motivo) pasan los dos; guardarReporte descarta lo demás.
+    if(!f) f = valEquiposCapataz_(body.maquinaria, 'maquinaria');
   }
   return f ? rechazoPayload_(f.campo, f.motivo) : null;
 }

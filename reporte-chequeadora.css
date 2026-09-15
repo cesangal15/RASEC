@@ -63,12 +63,23 @@
   .success p{color:var(--muted);font-size:14px;margin-bottom:24px;}
   .success button{padding:12px 28px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;}
   .hidden{display:none;}
-  /* Maquinaria (excavadoras) — D54, mismo look que el bloque de equipos del capataz */
-  .eq-item{background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
-  .eq-item label{font-size:10px;}
-  .eq-top{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
-  .eq-top select{flex:1;}
-  .eq-prog{font-size:11px;color:var(--muted);margin:-2px 0 10px;display:none;}
-  .eq-prog b{color:var(--text);font-weight:600;}
-  .eq-diff{font-size:11px;color:var(--accent-txt);margin-top:8px;display:none;}
-  .eq-motivo{margin-top:10px;display:none;}
+  /* Maquinaria (excavadoras) — D54, recortada por V3-06(b)/D177: SOLO chips de código,
+     mismo componente que el bloque de equipos del capataz (D171). */
+  label .opt{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;}
+  .equipos-block .eqlabel{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:block;}
+  .eq-sel{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .eq-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 10px;border-radius:20px;border:1px solid rgba(245,166,35,0.45);background:rgba(245,166,35,0.10);color:var(--text);}
+  .eq-chip .t{font-weight:400;color:var(--muted);font-size:10px;}
+  .eq-chip .x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;}
+  .eq-chip .x:hover{color:var(--error-txt);}
+  .eq-chip.fuera{border-style:dashed;}
+  .eq-picker{background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;display:none;}
+  .eq-picker.abierto{display:block;}
+  .eq-picker input[type="text"]{margin-bottom:6px;}
+  .eq-grupo{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:8px 0 4px;}
+  .eq-opts{display:flex;flex-wrap:wrap;gap:6px;}
+  .eq-opt{font-size:12px;padding:8px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;min-height:36px;font-family:'DM Sans',sans-serif;}
+  .eq-opt.on{border-color:var(--accent);background:rgba(245,166,35,0.15);color:var(--accent-txt);font-weight:600;}
+  .eq-opt .p{font-size:10px;color:var(--muted);margin-left:4px;}
+  .eq-none{font-size:12px;color:var(--muted);padding:6px 0;}
+  .btn-add.mini{padding:8px;font-size:10px;}
