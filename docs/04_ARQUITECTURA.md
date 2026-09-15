@@ -376,6 +376,8 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 │                     fecha_ingreso·fecha_retiro·notas·frente (estancias, D138/D173)         │
 │  PARTE_OPERADORES   operador·partes_ult_4_meses·activo                                     │
 │  PARTE_CC           centro_coste·proyecto·descripcion_cc·usos_ult_4_meses·activo           │
+│  PARTE_ITEMS        tipo_equipo·item·actividad·veces·activo — actividad → ítem por tipo   │
+│                     (D174, «máscara» del operador; dueño Jeisson). op=equipo → actividades │
 │                     (+ pseudo-CC Taller · Disponible · Domingo/Festivo)                    │
 │  PARTE_ACTIVIDADES  tipo_equipo·descripcion_trabajo·veces  (solo sugerencias)              │
 │  PARTE_BANDEJA      27 cols: id_registro·timestamp·estado·fecha·codigo·tipo·placa·medidor· │
@@ -409,7 +411,8 @@ Bloque gemelo «ENDURECIMIENTO DEL BACKEND» en `Codigo.gs` y `CodigoAsistencias
 │  LOG          fecha_hora · usuario · rol · action · resultado(ok/rechazado/error) · motivo · ms  │
 │  Parte (QR)   identidad = código de equipo; 20 envíos/h por equipo, 200/h global; equipo debe   │
 │               tener FICHA en PARTE_EQUIPOS → si no {ok:false, error:'equipo'}; no vigente en la  │
-│               flota ese día (D173) → se acepta con alerta FUERA_DE_FLOTA (D173b)                │
+│               flota ese día (D173) → se acepta con alerta FUERA_DE_FLOTA (D173b); sin CC pero  │
+│               con descripción → alerta SIN_CC (D174) y `op=revisar` no aprueba hasta ponerlo  │
 │  Respaldo     respaldoDiario() → Drive Galca_respaldos/TM2_Sur/<prefijo>_<yyyy-MM-dd>, poda 30 d │
 │               instalarTriggerRespaldo() → trigger diario 02:00 America/Bogota                    │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘

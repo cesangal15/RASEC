@@ -49,12 +49,21 @@ const DEMO_DATOS = {
     'RETROCARGADOR': ['Excavacion de tuberia para solado, movimiento de tuberia y colocacion','Descalificada de berma de ampliacion','Llenado de terraza de ODT','Arreglo acceso de mixer']
   }
 };
+DEMO_DATOS.actividades={
+  'VOLQUETAS DOBLETROQUE': { habituales:[{item:'02.11',actividad:'Transporte de material para terraplén',veces:40,propio:true},{item:'02.10',actividad:'Transporte de préstamo',veces:9,propio:true},{item:'03.04',actividad:'Transporte de BTC',veces:6,propio:false}], proyecto_habitual:'3702' },
+  'EXCAVADORAS': { habituales:[{item:'02.05',actividad:'Excavación (cargue de volquetas)',veces:22,propio:true},{item:'02.06',actividad:'Excavación de préstamo',veces:5,propio:false},{item:'02.03',actividad:'Descapote',veces:4,propio:false}], proyecto_habitual:'3701' },
+  'MOTONIVELADORAS': { habituales:[{item:'02.07',actividad:'Terraplén',veces:18,propio:true},{item:'03.01',actividad:'Subbase granular',veces:7,propio:true}], proyecto_habitual:'3702' },
+  'VIBROCOMPACTADOR': { habituales:[{item:'02.07',actividad:'Terraplén',veces:12,propio:true},{item:'05.04',actividad:'Terraplén en MSR',veces:9,propio:true},{item:'03.01',actividad:'Subbase granular',veces:3,propio:false}], proyecto_habitual:'3701' },
+  'RETROCARGADOR': { habituales:[{item:'05.04',actividad:'Terraplén en MSR',veces:8,propio:true},{item:'06.02',actividad:'Relleno de drenajes (ODT)',veces:4,propio:true},{item:'07.01',actividad:'Cunetas en concreto',veces:2,propio:false}], proyecto_habitual:'3701' },
+  todas:[{item:'02.03',actividad:'Descapote'},{item:'02.05',actividad:'Excavación (cargue de volquetas)'},{item:'02.06',actividad:'Excavación de préstamo'},{item:'02.07',actividad:'Terraplén'},{item:'02.08',actividad:'Botadero / ZODME'},{item:'02.10',actividad:'Transporte de préstamo'},{item:'02.11',actividad:'Transporte de material para terraplén'},{item:'03.01',actividad:'Subbase granular'},{item:'03.03',actividad:'Base granular / BTC'},{item:'03.04',actividad:'Transporte de BTC'},{item:'05.04',actividad:'Terraplén en MSR'},{item:'06.01',actividad:'Excavación para drenajes (ODT)'},{item:'06.02',actividad:'Relleno de drenajes (ODT)'},{item:'07.01',actividad:'Cunetas en concreto'},{item:'I0408',actividad:'Paisajismo / zonas verdes'},{item:'11.01',actividad:'Señalización / PMT'}]
+};
 function demoEquipo(eq){
   const lista=DEMO_DATOS.equipos.map(q=>({ codigo:q.codigo, tipo:q.tipo, placa:q.placa }));
   const q=DEMO_DATOS.equipos.find(x=>x.codigo.replace(/[^A-Z0-9]/gi,'').toUpperCase()===String(eq||'').replace(/[^A-Z0-9]/gi,'').toUpperCase());
   if(!q) return { ok:true, equipo:null, equipos:lista, hoy:hoyBogota() };
   return { ok:true, equipo:{ codigo:q.codigo, tipo:q.tipo, placa:q.placa, proveedor:q.proveedor, medidor:q.medidor, activo:q.activo }, ultimo:q.ultimo,
-    operadores:DEMO_DATOS.operadores, cc:DEMO_DATOS.cc, sugerencias:DEMO_DATOS.sugerencias[q.tipo]||[], hoy:hoyBogota() };
+    operadores:DEMO_DATOS.operadores, cc:DEMO_DATOS.cc, sugerencias:DEMO_DATOS.sugerencias[q.tipo]||[],
+    actividades:Object.assign({ todas:DEMO_DATOS.actividades.todas }, DEMO_DATOS.actividades[q.tipo]||{ habituales:[], proyecto_habitual:'3701' }), hoy:hoyBogota() };
 }
 function demoReporte(payload){
   // imita las alertas del servidor para que la confirmación se vea igual que en real
@@ -63,6 +72,7 @@ function demoReporte(payload){
     const partes = (t.reparto&&t.reparto.length>1) ? t.reparto : [null];
     partes.forEach(p=>{
       const alertas=[];
+      if(!(p?p.cc:(t.reparto&&t.reparto[0]&&t.reparto[0].cc))) alertas.push('SIN_CC');
       if(!p && finalPrevio!==null && num(t.inicial)!==null && Math.abs(num(t.inicial)-finalPrevio)>0.001) alertas.push('INICIAL_DISTINTO');
       const tot=(num(t.final)!==null&&num(t.inicial)!==null)?num(t.final)-num(t.inicial):0, tope=TOPES[EQ.medidor];
       if(!p && tope && tot>tope.alerta) alertas.push('TOTAL_ALTO');
@@ -78,6 +88,19 @@ let EQ = null;            // {codigo,tipo,placa,proveedor,medidor,activo}
 let ULTIMO = null;        // {final,fecha,hora_a,origen}
 const HORA_DE_DEF='07:00', HORA_A_DEF='15:30';   // jornada estándar del parte (solo valor inicial, editable)
 let OPERADORES = [], CC = [], SUGS = [], TOPES = {HOROMETRO:{bloquea:24,alerta:12,unidad:'h'},KM:{bloquea:700,alerta:400,unidad:'km'}};
+/* D174 — actividad primero, CC derivado (backlog 4.06). El operador elige QUÉ HIZO en palabras de obra;
+ * el ítem sale de la actividad y el proyecto (3701/3702) del PR: PR ≤ 30+000 → 3701, si no 3702; sin PR,
+ * el proyecto habitual del equipo. Tres capas: habituales (chips) · todas (picker) · texto libre (sin
+ * CC, llega con SIN_CC y lo pone revisión). El CC sigue visible y se puede elegir directo. */
+let ACTS = { habituales:[], todas:[], proyecto_habitual:'3701' };
+function proyectoDe(pr){ const n=num(pr); if(n===null) return ACTS.proyecto_habitual||'3701'; return n<=30000 ? '3701' : '3702'; }
+function ccDeItem(item, pr){ return item ? proyectoDe(pr)+'.'+item : ''; }
+function actLabel(item){ const a=(ACTS.habituales||[]).concat(ACTS.todas||[]).find(x=>x.item===item); return a ? a.actividad : item; }
+function actLabelHTML(r){
+  if(r.libre) return '<b>Sin centro de coste</b><small>lo pone revisión con lo que escribas abajo</small>';
+  if(r.item) return '<b>'+esc(actLabel(r.item))+'</b><small>CC '+esc(r.cc||'')+(r.cc?' · UF'+ufDe(r.cc):'')+'</small>';
+  return ccLabelHTML(r.cc);
+}
 let HOY = hoyBogota();
 let tramos = [];          // [{id, inicial, final, hora_de, hora_a, cc, pr, uf, desc, varada, lluvia, obs, iniPre, reparto:null|[{cc,pct,pr}]}]
 let operador = '';
@@ -134,6 +157,7 @@ async function cargar(){
     mostrar('pantallaQR'); return;
   }
   EQ=data.equipo; ULTIMO=data.ultimo||null; OPERADORES=data.operadores||[]; CC=data.cc||[]; SUGS=data.sugerencias||[];
+  if(data.actividades) ACTS=Object.assign({ habituales:[], todas:[], proyecto_habitual:'3701' }, data.actividades);
   if(data.topes) TOPES=data.topes;
   document.getElementById('hCodigo').textContent='🚜 '+EQ.codigo;
   document.getElementById('hSub').textContent=EQ.tipo+(EQ.placa?' · '+EQ.placa:'')+(EQ.proveedor?' · '+EQ.proveedor:'');
@@ -206,8 +230,10 @@ function tramoHTML(t,i){
    +'<div class="field"><label>Hora de</label><input type="time" value="'+esc(t.hora_de)+'" data-on-input="setT(\''+t.id+'\',\'hora_de\',this.value)"></div>'
    +'<div class="field"><label>Hora a</label><input type="time" value="'+esc(t.hora_a)+'" data-on-input="setT(\''+t.id+'\',\'hora_a\',this.value)"></div>'
    +'</div>'
-   +'<div class="bloque"><div class="bloque-t">¿A qué centro de coste va? <span class="req">*</span></div>'
+   +'<div class="bloque"><div class="bloque-t">¿Qué hizo la máquina? <span class="req">*</span></div>'
+   +actsHTML(t)
    +repartoHTML(t)
+   +'<div class="hint">El centro de coste se llena solo con la actividad y el PR (PR hasta 30+000 → 3701; de ahí en adelante → 3702). Tócalo solo si el parte físico dice otro.</div>'
    +'</div>'
    +'<div class="field"><label>Descripción del trabajo</label>'
    +'<textarea rows="2" placeholder="ej. Cargue terraplen PR14+400" data-on-input="setT(\''+t.id+'\',\'desc\',this.value)">'+esc(t.desc)+'</textarea>'
@@ -221,13 +247,39 @@ function tramoHTML(t,i){
    +'<textarea rows="2" data-on-input="setT(\''+t.id+'\',\'obs\',this.value)">'+esc(t.obs)+'</textarea></div>'
    +'</div>';
 }
+/* ---------- D174: actividades habituales (capa 1) ---------- */
+function actsHTML(t){
+  const rep=t.reparto||[]; if(rep.length!==1) return '';   // con reparto por % cada fila elige en su botón
+  const r=rep[0], hab=(ACTS.habituales||[]);
+  if(!hab.length && !(ACTS.todas||[]).length) return '';
+  return '<div class="acts">'
+    +hab.map(a=>'<button type="button" class="sug'+(r.item===a.item?' sel':'')+'" data-on-click="usarAct(\''+t.id+'\',0,'+esc(JSON.stringify(a.item))+')" title="CC '+esc(a.item)+(a.propio?' · esta máquina lo usó hace poco':'')+'">'+esc(a.actividad)+'</button>').join('')
+    +'<button type="button" class="sug mas" data-on-click="abrirPicker(\'act\',\''+t.id+'\',0)">Otra actividad…</button>'
+    +'</div>';
+}
+function usarAct(id, j, item){
+  const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return;
+  const r=t.reparto[j], prev=r.item?actLabel(r.item):'';
+  r.item=item; r.libre=false; r.cc=ccDeItem(item, r.pr||t.pr);
+  const etq=actLabel(item);
+  if(!String(t.desc||'').trim() || t.desc===prev) t.desc=etq;   // la descripción arranca con la actividad; el operador la afina
+  render();
+}
+function elegirLibre(){
+  if(!pickerCtx) return;
+  const t=tramos.find(x=>x.id===pickerCtx.tramoId), j=pickerCtx.repIdx===null?0:pickerCtx.repIdx;
+  if(t&&t.reparto&&t.reparto[j]){ const r=t.reparto[j]; r.item=''; r.cc=''; r.libre=true; }
+  cerrarPicker(); render();
+  const ta=document.querySelector('#tramo-'+pickerCtx_ultimo+' textarea'); if(ta) ta.focus();
+}
+let pickerCtx_ultimo='';
 /* ---------- reparto por porcentaje ---------- */
 function repartoHTML(t){
   const rep=t.reparto, varios=rep.length>1, suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
   return '<div class="rep'+(varios?'':' uno')+'" id="rep-'+t.id+'">'
     +(varios ? '<div class="rep-quick">'+[[50,50],[70,30],[30,70]].map(p=>'<button type="button" data-on-click="repRapido(\''+t.id+'\','+JSON.stringify(p)+')">'+p.join(' / ')+'</button>').join('')+'<button type="button" data-on-click="repIguales(\''+t.id+'\')">partes iguales</button></div>' : '')
     +rep.map((r,j)=>'<div class="rep-row">'
-      +'<button type="button" class="picker-btn '+(r.cc?'':'vacio')+'" id="ccr-'+t.id+'-'+j+'" data-on-click="abrirPicker(\'cc\',\''+t.id+'\','+j+')">'+(r.cc?ccLabelHTML(r.cc):(varios?'Centro de coste '+(j+1)+'…':'Toca para elegir…'))+'</button>'
+      +'<button type="button" class="picker-btn '+((r.cc||r.libre)?'':'vacio')+'" id="ccr-'+t.id+'-'+j+'" data-on-click="abrirPicker(\'act\',\''+t.id+'\','+j+')">'+((r.cc||r.libre)?actLabelHTML(r):(varios?'Actividad / centro de coste '+(j+1)+'…':'Toca para elegir la actividad…'))+'</button>'
       +(varios ? '<input type="number" inputmode="decimal" min="0" max="100" step="1" placeholder="%" value="'+esc(r.pct)+'" data-on-input="setRep(\''+t.id+'\','+j+',\'pct\',this.value)" aria-label="porcentaje">'
                +'<button type="button" class="btn-del" data-on-click="delRep(\''+t.id+'\','+j+')" title="Quitar">✕</button>' : '')
       +'<div class="pr"><label>PR</label><input type="number" inputmode="numeric" placeholder="ej. 14400 = PR14+400" value="'+esc(r.pr)+'" data-on-input="setRep(\''+t.id+'\','+j+',\'pr\',this.value)"></div>'
@@ -236,14 +288,19 @@ function repartoHTML(t){
     +'<button type="button" class="btn-add mini" data-on-click="addRep(\''+t.id+'\')">+ '+(varios?'Otro centro de coste':'Fue a otro centro de coste también (se reparte por %)')+'</button>'
     +'</div>';
 }
-function setRep(id,j,k,v){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return; t.reparto[j][k]=v; if(k==='pct') pintarRepSuma(t); pintarResumen(); }
+function setRep(id,j,k,v){
+  const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return; const r=t.reparto[j]; r[k]=v;
+  if(k==='pct') pintarRepSuma(t);
+  if(k==='pr' && r.item){ r.cc=ccDeItem(r.item, v); const b=document.getElementById('ccr-'+id+'-'+j); if(b) b.innerHTML=actLabelHTML(r); }   // D174
+  pintarResumen();
+}
 function pintarRepSuma(t){
   const box=document.querySelector('#rep-'+t.id+' .rep-sum'); if(!box) return;
   const suma=t.reparto.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
   box.classList.toggle('mal', Math.abs(suma-100)>0.5);
   box.innerHTML='<span>'+(tot!==null&&tope?t.reparto.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b>';
 }
-function addRep(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; t.reparto.push({ cc:'', pct:'', pr:'' }); repIguales(id); }
+function addRep(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; t.reparto.push({ cc:'', pct:'', pr:'', item:'' }); repIguales(id); }
 function delRep(id,j){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||t.reparto.length<=1) return; t.reparto.splice(j,1); if(t.reparto.length===1) t.reparto[0].pct=100; else repIguales(id); render(); }
 function repRapido(id,p){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; while(t.reparto.length<2) t.reparto.push({cc:'',pct:'',pr:''}); t.reparto=t.reparto.slice(0,2); t.reparto[0].pct=p[0]; t.reparto[1].pct=p[1]; render(); }
 function repIguales(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; const n=t.reparto.length, base=Math.floor(100/n*100)/100; t.reparto.forEach((r,j)=>{ r.pct = j===n-1 ? Math.round((100-base*(n-1))*100)/100 : base; }); render(); }
@@ -296,8 +353,9 @@ function usarSug(id, txt){ const t=tramos.find(x=>x.id===id); t.desc=txt; const 
 /* ---------- buscador (operador / CC) ---------- */
 function abrirPicker(tipo, tramoId, repIdx){
   pickerCtx={tipo:tipo, tramoId:tramoId, repIdx:(repIdx===undefined?null:repIdx)};
-  const inp=document.getElementById('pickerBuscar'); inp.value=''; inp.placeholder= tipo==='operador' ? 'Buscar operador por nombre…' : 'Buscar por código o por nombre…';
-  document.getElementById('pickerTit').textContent = tipo==='operador' ? 'Toca tu nombre' : 'Toca el centro de coste del parte';
+  pickerCtx_ultimo=tramoId||'';
+  const inp=document.getElementById('pickerBuscar'); inp.value=''; inp.placeholder= tipo==='operador' ? 'Buscar operador por nombre…' : tipo==='act' ? 'Buscar actividad o centro de coste…' : 'Buscar por código o por nombre…';
+  document.getElementById('pickerTit').textContent = tipo==='operador' ? 'Toca tu nombre' : tipo==='act' ? '¿Qué hizo la máquina?' : 'Toca el centro de coste del parte';
   document.getElementById('picker').classList.remove('hidden');
   pintarPicker(); setTimeout(()=>inp.focus(), 50);
 }
@@ -314,21 +372,38 @@ function pintarPicker(){
   } else {
     const t=tramos.find(x=>x.id===pickerCtx.tramoId);
     const actual = t ? (pickerCtx.repIdx===null ? t.cc : (t.reparto&&t.reparto[pickerCtx.repIdx]?t.reparto[pickerCtx.repIdx].cc:'')) : '';
+    if(pickerCtx.tipo==='act'){
+      // D174: capa 1 habituales · capa 2 todas · (y abajo) los CC directos, sin operación y texto libre.
+      const j=pickerCtx.repIdx===null?0:pickerCtx.repIdx, rr=t&&t.reparto&&t.reparto[j]?t.reparto[j]:{};
+      const hab=(ACTS.habituales||[]).filter(a=>!q || norm(a.actividad+' '+a.item).indexOf(q)>=0);
+      const habI={}; hab.forEach(a=>habI[a.item]=1);
+      const todas=(ACTS.todas||[]).filter(a=>!habI[a.item] && (!q || norm(a.actividad+' '+a.item).indexOf(q)>=0));
+      const itemA=a=>'<button type="button" class="picker-item'+(rr.item===a.item?' sel':'')+'" data-on-click="usarActPicker('+esc(JSON.stringify(a.item))+')"><b>'+esc(a.actividad)+'</b><small>CC '+esc(ccDeItem(a.item, rr.pr||(t?t.pr:'')))+(a.propio?' · esta máquina lo usó hace poco':'')+'</small></button>';
+      if(hab.length) html+='<div class="picker-grp">Habituales de '+esc(EQ.codigo)+'</div>'+hab.map(itemA).join('');
+      if(todas.length) html+='<div class="picker-grp">'+(q?'Otras actividades':'Todas las actividades')+'</div>'+todas.map(itemA).join('');
+    }
     const items=CC.filter(c=>!q || norm(c.centro_coste+' '+c.descripcion_cc+' '+c.proyecto).indexOf(q)>=0);
     const reales=items.filter(c=>!c.pseudo), pseudo=items.filter(c=>c.pseudo);
     const frec=reales.slice(0, q?reales.length:12), resto=q?[]:reales.slice(12);
     const item=c=>'<button type="button" class="picker-item'+(actual===c.centro_coste?' sel':'')+'" data-on-click="elegir('+esc(JSON.stringify(c.centro_coste))+')"><b>'+esc(c.centro_coste)+'</b>'+(c.descripcion_cc?'<small>'+esc(c.descripcion_cc)+'</small>':'')+(c.proyecto?'<small>proyecto '+esc(c.proyecto)+' · UF'+ufDe(c.centro_coste)+'</small>':'')+'</button>';
-    if(frec.length) html+='<div class="picker-grp">'+(q?'Centros de coste':'Más usados')+'</div>'+frec.map(item).join('');
+    const esAct=(pickerCtx.tipo==='act');
+    if(frec.length) html+='<div class="picker-grp">'+(q?'Centros de coste':(esAct?'Centro de coste directo (si lo sabes)':'Más usados'))+'</div>'+frec.map(item).join('');
     if(resto.length) html+='<div class="picker-grp">Todos</div>'+resto.map(item).join('');
     if(pseudo.length) html+='<div class="picker-grp">Sin operación</div>'+pseudo.map(item).join('');
+    if(esAct) html+='<div class="picker-grp">No está en la lista</div><button type="button" class="picker-item libre" data-on-click="elegirLibre()">✍ Escribir qué hizo la máquina<small>sin centro de coste: lo pone quien revisa el parte</small></button>';
   }
   list.innerHTML=html||'<div class="picker-vacio">Sin resultados</div>';
+}
+function usarActPicker(item){
+  if(!pickerCtx) return;
+  const id=pickerCtx.tramoId, j=pickerCtx.repIdx===null?0:pickerCtx.repIdx;
+  cerrarPicker(); usarAct(id, j, item);
 }
 function elegir(v){
   if(!pickerCtx) return;
   if(pickerCtx.tipo==='operador'){ operador=String(v||'').trim(); try{ localStorage.setItem(keyOp(), operador); }catch(e){} pintarOperador(); }
   else if(pickerCtx.repIdx!==null){
-    const t=tramos.find(x=>x.id===pickerCtx.tramoId); if(t&&t.reparto&&t.reparto[pickerCtx.repIdx]){ t.reparto[pickerCtx.repIdx].cc=v; const b=document.getElementById('ccr-'+t.id+'-'+pickerCtx.repIdx); if(b){ b.innerHTML=ccLabelHTML(v); b.classList.remove('vacio'); } pintarResumen(); }
+    const t=tramos.find(x=>x.id===pickerCtx.tramoId); if(t&&t.reparto&&t.reparto[pickerCtx.repIdx]){ const r=t.reparto[pickerCtx.repIdx]; r.cc=v; r.item=''; r.libre=false; const b=document.getElementById('ccr-'+t.id+'-'+pickerCtx.repIdx); if(b){ b.innerHTML=ccLabelHTML(v); b.classList.remove('vacio'); } pintarResumen(); }
   }
   else { setT(pickerCtx.tramoId,'cc',v); const b=document.getElementById('cc-'+pickerCtx.tramoId); if(b){ b.innerHTML=ccLabelHTML(v); b.classList.remove('vacio'); } }
   cerrarPicker();
@@ -365,7 +440,9 @@ function validar(){
       else if(tope && b-a>tope.bloquea) errs.push(n+'el total ('+fmt(b-a)+' '+tope.unidad+') pasa de '+tope.bloquea+' '+tope.unidad+'. Revisa el medidor.');
     }
     const rep=t.reparto||[];
-    if(!rep.length || rep.some(r=>!r.cc)) errs.push(rep.length>1 ? 'Falta un centro de coste del reparto.' : 'Falta el centro de coste.');
+    // D174: sin CC vale SOLO en texto libre (una fila, actividad escrita): llega con SIN_CC y lo pone revisión.
+    const libreOk = rep.length===1 && rep[0].libre && String(t.desc||'').trim();
+    if(!libreOk && (!rep.length || rep.some(r=>!r.cc))) errs.push(rep.length>1 ? 'Falta un centro de coste del reparto.' : (rep[0]&&rep[0].libre ? 'Escribe qué hizo la máquina (elegiste texto libre, sin centro de coste).' : 'Falta la actividad o el centro de coste.'));
     if(rep.length>1){
       if(rep.some(r=>!(num(r.pct)>0))) errs.push('Cada centro de coste necesita su porcentaje.');
       const suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0);
@@ -392,7 +469,7 @@ function pintarResumen(){
   tramos.forEach((t,i)=>{
     const tot=totalDe(t);
     const rep=t.reparto||[], varios=rep.length>1;
-    let cc = rep.length ? rep.map(r=>(r.cc?esc(ccTexto(r.cc)):'<span data-estilo="color:var(--error-txt)">sin centro de coste</span>')+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)+')':''):'')).join('<br>')
+    let cc = rep.length ? rep.map(r=>(r.cc?(r.item?esc(actLabel(r.item))+' · ':'')+esc(ccTexto(r.cc)):(r.libre?'<span data-estilo="color:var(--accent-txt)">sin centro de coste · lo pone revisión</span>':'<span data-estilo="color:var(--error-txt)">sin centro de coste</span>'))+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)+')':''):'')).join('<br>')
                         : '<span data-estilo="color:var(--error-txt)">sin centro de coste</span>';
     html+='<div class="r-row">'
       +'<b>'+esc(EQ.codigo)+'</b>'+((t.hora_de||t.hora_a)?' · '+esc(t.hora_de||'?')+'–'+esc(t.hora_a||'?'):'')

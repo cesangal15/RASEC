@@ -66,6 +66,11 @@
   .sug{background:var(--input-bg);border:1px solid var(--border);border-radius:20px;padding:9px 13px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.2;max-width:100%;text-align:left;font-family:'DM Sans',sans-serif;}
   .sug:active,.sug:hover{border-color:var(--accent);}
   .sug.mas{color:var(--accent-txt);border-style:dashed;}
+  /* D174: actividades habituales (capa 1) encima del centro de coste */
+  .acts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .acts .sug{font-size:14px;padding:11px 14px;min-height:44px;}
+  .acts .sug.sel{border-color:var(--accent);background:rgba(245,166,35,0.12);font-weight:600;}
+  .picker-item.libre{border-style:dashed;color:var(--accent-txt);}
   details.opc{margin-bottom:14px;}
   details.opc summary{cursor:pointer;font-size:13px;color:var(--accent-txt);font-weight:600;padding:8px 0;list-style:none;}
   details.opc summary::before{content:'+ ';}
