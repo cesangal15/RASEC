@@ -32,6 +32,9 @@ BANDEJA/DATA; ID `1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM`). Son CSV con co
      por PR), con el nombre de catálogo del ítem debajo. Donde no había frase clara va el nombre del
      catálogo (hojas UF1/UF2 del Excel; 65 de 194 filas). **Dueño: Jeisson** — corrige frases, quita lo
      que no aplique (`activo=NO`) y añade una fila cuando aparezca un ítem o una forma de decirlo nueva.
+     Correcciones del dueño (sep-2026): `I0408` (transporte de personal) solo en turbo y camión — en
+     vibros, excavadoras, motoniveladoras y tractocamiones era error de digitación y se quitó; `02.10`
+     y `02.11` son ambos transporte de terraplén y se distinguen por DISTANCIA: 100 m a 1 km / más de 1 km.
    - `PARTE_CC_semilla.csv` trae ahora `descripcion_cc` llena desde las hojas UF0–UF3 del Excel (antes vacía).
 3. Volver a ejecutar **`setupParte()`**: repone las columnas que el CSV no trae (`activo`,
    `ultimo_final_manual`) y agrega los pseudo-CC `Taller` · `Disponible` · `Domingo/Festivo` a
