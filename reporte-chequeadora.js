@@ -18,41 +18,47 @@ const TIPOS = ['Terraplén','Puente','UF3','ODL','ODT','Botadero'];
 // teclea la chequeadora en "Especifica el origen" (origenTexto).
 const ORIGEN_PK = { 'Masivo2':'19+800', 'Masivo1':'14+400', 'Diviso':'21+500' };
 
-// Maquinaria (D54): la chequeadora SOLO registra las excavadoras del origen.
-// El selector se limita a las excavadoras; el resto de la flota (bulldozers, motos, vibros, minis…) no aplica aquí.
-// D138: la lista sale de la hoja MAQUINAS filtrando por TIPO, así que una excavadora nueva aparece
-// sola y una devuelta desaparece sola — sin tocar esta pantalla. Antes había que editarla a mano.
-// D136: EXC001/EXC013/EXC014 se devolvieron (ago-2026), así que hoy queda una sola excavadora en obra.
+// Maquinaria (D54, recortada por V3-06(b)/D177): la chequeadora SOLO elige el CÓDIGO de las
+// excavadoras que alimentaron el origen — mismos chips que el capataz (D171). Horas operadas, operador,
+// horas programadas/muertas, motivo y ESTADO YA NO se piden: esos datos los da el Parte Digital (D165)
+// y se revisan en revision-maquinaria.html. La asociación excavadora↔origen es informativa (cruce y
+// trazabilidad, D06); la PRODUCCIÓN de cada excavadora la reparte el backend = total m³ excavado del
+// día (Σ líneas, cubicaje real D53) ÷ nº de excavadoras marcadas (D54, confirmado sep-2026).
+// El selector se limita a las EXCAVADORAS vigentes en la fecha; el resto de la flota no aplica aquí.
+// D136: EXC001/EXC013/EXC014 se devolvieron (ago-2026); EXC015 es el respaldo escrito de último recurso.
 const MAQUINAS_RESPALDO = ['EXC015'];
 const TIPO_RESPALDO = {'EXC015':'EXCAVADORA'};
-let MAQUINAS = MAQUINAS_RESPALDO.slice();
-let TIPO_EQUIPO = Object.assign({}, TIPO_RESPALDO);
-let HORAS_PROG = {};
-function progHoras(id){ return HORAS_PROG[id]!==undefined?HORAS_PROG[id]:6.4; }
-const MOTIVOS = ['Mantenimiento','Sin operador','Falla mecánica','Lluvia / clima','Sin frente de trabajo','Esperando material','Abastecimiento de combustible','Traslado / movilización','Bloqueo','Otro (especificar)'];
-// `actual` se conserva SIEMPRE como opción aunque ya no esté en la flota del día: si al recargar la
-// lista desapareciera la máquina ya elegida, se borraría el dato sin que la chequeadora lo note.
-function maqOptions(actual){
-  const extra = (actual && MAQUINAS.indexOf(actual)<0) ? '<option value="'+esc(actual)+'" selected>'+esc(actual)+' (fuera de la flota del día)</option>' : '';
-  return '<option value="">— Máquina —</option>'+extra+MAQUINAS.map(m=>'<option'+(m===actual?' selected':'')+'>'+esc(m)+'</option>').join('');
+// Estado vivo del catálogo de excavadoras: [{codigo,tipo,placa}]. Arranca con el respaldo escrito para
+// que el bloque sirva desde el primer instante, incluso antes de que responda el servidor (D82).
+let EQUIPOS = MAQUINAS_RESPALDO.map(c=>({codigo:c, tipo:TIPO_RESPALDO[c]||'EXCAVADORA', placa:''}));
+let EQ_IDX = {};
+function indexarEquipos(){ EQ_IDX={}; EQUIPOS.forEach(q=>{ EQ_IDX[q.codigo.toUpperCase()]=q; }); }
+indexarEquipos();
+function tipoDe(cod){ const q=EQ_IDX[String(cod||'').toUpperCase()]; return q?q.tipo:''; }
+// Códigos de excavadora elegidos para este reporte (una vez por reporte, D54), en orden de elección.
+let SEL = [];
+/* D138/D173 — excavadoras vigentes en la fecha del reporte. Mismo catálogo único que el capataz
+ * (PARTE_EQUIPOS servido dentro de `?action=maquinas`, con caída a caché/respaldo sin señal, D82),
+ * filtrado a EXCAVADORA: RETROEXCAVADORA y el resto de la flota no alimentan el origen. Se filtra por
+ * "empieza por EXCAVADORA" para admitir el vocabulario de PARTE_EQUIPOS (EXCAVADORA · EXCAVADORAS ·
+ * EXCAVADORA SOBRE LLANTAS) SIN colar RETROEXCAVADORA (empieza por RETRO). Nunca deja la lista vacía. */
+function excavadorasDe(fl){
+  return TM2Flota.equiposCapataz(fl).filter(function(q){ return q.tipo.toUpperCase().indexOf('EXCAVADORA')===0; });
 }
-/* D138 — excavadoras vigentes en la fecha del reporte, de la hoja MAQUINAS. Mismo patrón que
- * `cargarCubicaje` (D82 §2.7): con señal se refresca y se guarda copia; sin señal se usa la copia. */
 function refrescarFlota(){
   const fecha=(document.getElementById('fecha')||{}).value||'';
   return TM2Flota.cargar(APPS_SCRIPT_URL, fecha, {ids:MAQUINAS_RESPALDO, tipos:TIPO_RESPALDO, prog:{}})
     .then(function(fl){
-      const exc=TM2Flota.deTipo(fl.maquinas, 'EXCAVADORA');
-      // Si la flota del día no trae ninguna excavadora, se conserva la anterior: dejar el selector
+      const exc=excavadorasDe(fl);
+      // Si la flota del día no trae ninguna excavadora, se conserva la anterior: dejar el catálogo
       // vacío le impediría a la chequeadora reportar la máquina del origen (D54).
-      if(exc.length){ MAQUINAS=TM2Flota.ids(exc); TIPO_EQUIPO=TM2Flota.tipos(exc); HORAS_PROG=TM2Flota.progs(exc); }
-      document.querySelectorAll('select.m-id').forEach(function(sel){ sel.innerHTML=maqOptions(sel.value); });
+      if(exc.length){ EQUIPOS=exc; indexarEquipos(); }
+      renderChips();
+      const pk=document.getElementById('eqpick'); if(pk && pk.classList.contains('abierto')) renderPicker();
       const t=TM2Flota.aviso(fl);
       if(t) TM2Offline.bannerCatalogoViejo(document.querySelector('.container'), t);
     });
 }
-function motivoOptions(){ return '<option value="">— Motivo —</option>'+MOTIVOS.map(m=>'<option>'+esc(m)+'</option>').join(''); }
-let maqIdx = 0;
 
 let lineaIdx = 0;
 // Cubicaje real por placa (D53): mapa placa→m³/viaje cacheado al cargar. Vacío = todo cae al factor.
@@ -68,7 +74,8 @@ window.onload = function(){
   document.getElementById('fecha').value = new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
   cargarCubicaje();
   addLinea();
-  // D138: excavadoras vigentes ese día (no bloquea: el selector ya está pintado con el respaldo).
+  renderChips();   // V3-06(b): pinta el bloque de excavadoras (vacío) desde el primer instante
+  // D138: excavadoras vigentes ese día (no bloquea: los chips ya funcionan con el respaldo escrito).
   refrescarFlota();
   document.getElementById('fecha').addEventListener('change', refrescarFlota);
 };
@@ -217,66 +224,81 @@ function onLinea(i){
 }
 function recalcAll(){ document.querySelectorAll('#lineasContainer .linea').forEach((el)=>{ onLinea(el.id.split('_')[1]); }); }
 
-/* ---------- Maquinaria (excavadoras) — D54 ----------
- * Una vez por reporte: las excavadoras que alimentaron el origen. La producción se asigna
- * en el backend = total m³ excavado del día DIVIDIDO en partes iguales entre las máquinas. */
-function addMaquina(){
-  const j=maqIdx++;
-  const row=document.createElement('div'); row.className='eq-item'; row.id='maq_'+j;
-  row.innerHTML=
-    '<div class="eq-top"><select class="m-id" data-on-change="onMaqChange('+j+')">'+maqOptions('')+'</select>'
-    +'<button class="btn-del" data-on-click="delMaquina('+j+')" title="Quitar">✕</button></div>'
-    +'<div class="eq-prog" id="mprog_'+j+'"></div>'
-    +'<div class="grid2">'
-    +'<div class="field" data-estilo="margin:0;"><label>Operador <span class="req">*</span></label><input type="text" class="m-op" placeholder="nombre" data-on-input="refreshMaq()"></div>'
-    +'<div class="field" data-estilo="margin:0;"><label>Horas operadas <span class="req">*</span></label><input type="number" step="any" class="m-hrs" placeholder="0" data-on-input="onMaqChange('+j+')"></div>'
-    +'</div>'
-    +'<div class="eq-diff" id="mdiff_'+j+'"></div>'
-    +'<div class="eq-motivo field" id="mmot_'+j+'" data-estilo="margin:0;"><label>Motivo de horas menos <span class="req">*</span></label>'
-    +'<select class="m-mot-sel" data-on-change="onMaqMot(this);refreshMaq()">'+motivoOptions()+'</select>'
-    +'<input type="text" class="m-mot-otro" placeholder="especifica el motivo" data-estilo="display:none;margin-top:8px;" data-on-input="refreshMaq()"></div>';
-  document.getElementById('maqContainer').appendChild(row);
+/* ---------- Maquinaria (excavadoras) — D54, recortada por V3-06(b)/D177 ----------
+ * Una vez por reporte: SOLO los códigos de las excavadoras que alimentaron el origen (chips con
+ * búsqueda, mismo componente del capataz, D171). La producción de cada una la reparte el backend =
+ * total m³ excavado del día ÷ nº de excavadoras marcadas. Los manejadores van en `data-on-*` (CSP sin
+ * inline, D170); el código viaja como cadena JSON para que un guion o comilla no rompa el intérprete. */
+function renderChips(){
+  const cont=document.getElementById('eqs'); if(!cont) return;
+  cont.innerHTML = SEL.map(cod=>{
+    const q=EQ_IDX[cod.toUpperCase()];
+    const sub = q ? (q.tipo+(q.placa?' · '+q.placa:'')) : 'fuera del catálogo';
+    return '<span class="eq-chip'+(q?'':' fuera')+'"><b>'+esc(cod)+'</b><span class="t">'+esc(sub)+'</span>'
+      +'<button class="x" type="button" title="Quitar" data-on-click="quitarEquipo('+esc(JSON.stringify(cod))+')">✕</button></span>';
+  }).join('');
   refreshMaq();
 }
-function delMaquina(j){ const el=document.getElementById('maq_'+j); if(el) el.remove(); refreshMaq(); }
-function onMaqMot(sel){ const otro=sel.parentElement.querySelector('.m-mot-otro'); otro.style.display=(sel.value==='Otro (especificar)')?'block':'none'; }
-function onMaqChange(j){ updateMaqProg(j); refreshMaq(); }
-function updateMaqProg(j){
-  const row=document.getElementById('maq_'+j); if(!row) return;
-  const id=row.querySelector('.m-id').value;
-  const prog=document.getElementById('mprog_'+j), diff=document.getElementById('mdiff_'+j), mot=document.getElementById('mmot_'+j);
-  if(!id){ prog.style.display='none'; diff.style.display='none'; mot.style.display='none'; return; }
-  const ph=progHoras(id);
-  prog.style.display='block'; prog.innerHTML='Programadas: <b>'+ph+' h</b> · '+(ph===5?'alquilada':'propia');
-  const op=parseFloat(row.querySelector('.m-hrs').value), falt=(!isNaN(op))?+(ph-op).toFixed(2):0;
-  if(falt>0.01){ diff.style.display='block'; diff.textContent='⚠ Operó '+op+' h · '+falt+' h muertas — indica el motivo'; mot.style.display='block'; }
-  else { diff.style.display='none'; mot.style.display='none'; }
+function togglePicker(){
+  const pk=document.getElementById('eqpick'), btn=document.getElementById('eqbtn');
+  const abrir = !pk.classList.contains('abierto');
+  pk.classList.toggle('abierto', abrir);
+  btn.textContent = abrir ? '▲ Listo' : '+ Excavadora';
+  if(abrir){ renderPicker(); const inp=pk.querySelector('input'); if(inp) inp.focus(); }
 }
-function maqMotivo(row){ const sel=row.querySelector('.m-mot-sel').value; return sel==='Otro (especificar)'?(row.querySelector('.m-mot-otro').value.trim()||'Otro'):sel; }
+function renderPicker(filtro){
+  const pk=document.getElementById('eqpick'); if(!pk) return;
+  const inp=pk.querySelector('input');
+  const f=String(filtro!==undefined ? filtro : (inp?inp.value:'')).trim().toUpperCase();
+  const sel=SEL.map(c=>c.toUpperCase());
+  const grupos={}, orden=[];
+  EQUIPOS.forEach(q=>{
+    if(f && (q.codigo+' '+q.tipo+' '+q.placa).toUpperCase().indexOf(f)<0) return;
+    const g=q.tipo||'SIN TIPO'; if(!grupos[g]){ grupos[g]=[]; orden.push(g); } grupos[g].push(q);
+  });
+  let html='<input type="text" placeholder="Buscar código, tipo o placa…" value="'+esc(f)+'" data-on-input="renderPicker(this.value)">';
+  if(!orden.length) html+='<div class="eq-none">Ninguna excavadora coincide con «'+esc(f)+'».</div>';
+  orden.forEach(g=>{
+    html+='<div class="eq-grupo">'+esc(g)+'</div><div class="eq-opts">';
+    grupos[g].forEach(q=>{
+      const on=sel.indexOf(q.codigo.toUpperCase())>=0;
+      html+='<button type="button" class="eq-opt'+(on?' on':'')+'" data-on-click="toggleEquipo('+esc(JSON.stringify(q.codigo))+')">'
+        +(on?'✓ ':'')+esc(q.codigo)+(q.placa?'<span class="p">'+esc(q.placa)+'</span>':'')+'</button>';
+    });
+    html+='</div>';
+  });
+  pk.innerHTML=html;
+  // conservar el foco y el cursor mientras se teclea
+  if(filtro!==undefined){ const ni=pk.querySelector('input'); if(ni){ ni.focus(); ni.setSelectionRange(ni.value.length, ni.value.length); } }
+}
+function toggleEquipo(cod){
+  const k=SEL.findIndex(c=>c.toUpperCase()===String(cod).toUpperCase());
+  if(k>=0) SEL.splice(k,1); else SEL.push(cod);
+  renderChips(); renderPicker();
+}
+function quitarEquipo(cod){
+  const k=SEL.findIndex(c=>c.toUpperCase()===String(cod).toUpperCase());
+  if(k>=0) SEL.splice(k,1);
+  renderChips();
+  const pk=document.getElementById('eqpick'); if(pk && pk.classList.contains('abierto')) renderPicker();
+}
 function refreshMaq(){
-  const rows=document.querySelectorAll('#maqContainer .eq-item');
-  document.getElementById('cntMaq').textContent=rows.length;
-  document.getElementById('emptyMaq').style.display=rows.length?'none':'block';
-  // aviso de cómo se reparte la producción (total excavado ÷ nº de máquinas)
-  const n=getMaquinaria().length, hint=document.getElementById('maqProdHint');
+  const n=SEL.length;
+  document.getElementById('cntMaq').textContent=n;
+  document.getElementById('emptyMaq').style.display=n?'none':'block';
+  // aviso de cómo repartirá el backend la producción (total excavado ÷ nº de excavadoras)
+  const hint=document.getElementById('maqProdHint');
   let tm3=0; document.querySelectorAll('#lineasContainer .linea').forEach(b=>{ tm3+=lineaM3(b); });
   if(n>0 && tm3>0){ hint.style.display='block';
-    hint.innerHTML='Producción por máquina ≈ <b>'+(tm3/n).toLocaleString('es-CO')+'</b> m³ ('+tm3.toLocaleString('es-CO')+' m³ ÷ '+n+').'; }
+    hint.innerHTML='Producción por excavadora ≈ <b>'+(tm3/n).toLocaleString('es-CO')+'</b> m³ ('+tm3.toLocaleString('es-CO')+' m³ ÷ '+n+'). Horas y operador van por el <b>parte digital</b>.'; }
+  else if(n>0){ hint.style.display='block';
+    hint.innerHTML='Horas y operador de cada excavadora van por el <b>parte digital</b> (QR de la cabina). La producción la calcula el sistema.'; }
   else { hint.style.display='none'; }
 }
-// Máquinas válidas para el payload (con id elegido). Operador/horas se validan aparte.
+/* Lista de excavadoras tal como viaja al backend: SOLO código + tipo (informativo) e id_registro de
+ * cliente por máquina para la deduplicación de reenvíos (D82). Sin horas, operador ni motivo (D177). */
 function getMaquinaria(){
-  const out=[];
-  document.querySelectorAll('#maqContainer .eq-item').forEach(row=>{
-    const id=row.querySelector('.m-id').value;
-    if(!id) return;
-    const prog=progHoras(id);
-    const op=parseFloat(row.querySelector('.m-hrs').value)||0;
-    const muertas=+Math.max(0, prog-op).toFixed(2);
-    out.push({ id_registro:TM2Offline.uuid(), id_maquina:id, tipo_equipo:TIPO_EQUIPO[id]||'', operador:row.querySelector('.m-op').value.trim(),
-      horas_programadas:prog, horas_operadas:op, horas_muertas:muertas, motivo: muertas>0.01?maqMotivo(row):'' });
-  });
-  return out;
+  return SEL.map(cod=>({ id_registro:TM2Offline.uuid(), id_maquina:cod, tipo_equipo:tipoDe(cod) }));
 }
 
 function refresh(){
@@ -386,15 +408,9 @@ function validate(){
     if(!pk.value.trim()){ pk.classList.add('field-error'); ok=false; }
     if(!lineaViajes(b)){ bloque.classList.add('field-error'); ok=false; }
   });
-  // maquinaria (opcional): si se eligió una máquina, operador y horas son obligatorios; motivo si hay horas muertas
-  document.querySelectorAll('#maqContainer .eq-item').forEach(row=>{
-    if(!row.querySelector('.m-id').value) return;
-    const opEl=row.querySelector('.m-op'), hEl=row.querySelector('.m-hrs');
-    if(!opEl.value.trim()){ opEl.classList.add('field-error'); ok=false; }
-    if(!(parseFloat(hEl.value)>0)){ hEl.classList.add('field-error'); ok=false; }
-    const motWrap=row.querySelector('.m-mot-sel');
-    if(motWrap && motWrap.parentElement.style.display!=='none' && !motWrap.value){ motWrap.classList.add('field-error'); ok=false; }
-  });
+  // V3-06(b)/D177: la maquinaria es SOLO códigos (opcional). Ya no hay operador ni horas que validar
+  // (esas validaciones —operador obligatorio, horas>0, motivo con horas muertas— desaparecen: los datos
+  // los da el Parte Digital). Un código fuera del catálogo se manda igual (D138); nada que rechazar aquí.
   if(getCantidades().length===0){ if(ok) alert('Agrega al menos un PK con placas válidas y elige el origen.'); return false; }
   return ok;
 }
@@ -445,7 +461,9 @@ async function submitForm(){
 }
 function resetForm(){
   document.getElementById('lineasContainer').innerHTML='';
-  document.getElementById('maqContainer').innerHTML=''; maqIdx=0;
+  SEL=[]; renderChips();                                   // V3-06(b): limpia las excavadoras elegidas
+  const pk=document.getElementById('eqpick'); if(pk){ pk.classList.remove('abierto'); pk.innerHTML=''; }
+  const eb=document.getElementById('eqbtn'); if(eb) eb.textContent='+ Excavadora';
   lineaIdx=0;
   document.getElementById('successScreen').classList.remove('visible');
   document.getElementById('formMain').classList.remove('hidden');

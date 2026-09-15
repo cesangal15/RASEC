@@ -48,6 +48,8 @@
         <option value="Complementario">PK Complementario</option>
         <option value="Otro">Otro origen</option>
       </select>
+    <div class="origen-pill" id="origenPill" data-estilo="display:none;"></div>
+    </div>
     <div class="field" id="origenTextoWrap" data-estilo="display:none;">
       <label>PK del origen (donde se hizo el corte)</label>
       <input type="text" id="origenTexto" placeholder="ej. 22+100">
@@ -67,9 +69,15 @@
 
   <div class="card">
     <div class="section-title">Maquinaria (excavadoras) <span class="count" id="cntMaq">0</span></div>
-    <div id="maqContainer"></div>
-    <div class="empty-hint" id="emptyMaq">Agrega las excavadoras que estuvieron a disposición (opcional)</div>
-    <button class="btn-add" data-on-click="addMaquina()">+ Agregar máquina</button>
+    <!-- V3-06(b)/D177: la chequeadora SOLO elige el CÓDIGO de las excavadoras que alimentaron el origen
+         (mismos chips que el capataz, D171). Horas, operador, motivo y ESTADO salen del Parte Digital (D165). -->
+    <div class="equipos-block">
+      <span class="eqlabel">Excavadoras que alimentaron el origen <span class="opt">(solo el código · horas y operador van en el parte digital)</span></span>
+      <div class="eq-sel" id="eqs"></div>
+      <div class="eq-picker" id="eqpick"></div>
+      <button class="btn-add mini" id="eqbtn" data-on-click="togglePicker()">+ Excavadora</button>
+    </div>
+    <div class="empty-hint" id="emptyMaq">Elige las excavadoras que estuvieron a disposición (opcional)</div>
     <div class="bloque-hint" id="maqProdHint" data-estilo="display:none;"></div>
   </div>
 </div>

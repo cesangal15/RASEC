@@ -83,7 +83,8 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │  GET  ?action=maquinaria_produccion&fecha=…  → frentes×oficial DATA + PK/horas/faltantes  │
 │  GET  ?action=drenajes                        → 147 marcadores ODT + ítems .06/.07 (D70)  │
 │  POST {reporte}                              → escribe BANDEJA + MAQUINARIA (+VOLQUETAS)  │
-│         (D171: equipos del capataz = solo código; horas/operador/motivo NO se escriben)  │
+│         (D171 capataz / D177 chequeadora: equipos = solo código; horas/operador/motivo   │
+│          NO se escriben. Chequeadora: producción col T = total excavado ÷ nº excavadoras) │
 │  POST {action:enviar_data, area}             → pisa DATA del día POR ÁREA + marca bandeja │
 │         (tierras/odt/odl derivada del CC con deriveArea; sin area = tierras — D70)       │
 │  POST {action:maquinaria_produccion}         → parcha col T + crea filas (redir/horas/compl, D60-62)│
@@ -101,9 +102,10 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │              `personal_ayudantes` · `turno_noche` · `nota_libre` (cols 25–28, D70)       │
 │  MAQUINARIA  equipos con producción individual (directo, sin aprobación); interno `area` │
 │              tras produccion_capataz_orig — drenajes = captura libre, a_captura=NO (D70) │
-│              D171: G operador · L horas_operadas · O horas_mantenimiento · R ESTADO ·     │
-│              app_horas_programadas · app_horas_muertas · motivo → VACÍAS desde D171      │
-│              (filas del capataz; layout intacto). Horas/operador/motivo → PARTE_BANDEJA. │
+│              D171/D177: G operador · L horas_operadas · O horas_mantenimiento · R ESTADO ·│
+│              app_horas_programadas · app_horas_muertas · motivo → VACÍAS (capataz desde   │
+│              D171, chequeadora desde D177; layout intacto). Esos datos → PARTE_BANDEJA.   │
+│              Chequeadora: producción col T = Σ m³ excavado ÷ nº excavadoras (D54).        │
 │  PARTE_EQUIPOS · PARTE_BANDEJA · PARTE_* (D165): ficha de cada equipo y parte digital    │
 │              (ver módulo abajo). MAQUINAS (D138/D173) = estancias de TODA la flota con   │
 │              `frente`; el parte espera a los vigentes del día (alerta FUERA_DE_FLOTA).   │
