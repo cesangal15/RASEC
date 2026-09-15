@@ -1322,8 +1322,14 @@ const Paso4={
 
 /* ---------- Modal de detalle + acciones ---------- */
 
-function abrirModal(html){ $('modal').innerHTML=html; $('modal-bg').classList.add('open'); }
-function cerrarModal(){ $('modal-bg').classList.remove('open'); S.ui.detalle=null; }
+function abrirModal(html){
+  // Cualquier modal reemplaza el contenido: si el visor de páginas estaba abierto, deja de estarlo
+  // (verGrande vuelve a fijar su estado después de llamar aquí).
+  if(typeof Paso5!=='undefined') Paso5._visor=null;
+  const m=$('modal'); m.innerHTML=html; m.classList.remove('ancho');
+  $('modal-bg').classList.add('open');
+}
+function cerrarModal(){ $('modal-bg').classList.remove('open'); S.ui.detalle=null; if(typeof Paso5!=='undefined') Paso5._visor=null; }
 
 // Celda de la base tal cual, pero delatando los HUECOS: un 0 o un #¡VALOR! no es un dato
 // (fila a medias), y así César ve de una por qué esa columna se rellenó con la proforma.
@@ -1703,7 +1709,7 @@ function vistaPaso5(){
       onchange="Paso5.setAmbito(${i},this.value)">
       ${['AMBAS','GRANULARES','TERRAPLEN'].map(a=>`<option value="${a}" ${ambitoPdfDe(p)===a?'selected':''}>${etiquetaAmbito(a)}</option>`).join('')}
     </select>${p.ambitoAuto?' <span class="note" style="font-size:10px" title="sugerido por el nombre del archivo — confírmalo">auto</span>':''}`}</td>
-    <td><button class="btn sec mini" onclick="Paso5.verPaginas(${i})">Hojear</button></td></tr>`).join('');
+    <td><button class="btn sec mini" onclick="Paso5.verGrande(${i},1)" title="abre la página 1 en grande; ‹ › o las flechas del teclado para moverte">Hojear</button></td></tr>`).join('');
   const lista=falt.map(rc=>{
     const cands=Paso5._candsDe(rc);   // una fila por página: el contador cuadra con lo que se pinta
     const v=cands.filter(c=>c.nivel==='verde').length, n=cands.filter(c=>c.nivel==='naranja').length;
@@ -1741,7 +1747,8 @@ function vistaPaso5(){
   ${cardPaginasRevisar()}
   <div class="p5-layout">
     <div><h3 style="font-size:13px;color:var(--accent);margin-bottom:8px">Faltantes (${falt.length})</h3>${lista||'<div class="note">Ninguna 🎉</div>'}</div>
-    <div id="p5derecha"><div class="note">Selecciona una faltante a la izquierda, o usa “Hojear” sobre un archivo.</div></div>
+    <div id="p5derecha"><div class="note">Selecciona una faltante a la izquierda, o usa “Hojear” sobre un archivo: sin faltante seleccionada,
+    el visor muestra arriba las faltantes para que marques las que veas en cada página.</div></div>
   </div>`;
 }
 
@@ -1822,6 +1829,27 @@ const Paso5={
     if(!rev.length){ toast('🎉 No quedan páginas por revisar.'); return; }
     this.revisar(rev[0].fi,rev[0].pg);
   },
+  // Botones de las faltantes sin confirmar para una página dada: los que el OCR leyó a un
+  // dígito van resaltados con ≈. Las de la otra base (por el ámbito del PDF) quedan plegadas,
+  // a un clic por si el ámbito estaba mal. `accion` = método de Paso5 que recibe (rcId,fi,pg):
+  // 'asignarFaltante' (revisión guiada: cierra y avanza) o 'marcarDesdeVisor' (visor: se queda).
+  _chipsFaltantes(fileIdx,pg,accion){
+    const p=S.pdfs[fileIdx]; if(!p) return {chips:'',chipsOtras:'',falt:[],otras:[]};
+    const toks=S.ocr.paginas[p.name+'#'+pg]||[];
+    const amb=ambitoPdfDe(p);
+    const faltTodas=faltantes();
+    const falt=faltTodas.filter(rc=>ambitoCompatible(amb,rc.ambito));
+    const otras=faltTodas.filter(rc=>!ambitoCompatible(amb,rc.ambito));
+    const chip=rc=>{
+      const cerca=toks.some(t=>dist1(t,rc.remision)<=1||sinCeros(t)===rc.remSC);
+      return `<button class="btn mini ${cerca?'':'sec'} mono" title="confirmar esta página como comprobante de ${escapeHtml(rc.remision)}"
+        onclick="Paso5.${accion}('${rc.id}',${fileIdx},${pg})">${escapeHtml(rc.remision)}${cerca?' ≈':''}</button>`;
+    };
+    const chips=falt.map(chip).join(' ');
+    const chipsOtras=otras.length?`<details style="margin-bottom:8px"><summary class="note" style="cursor:pointer">${otras.length} faltante${otras.length===1?'':'s'} de la otra base oculta${otras.length===1?'':'s'} (este PDF está marcado “${etiquetaAmbito(amb)}”)</summary>
+      <div class="flexrow" style="margin-top:6px">${otras.map(chip).join(' ')}</div></details>`:'';
+    return {chips,chipsOtras,falt,otras};
+  },
   // Modal: la página en grande + la lista de faltantes sin confirmar. Un clic en la
   // faltante = confirmar comprobante; "No es ninguna" = descartar la página (reproceso).
   async revisar(fileIdx,pg){
@@ -1834,15 +1862,7 @@ const Paso5={
     const otras=faltTodas.filter(rc=>!ambitoCompatible(amb,rc.ambito));
     const rev=this._porRevisar();
     const idx=rev.findIndex(x=>x.fi===fileIdx&&x.pg===pg);
-    const chip=rc=>{
-      const cerca=toks.some(t=>dist1(t,rc.remision)<=1||sinCeros(t)===rc.remSC);
-      return `<button class="btn mini ${cerca?'':'sec'} mono" title="confirmar esta página como comprobante de ${escapeHtml(rc.remision)}"
-        onclick="Paso5.asignarFaltante('${rc.id}',${fileIdx},${pg})">${escapeHtml(rc.remision)}${cerca?' ≈':''}</button>`;
-    };
-    const chips=falt.map(chip).join(' ');
-    // faltantes de la otra base: ocultas por el ámbito del PDF, pero a un clic por si el ámbito está mal
-    const chipsOtras=otras.length?`<details style="margin-bottom:8px"><summary class="note" style="cursor:pointer">${otras.length} faltante${otras.length===1?'':'s'} de la otra base oculta${otras.length===1?'':'s'} (este PDF está marcado “${etiquetaAmbito(amb)}”)</summary>
-      <div class="flexrow" style="margin-top:6px">${otras.map(chip).join(' ')}</div></details>`:'';
+    const {chips,chipsOtras}=this._chipsFaltantes(fileIdx,pg,'asignarFaltante');
     abrirModal(`<h3>🧐 Revisar parte — ${escapeHtml(p.name)} · página ${pg}</h3>
       <div class="kv" style="margin:6px 0 8px">
         <span>${toks.length?'OCR leyó: <b class="mono">'+escapeHtml(toks.join(', '))+'</b>':'OCR sin lectura'}${S.ocr.editadas[key]?' ✏️ (corregida a mano)':''}</span>
@@ -2274,8 +2294,8 @@ const Paso5={
     if(!cands.length) html+='<div class="note">Sin candidatos OCR (corre el OCR o usa el navegador manual de abajo).</div>';
     html+='<div id="candPaginas"></div>';
     html+=`<h3 style="font-size:13px;color:var(--accent);margin:14px 0 8px">Navegador manual de páginas</h3>
-      <div class="note" style="margin-bottom:8px">Hojea cualquier archivo y asigna la página a la faltante seleccionada.</div>
-      ${S.pdfs.map((p,i)=>`<button class="btn sec mini" onclick="Paso5.verPaginas(${i})">${escapeHtml(p.name)} (${p.numPages})</button>`).join(' ')}`;
+      <div class="note" style="margin-bottom:8px">Hojea cualquier archivo (‹ › o flechas del teclado) y confirma la página para la faltante seleccionada.</div>
+      ${S.pdfs.map((p,i)=>`<button class="btn sec mini" onclick="Paso5.verGrande(${i},1)">${escapeHtml(p.name)} (${p.numPages})</button>`).join(' ')}`;
     cont.innerHTML=html;
     const cp=$('candPaginas');
     for(const c of cands.slice(0,6)){
@@ -2310,6 +2330,7 @@ const Paso5={
     setEstado(rc,'PENDIENTE_DIGITACION','comprobante confirmado en '+p.name+' p.'+page,false);
     S.ui.faltanteSel=null;
     autosave(); render();
+    this._visorRefrescar();   // si se confirmó desde el visor, sus botones pasan al modo general
     toast('✅ '+rc.remision+' → Pendiente digitación');
   },
   esAsfalto(rcId,fileIdx,page){
@@ -2319,6 +2340,7 @@ const Paso5={
     setEstado(rc,'EXCLUIDA_ASFALTO','parte de asfalto en '+p.name+' p.'+page,false);
     S.ui.faltanteSel=null;
     autosave(); render();
+    this._visorRefrescar();
   },
   noEs(rcId,candIdx){
     const rc=S.corte.reclamos.find(r=>r.id===rcId); if(!rc) return;
@@ -2326,45 +2348,165 @@ const Paso5={
     S.ocr.descartados[rc.remision+'|'+c.key]=true;
     autosave(); render();
   },
+  /* ---- Visor de páginas ("Hojear", sep-2026) ----
+     "Hojear" entra DIRECTO a la vista grande de la página 1 (las miniaturas a 110 px no dejaban
+     leer nada y obligaban a abrir la grande de todas formas; renderizarlas todas costaba además
+     segundos en PDFs pesados). El índice de páginas es una tira de botones coloreados con lo que
+     ya sabe el OCR de cada página (dato, no render). La galería de miniaturas sigue disponible
+     bajo demanda (botón ▦) y con el cierre fijo arriba.
+     Estado: `_visor={fi,pg}` solo mientras el visor está en pantalla (abrirModal/cerrarModal lo
+     limpian). Navegación con ‹ › y flechas del teclado; Esc cierra. */
+  _visor:null,
+  _visorGen:0,
+  _visorVecinos(fileIdx,pg){
+    const p=S.pdfs[fileIdx]; const total=(p&&!p.error)?p.numPages:0;
+    return {total,prev:pg>1?pg-1:null,next:pg<total?pg+1:null};
+  },
+  _visorAbierto(){
+    if(!this._visor) return false;
+    const bg=$('modal-bg'); return !!(bg&&bg.classList.contains('open'));
+  },
+  cerrarVisor(){ this._visor=null; cerrarModal(); },
+  visorIr(fileIdx,pg){
+    const v=this._visorVecinos(fileIdx,pg); if(!v.total) return;
+    pg=Math.max(1,Math.min(v.total,Math.floor(+pg||1)));
+    this.verGrande(fileIdx,pg);
+  },
+  visorIrInput(fileIdx){ const inp=$('visorIrPag'); if(inp&&inp.value) this.visorIr(fileIdx,inp.value); },
+  // Flechas ← → cambian de página y Esc cierra, solo con el visor abierto y sin estar escribiendo.
+  _visorKey(e){
+    if(!this._visorAbierto()) return;
+    const tag=e.target&&e.target.tagName;
+    if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+    const {fi,pg}=this._visor;
+    const v=this._visorVecinos(fi,pg);
+    if(e.key==='ArrowLeft'&&v.prev){ e.preventDefault(); this.verGrande(fi,v.prev); }
+    else if(e.key==='ArrowRight'&&v.next){ e.preventDefault(); this.verGrande(fi,v.next); }
+    else if(e.key==='Escape'){ e.preventDefault(); this.cerrarVisor(); }
+  },
+  // Modo general (sin faltante seleccionada): marcar una faltante sobre la página que se está
+  // viendo. Igual que confirmar desde el Paso 5 (evidencia + PENDIENTE_DIGITACION + historial +
+  // autosave), pero el visor NO se cierra ni avanza: una hoja puede traer 2–3 partes faltantes
+  // y a veces hay que seguir buscando en la misma. Es el camino de respaldo cuando el filtro y
+  // la revisión del OCR no dieron con el parte: el OCR propone, César confirma viendo la página.
+  marcarDesdeVisor(rcId,fileIdx,pg){
+    const rc=S.corte&&S.corte.reclamos.find(r=>r.id===rcId); if(!rc) return;
+    if(rc.estado!=='NO_ENCONTRADA') return;   // doble clic / chip viejo: ya no es faltante
+    const p=S.pdfs[fileIdx]; if(!p) return;
+    rc.evidencia={archivo:p.name,pagina:pg};
+    setEstado(rc,'PENDIENTE_DIGITACION','comprobante confirmado en '+p.name+' p.'+pg+' (visor de páginas)',false);
+    autosave(); render();          // el Paso 5 de fondo (lista de faltantes, cobertura) se actualiza
+    this._visorRefrescar();        // la remisión sale de la lista; la página sigue abierta
+    toast('✅ '+rc.remision+' → Pendiente digitación · la página sigue abierta');
+  },
+  // Cabecera de acciones del visor: con faltante seleccionada, los botones de siempre; sin ella,
+  // las faltantes como botones (misma lista y mismo ≈ que la revisión guiada).
+  _visorAcciones(fileIdx,pg){
+    const selId=S.ui.faltanteSel;
+    const rc=selId&&S.corte?S.corte.reclamos.find(r=>r.id===selId):null;
+    const porRevisar=this._porRevisar().some(x=>x.fi===fileIdx&&x.pg===pg);
+    const extra=`${porRevisar?`<button class="btn mini" onclick="Paso5.revisar(${fileIdx},${pg})">🧐 Revisar contra faltantes</button>`:''}
+      <button class="btn sec mini" onclick="Paso5.editarLectura(${fileIdx},${pg})">✏️ Corregir lectura OCR</button>`;
+    if(rc){
+      return `<div class="flexrow" style="margin-bottom:8px">
+        <button class="btn mini ok" onclick="Paso5.confirmar('${rc.id}',${fileIdx},${pg})">✔ Confirmar para ${escapeHtml(rc.remision)}</button>
+        <button class="btn mini sec" onclick="Paso5.esAsfalto('${rc.id}',${fileIdx},${pg})">Es ASFALTO</button>
+        ${extra}</div>`;
+    }
+    const {chips,chipsOtras,falt,otras}=this._chipsFaltantes(fileIdx,pg,'marcarDesdeVisor');
+    const p=S.pdfs[fileIdx]; const toks=p?(S.ocr.paginas[p.name+'#'+pg]||[]):[];
+    return `<div class="visor-falt">
+      <div class="note" style="margin-bottom:6px">Faltantes sin confirmar (${falt.length}): clic en la que veas en esta página y queda confirmada
+      —puedes marcar varias sobre la misma hoja, la página no se cierra—. ≈ = a un dígito de lo que leyó el OCR
+      ${toks.length?'(leyó: <b class="mono">'+escapeHtml(toks.join(', '))+'</b>)':'(sin lectura en esta página)'}.</div>
+      <div class="flexrow" style="margin-bottom:6px">${chips||'<span class="note">no quedan faltantes '+(otras.length?'de este ámbito ':'')+'por confirmar 🎉</span>'}</div>
+      ${chipsOtras}
+      <div class="flexrow">${extra}</div>
+    </div>`;
+  },
+  // Tira-índice de páginas: un botón por página, coloreado por lo que el OCR sabe de ella.
+  _visorTira(fileIdx,pg){
+    const p=S.pdfs[fileIdx]; if(!p||p.error) return '';
+    const cat={};
+    for(const x of clasificarPaginas().paginas) if(x.fi===fileIdx) cat[x.pg]=x.cat;
+    let h='';
+    for(let i=1;i<=p.numPages;i++)
+      h+=`<button class="vp ${cat[i]||''} ${i===pg?'cur':''}" title="p.${i}${cat[i]?' · '+cat[i].replace('_',' '):''}" onclick="Paso5.verGrande(${fileIdx},${i})">${i}</button>`;
+    return `<div class="visor-tira" id="visorTira">${h}</div>
+      <div class="note" style="margin:4px 0 8px;font-size:10.5px"><span class="vp-leg evidencia"></span> confirmada
+      <span class="vp-leg candidata"></span> con candidato <span class="vp-leg sin_lectura"></span> sin lectura
+      <span class="vp-leg sin_coincidencia"></span> leída sin coincidencia <span class="vp-leg descartada"></span> descartada</div>`;
+  },
+  _visorRefrescar(){
+    if(!this._visorAbierto()) return;
+    const {fi,pg}=this._visor;
+    const a=$('visorAcciones'); if(a) a.innerHTML=this._visorAcciones(fi,pg);
+    const t=$('visorTiraWrap'); if(t) t.innerHTML=this._visorTira(fi,pg);
+  },
+  async verGrande(fileIdx,page){
+    const p=S.pdfs[fileIdx]; if(!p||p.error){ toast('Ese archivo no abre.'); return; }
+    this._thumbCancel=true;   // si venía de la galería, que deje de renderizar miniaturas
+    const v=this._visorVecinos(fileIdx,page);
+    page=Math.max(1,Math.min(v.total,page||1));
+    const gen=++this._visorGen;
+    abrirModal(`<div class="visor-head">
+        <h3>${escapeHtml(p.name)} · página ${page} <span class="note">de ${v.total}</span></h3>
+        <div class="flexrow">
+          <button class="btn sec mini" ${v.prev?`onclick="Paso5.verGrande(${fileIdx},${v.prev})"`:'disabled'} title="página anterior (←)">‹ anterior</button>
+          <input type="number" id="visorIrPag" class="visor-ir" min="1" max="${v.total}" value="${page}" title="ir a la página… (Enter)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();Paso5.visorIrInput(${fileIdx});}" onchange="Paso5.visorIrInput(${fileIdx})">
+          <button class="btn sec mini" ${v.next?`onclick="Paso5.verGrande(${fileIdx},${v.next})"`:'disabled'} title="página siguiente (→)">siguiente ›</button>
+          <button class="btn sec mini" onclick="Paso5.verPaginas(${fileIdx})" title="galería de miniaturas de este archivo">▦ Miniaturas</button>
+          <button class="btn sec mini visor-x" onclick="Paso5.cerrarVisor()" title="cerrar el visor (Esc)">✕</button>
+        </div>
+      </div>
+      <div id="visorAcciones">${this._visorAcciones(fileIdx,page)}</div>
+      <div id="visorTiraWrap">${this._visorTira(fileIdx,page)}</div>
+      <div class="pagina-view visor-pagina" id="pgGrande"><div class="note">renderizando…</div></div>`);
+    $('modal').classList.add('ancho');
+    this._visor={fi:fileIdx,pg:page};
+    try{
+      const c=await this.pagDom(fileIdx,page,1.8);
+      if(gen!==this._visorGen) return;   // ya se pasó a otra página: este render quedó obsoleto
+      const cont=$('pgGrande'); if(cont&&c){ cont.innerHTML=''; cont.appendChild(c); }
+    }catch(e){ const cont=$('pgGrande'); if(cont) cont.textContent='error: '+e.message; }
+  },
+  // Galería de miniaturas (bajo demanda). El cierre va FIJO arriba y todas las celdas se crean
+  // de entrada con su alto reservado: antes cada miniatura que llegaba empujaba el botón de
+  // cerrar hacia abajo y no se podía pulsar hasta que terminaban de cargar todas.
   async verPaginas(fileIdx){
     const p=S.pdfs[fileIdx]; if(!p||p.error){ toast('Ese archivo no abre.'); return; }
     this._thumbCancel=true; await new Promise(r=>setTimeout(r,30)); this._thumbCancel=false;
     const selId=S.ui.faltanteSel;
     const rc=selId?S.corte.reclamos.find(r=>r.id===selId):null;
-    abrirModal(`<h3>${escapeHtml(p.name)} — ${p.numPages} páginas ${rc?`· asignando a <span class="mono">${escapeHtml(rc.remision)}</span>`:'<span class="note">(sin faltante seleccionada: solo lectura)</span>'}</h3>
-      <div class="thumbs" id="thumbsGrid"></div>
-      <div style="margin-top:12px;text-align:right"><button class="btn sec mini" onclick="cerrarModal()">Cerrar</button></div>`);
+    abrirModal(`<div class="visor-head">
+        <h3>${escapeHtml(p.name)} — ${p.numPages} páginas ${rc?`· asignando a <span class="mono">${escapeHtml(rc.remision)}</span>`:'<span class="note">(clic en una página para verla en grande)</span>'}</h3>
+        <div class="flexrow">
+          <button class="btn sec mini" onclick="Paso5.verGrande(${fileIdx},1)">Ver en grande</button>
+          <button class="btn sec mini visor-x" onclick="Paso5.cerrarVisor()" title="cerrar (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="thumbs" id="thumbsGrid"></div>`);
+    this._visor={fi:fileIdx,pg:1};   // para que Esc cierre también la galería
     const grid=$('thumbsGrid');
+    // alto reservado por celda = el de la página 1 a 106 px de ancho (el interior de .thumb)
+    let alto=140;
+    try{ if(p.kind==='pdf'){ const vp=(await p.doc.getPage(1)).getViewport({scale:1}); alto=Math.round(106*vp.height/vp.width); } }catch(_){}
+    const celdas=[];
+    for(let pg=1;pg<=p.numPages;pg++){
+      const d=document.createElement('div'); d.className='thumb';
+      d.innerHTML=`<div class="tph" style="height:${alto}px">p.${pg}</div><div class="tlab">p.${pg}</div>`;
+      d.onclick=()=>Paso5.verGrande(fileIdx,pg);
+      grid.appendChild(d); celdas.push(d);
+    }
     for(let pg=1;pg<=p.numPages;pg++){
       if(this._thumbCancel||!document.body.contains(grid)) break;
-      const d=document.createElement('div'); d.className='thumb';
-      d.innerHTML=`<div class="tlab">p.${pg}</div>`;
-      d.onclick=()=>Paso5.verGrande(fileIdx,pg);
-      grid.appendChild(d);
       try{
         const c=await this.pagDom(fileIdx,pg,0.3);
-        if(c) d.insertBefore(c,d.firstChild);
+        const ph=celdas[pg-1].querySelector('.tph');
+        if(c&&ph) ph.replaceWith(c);
       }catch(_){}
     }
-  },
-  async verGrande(fileIdx,page){
-    const p=S.pdfs[fileIdx];
-    const selId=S.ui.faltanteSel;
-    const rc=selId?S.corte.reclamos.find(r=>r.id===selId):null;
-    const porRevisar=this._porRevisar().some(x=>x.fi===fileIdx&&x.pg===page);
-    abrirModal(`<h3>${escapeHtml(p.name)} · página ${page}</h3>
-      <div class="flexrow" style="margin-bottom:8px">
-        ${rc?`<button class="btn mini ok" onclick="Paso5.confirmar('${rc.id}',${fileIdx},${page})">✔ Confirmar para ${escapeHtml(rc.remision)}</button>
-        <button class="btn mini sec" onclick="Paso5.esAsfalto('${rc.id}',${fileIdx},${page})">Es ASFALTO</button>`:'<span class="note">Selecciona una faltante en el Paso 5 para poder asignar esta página.</span>'}
-        ${porRevisar?`<button class="btn mini" onclick="Paso5.revisar(${fileIdx},${page})">🧐 Revisar contra faltantes</button>`:''}
-        <button class="btn sec mini" onclick="Paso5.editarLectura(${fileIdx},${page})">✏️ Corregir lectura OCR</button>
-        <button class="btn sec mini" onclick="Paso5.verPaginas(${fileIdx})">← Volver a miniaturas</button>
-      </div>
-      <div class="pagina-view" id="pgGrande"><div class="note">renderizando…</div></div>`);
-    try{
-      const c=await this.pagDom(fileIdx,page,1.8);
-      const cont=$('pgGrande'); if(cont){ cont.innerHTML=''; cont.appendChild(c); }
-    }catch(e){ const cont=$('pgGrande'); if(cont) cont.textContent='error: '+e.message; }
   }
 };
 
@@ -3142,6 +3284,7 @@ function init(){
     }
   }catch(e){ console.warn('autosave ilegible',e); }
   const inp=$('sesionFileInput'); if(inp) inp.onchange=function(){ Sesion.importar(this); };
+  if(document.addEventListener) document.addEventListener('keydown',e=>Paso5._visorKey(e));   // ← → Esc en el visor de páginas
   render();
 }
 

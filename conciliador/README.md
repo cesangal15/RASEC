@@ -30,7 +30,7 @@ navegador las descarga; después quedan en caché del navegador.
 | 2 · Abrir corte | Eliges contratista + quincena | Rechaza empresas vetadas (ORTIZ, VOLKETSA, Betulia). Un contratista a la vez. |
 | 3 · Cargar proforma | 1..N `.xlsx` del contratista | Auto-detecta encabezado (títulos arriba, alias de columna), enruta hojas por patrones (PUTANA→GRANULARES, INTERNO→interno, Hoja1→ignorar…), explota celdas multi-remisión, detecta pares sospechosos "¿lista o rango?" y concilia al instante. Hoja no reconocida → tú la señalas (y guardas la regla). El botón "cambiar" de cada hoja reasigna la base **o la saca del corte con IGNORAR** (reversible mientras no recargues la página). |
 | 4 · Conciliación | Revisas el tablero por estados | Llave cerrada: remisión exacta (texto, ceros incluidos) + empresa ∈ alias + fecha ≥ mínima. 0 candidatos → NO_ENCONTRADA (con sugerencias: "existe con otra empresa" y "existe en la otra base"); 1 → clasificador (solo UF3 excluye; áreas PLANTA/PUENTE/TM1/ODT… van al acta con observación); >1 → eliges tú. Si una hoja entera parece estar en la base equivocada, sale un aviso con un botón para cambiarla de ámbito y re-conciliar. |
-| 5 · Investigación PDF | Cargas los PDFs de partes, marcas el **ámbito** de cada uno y corres el OCR | Cada PDF lleva un ámbito **"Partes de…"** (Granulares / Terraplén / Mezclado; sugerido por el nombre del archivo con las mismas reglas de hojas del contratista, marca *auto* hasta que lo confirmes): sus páginas se cruzan ÚNICAMENTE con las faltantes de esa base — un número parecido de la otra base ya no genera candidatos falsos ni vuelve la página "candidata" en la cobertura; "Mezclado (ambas)" busca contra todas (comportamiento anterior, y el default cuando el nombre no da señal). Cambiar el ámbito poda los candidatos incompatibles y re-cruza al instante (los comprobantes ya confirmados no se tocan). En la revisión guiada las faltantes de la otra base quedan plegadas ("N faltantes de la otra base ocultas"), a un clic por si el ámbito estaba mal. Búsqueda dirigida SOLO de las no-encontradas (listadas de menor a mayor por número de remisión, en la lista lateral y en los botones del modal de revisión): pasada roja por franjas (número impreso arriba-derecha, 1–3 partes/página), **pasada C para el tiquete de báscula** (presentación nueva de PUTANA: el número se lee de su rótulo, ver abajo) y pasada gris de respaldo a página completa (AVENSA). Verde = exacto, naranja = 1 dígito. NUNCA auto-confirma: tú ves la página y decides (Confirmar / Es ASFALTO / No es). Además, el panel "Cobertura del OCR por página" muestra la vista inversa: páginas SIN lectura o cuyo número no coincide con nada reclamado. El botón **"▶ Revisar contra las faltantes"** las recorre una por una: ves el parte, la lista de faltantes sin confirmar como botones (≈ marca las que están a 1 dígito de lo leído) y con UN clic confirmas el comprobante; o pulsas **"✕ No es ninguna faltante"** y la página se descarta de la lista (es reproceso: remisión que ya está en la base). Las descartadas se pueden ver y restaurar con ↩ (y corregir su lectura las re-abre). El ✏️ para corregir la lectura del OCR sigue disponible (si el número corregido es una faltante pasa a candidato; si es de una remisión ya conciliada, la página sale de la revisión). Por revisar y descartadas salen en el resumen del Paso 7. Navegador manual de miniaturas siempre disponible. **Un renglón por PÁGINA (ago-2026):** si el OCR leía en la misma hoja el número exacto y otro a un dígito, la página salía dos veces; ahora se fusionan en un solo candidato (mejor nivel, con las lecturas de la página a la vista) y el contador verde/naranja de la lista de faltantes cuadra con lo que se pinta. |
+| 5 · Investigación PDF | Cargas los PDFs de partes, marcas el **ámbito** de cada uno y corres el OCR | Cada PDF lleva un ámbito **"Partes de…"** (Granulares / Terraplén / Mezclado; sugerido por el nombre del archivo con las mismas reglas de hojas del contratista, marca *auto* hasta que lo confirmes): sus páginas se cruzan ÚNICAMENTE con las faltantes de esa base — un número parecido de la otra base ya no genera candidatos falsos ni vuelve la página "candidata" en la cobertura; "Mezclado (ambas)" busca contra todas (comportamiento anterior, y el default cuando el nombre no da señal). Cambiar el ámbito poda los candidatos incompatibles y re-cruza al instante (los comprobantes ya confirmados no se tocan). En la revisión guiada las faltantes de la otra base quedan plegadas ("N faltantes de la otra base ocultas"), a un clic por si el ámbito estaba mal. Búsqueda dirigida SOLO de las no-encontradas (listadas de menor a mayor por número de remisión, en la lista lateral y en los botones del modal de revisión): pasada roja por franjas (número impreso arriba-derecha, 1–3 partes/página), **pasada C para el tiquete de báscula** (presentación nueva de PUTANA: el número se lee de su rótulo, ver abajo) y pasada gris de respaldo a página completa (AVENSA). Verde = exacto, naranja = 1 dígito. NUNCA auto-confirma: tú ves la página y decides (Confirmar / Es ASFALTO / No es). Además, el panel "Cobertura del OCR por página" muestra la vista inversa: páginas SIN lectura o cuyo número no coincide con nada reclamado. El botón **"▶ Revisar contra las faltantes"** las recorre una por una: ves el parte, la lista de faltantes sin confirmar como botones (≈ marca las que están a 1 dígito de lo leído) y con UN clic confirmas el comprobante; o pulsas **"✕ No es ninguna faltante"** y la página se descarta de la lista (es reproceso: remisión que ya está en la base). Las descartadas se pueden ver y restaurar con ↩ (y corregir su lectura las re-abre). El ✏️ para corregir la lectura del OCR sigue disponible (si el número corregido es una faltante pasa a candidato; si es de una remisión ya conciliada, la página sale de la revisión). Por revisar y descartadas salen en el resumen del Paso 7. Navegador manual de páginas siempre disponible (**visor «Hojear»**, ver abajo). **Un renglón por PÁGINA (ago-2026):** si el OCR leía en la misma hoja el número exacto y otro a un dígito, la página salía dos veces; ahora se fusionan en un solo candidato (mejor nivel, con las lecturas de la página a la vista) y el contador verde/naranja de la lista de faltantes cuadra con lo que se pinta. |
 | 6 · Resolución manual | Decides las dudosas | Cola de revisión manual, múltiples, duplicadas y alertas de internos >3 km. Cada transición queda auditada (estado anterior/nuevo, fecha-hora, nota). |
 | 7 · Exportes | Copias/descargas | Bloque acta (TSV al portapapeles + .xlsx), **bloque acta de PENDIENTES** (mismo modelo A..S con lo que sabe la proforma y CC propuesto — ver abajo), Excel digitadora y PDF de pendientes — ambos en el MISMO orden: fecha de la proforma de menor a mayor y, dentro del día, remisión de menor a mayor (páginas deduplicadas), para que la digitadora trabaje renglón a página — y resumen del corte. |
 
@@ -238,6 +238,44 @@ Notas del seed de reglas de hojas (además de las 4 del ejemplo de la spec):
 - Nombre de mes (`JUNIO 2026` de ASOTRASAAT) → **AMBAS**: busca en las dos bases;
   si aparece en ambas cae a `MULTIPLE_EN_BASE` (nunca asume mal).
 
+### Visor de páginas «Hojear» (sep-2026)
+
+El botón **Hojear** de cada archivo (y los del navegador manual del Paso 5) entra
+**directo a la vista grande** de la página 1. Las miniaturas a 110 px no dejaban
+leer nada —siempre había que abrir la grande— y renderizarlas todas costaba
+segundos en PDFs pesados, así que dejaron de ser la entrada:
+
+- **Índice liviano:** una tira con un botón por página, coloreado con lo que el
+  OCR ya sabe de cada una (confirmada · con candidato · sin lectura · leída sin
+  coincidencia · descartada · sin procesar). Es dato, no render: cuesta cero
+  aunque el PDF tenga 200 páginas. Más un campo «ir a la página».
+- **Navegación:** `‹ anterior` / `siguiente ›` y las **flechas ← →** del teclado;
+  **Esc** cierra; la **✕** va en la cabecera del visor, siempre visible. Las
+  flechas no actúan mientras escribes en un campo.
+- **Con una faltante seleccionada** en el Paso 5: lo de siempre, «✔ Confirmar
+  para X» / «Es ASFALTO» sobre la página que estás viendo.
+- **Sin faltante seleccionada (modo general):** arriba salen las **faltantes sin
+  confirmar como botones** —la misma lista y el mismo ≈ (a un dígito de lo que
+  leyó el OCR) que la revisión guiada; las de la otra base quedan plegadas por
+  el ámbito del PDF—. Un clic confirma esa remisión sobre la página: evidencia,
+  `PENDIENTE_DIGITACION`, historial y autosave, **igual que confirmar desde el
+  Paso 5**. La remisión desaparece de la lista pero **la página no se cierra ni
+  avanza**: una hoja puede traer dos o tres partes faltantes, y a veces hay que
+  seguir buscando en la misma. Es el camino de respaldo cuando el filtro y la
+  revisión del OCR no dieron con el parte. La regla no cambia: el OCR propone,
+  tú confirmas viendo la página.
+- **Miniaturas bajo demanda** (botón ▦): la galería sigue existiendo, con el
+  cierre **fijo arriba** y todas las celdas creadas de entrada con el alto de la
+  página reservado —antes cada miniatura que llegaba empujaba el botón Cerrar y
+  no se alcanzaba a pulsar hasta que cargaban todas—.
+
+Todo lo que va al DOM sigue siendo la **copia** que entrega `pagDom` (D114b): el
+canvas maestro del caché nunca se inserta.
+
+Verificación: `node backend/pruebas/verificar_conciliador_visor_paginas.js` (DOM
+mínimo simulado, sin pdf.js) y prueba en Chromium de escritorio con un PDF de 40
+páginas (pdf.js 3.11.174 real). Pendiente validar con los PDFs reales del corte.
+
 ### ¿Puedo dejarlo leyendo e irme a hacer otra cosa?
 
 Sí. Mientras el OCR corre:
@@ -431,4 +469,5 @@ node backend/pruebas/verificar_conciliador_paso5_candidatos.js      # un rengló
 node backend/pruebas/verificar_conciliador_ignorar_hoja.js          # IGNORAR una hoja del corte
 node backend/pruebas/verificar_conciliador_ocr_umbral_rojo.js       # umbral rojo adaptativo
 node backend/pruebas/verificar_conciliador_ocr_tiquete.js           # tiquete de báscula de PUTANA (pasada C)
+node backend/pruebas/verificar_conciliador_visor_paginas.js         # visor «Hojear»: navegación, cierre fijo, marcar faltantes desde la página
 ```
