@@ -1,6 +1,7 @@
 # TM2 Sur — Modo sin conexión (D82)
 
-Los reportes de campo (**capataz, chequeadora, drenajes y asistencia**) funcionan **sin señal**:
+Los reportes de campo (**capataz, chequeadora, drenajes, asistencia** y, desde D176, el **parte digital de
+maquinaria** que el operador abre por QR) funcionan **sin señal**:
 la app abre desde el ícono, el formulario se llena normal y el envío queda **guardado en el
 teléfono** hasta que vuelva la señal. Los paneles de revisión (encargado, residente, jefe,
 resúmenes) **siguen necesitando conexión** — sin señal muestran un aviso, no una pantalla rota.
@@ -37,8 +38,14 @@ residente/admin avise que "se subió una versión nueva"). Con señal, la app se
 abrirla; esa copia fresca es la que después funciona sin señal en el frente.
 
 Lo mismo aplica a los **catálogos**: la pantalla de drenajes (marcadores/ítems), la de chequeadora
-(cubicaje) y la de asistencia (roster de la cuadrilla) guardan una copia local **la última vez que
-abrieron con señal**. Abrirlas con señal de vez en cuando mantiene esa copia al día.
+(cubicaje), la de asistencia (roster de la cuadrilla) y el **parte de maquinaria** (ficha del equipo:
+último medidor, operadores, actividades) guardan una copia local **la última vez que abrieron con
+señal**. Abrirlas con señal de vez en cuando mantiene esa copia al día.
+
+📶 **Parte de maquinaria (D176):** cada equipo guarda SU ficha en el teléfono desde el que se escanea
+su QR. La primera vez que un teléfono abre el parte de un equipo tiene que ser **con señal**; desde
+ahí, ese teléfono puede reportar ese equipo sin señal. Sin copia guardada la pantalla lo dice
+(«abre el parte una vez con señal»), no falla en silencio.
 
 ---
 
@@ -85,6 +92,11 @@ abrieron con señal**. Abrirlas con señal de vez en cuando mantiene esa copia a
 - [ ] **(g) Asistencia sin señal** → roster desde la copia local (banner con la fecha de la copia),
       envío encolado naranja; al volver la señal, el día+cuadrilla queda con el contenido del
       **último** envío (upsert idempotente, sin duplicados).
+- [ ] **(h) Parte de maquinaria sin señal (D176)** → abrir el QR del equipo con señal una vez; luego
+      en modo avión: la pantalla abre con el banner «usando la ficha guardada del DD/MM», el inicial
+      viene precargado, se envía → **naranja 📥 «Parte guardado en el teléfono»**; un segundo parte
+      del mismo equipo arranca del final del primero (pendiente). Al volver la señal suben solos y en
+      **PARTE_BANDEJA** hay UNA fila por parte (sin `INICIAL_DISTINTO` en el segundo).
 
 ---
 
@@ -93,9 +105,12 @@ abrieron con señal**. Abrirlas con señal de vez en cuando mantiene esa copia a
 - **Cola:** `localStorage` clave `tm2_cola_envios` (módulo `offline.js`, objeto global
   `TM2Offline`). FIFO; un ítem solo sale por éxito confirmado del servidor (`ok:true`) o descarte
   manual con doble confirmación. La cola **no** se borra al cerrar sesión.
-- **Sesión:** `{usuario, rol}` ahora en `localStorage` (todas las páginas; D82).
-- **Dedupe:** `id_registro` UUID **de cliente** en cada fila de BANDEJA / MAQUINARIA / VOLQUETAS;
-  `Codigo.gs` salta filas ya guardadas (búsqueda acotada por fecha) y responde
+- **Sesión:** `{usuario, rol}` ahora en `localStorage` (todas las páginas; D82). El parte de maquinaria
+  no tiene sesión (público por QR): en la cola su ítem lleva `tipo:'parte'` y `usuario` = `<código> · <operador>`,
+  solo informativo; `TM2Offline.pendientes(filtro)` devuelve una copia de solo lectura de la cola y
+  `parte.js` la usa para precargar el inicial con el final del último parte pendiente del equipo.
+- **Dedupe:** `id_registro` UUID **de cliente** en cada fila de BANDEJA / MAQUINARIA / VOLQUETAS
+  y de PARTE_BANDEJA (D165/D176); `Codigo.gs` / `CodigoParte.gs` saltan filas ya guardadas y responden
   `{guardadas, duplicadas}`. Payload sin ids (frontend viejo) = comportamiento anterior intacto.
   **Asistencia no lleva UUID:** `CodigoAsistencias.gs` pisa fecha+cuadrilla (upsert idempotente,
   verificado).

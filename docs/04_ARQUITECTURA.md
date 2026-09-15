@@ -341,6 +341,9 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 │      · «Día sin operación» (domingo · festivo · taller · disponible · lluvia · sin op.)    │
 │      · sin `eq` válido → «Escanea el QR de tu equipo» + selector de respaldo               │
 │      · solo CREA filas `pendiente`; localStorage guarda el último operador por equipo      │
+│      · SIN SEÑAL (D176): offline.js + precache (sw.js v13); ficha del equipo en caché    │
+│        local `tm2_cat_parte_<eq>`; envío a la cola `tm2_cola_envios` (tipo 'parte', 📥   │
+│        naranja); inicial = final del último parte pendiente del teléfono; dedupe servidor │
 │  revision-maquinaria.html   LOGIN: admin · encargado · residente · parte_maquinaria        │
 │      · PENDIENTES: fecha, tarjetas con todos los campos editables, alertas en naranja,     │
 │        ✓ aprobar / ✕ descartar (con las ediciones), «Aprobar todo lo sin alertas»,         │

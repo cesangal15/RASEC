@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="tema.css">
 <script src="auth.js"></script>
 <script src="entorno.js"></script>
+<script src="offline.js"></script>
 <script src="tema.js"></script>
 <link rel="stylesheet" href="parte.css">
 </head>
@@ -82,8 +83,8 @@
 
 <!-- Confirmación -->
 <div class="estado hidden" id="pantallaOk">
-  <div class="ico">✅</div>
-  <h2>Parte enviado</h2>
+  <div class="ico" id="okIco">✅</div>
+  <h2 id="okTit">Parte enviado</h2>
   <p id="okMsg"></p>
   <div class="resumen res-tramos" id="okTramos"></div>
   <div class="u-w360">

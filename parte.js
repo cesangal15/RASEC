@@ -102,6 +102,7 @@ function actLabelHTML(r){
   return ccLabelHTML(r.cc);
 }
 let HOY = hoyBogota();
+let CACHE_FRESCO = true, CACHE_GUARDADO = '';   // D176: ¿la ficha del equipo vino del servidor o de la copia del teléfono?
 let tramos = [];          // [{id, inicial, final, hora_de, hora_a, cc, pr, uf, desc, varada, lluvia, obs, iniPre, reparto:null|[{cc,pct,pr}]}]
 let operador = '';
 let pickerCtx = null;     // {tipo:'operador'|'cc', tramoId, repIdx}
@@ -117,6 +118,16 @@ function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.in
 function norm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
 function uuid(){ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); return 'p-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10); }
 function keyOp(){ return 'tm2_parte_op_'+(EQ?EQ.codigo:''); }
+function normCod(c){ return String(c||'').replace(/[^A-Z0-9]/gi,'').toUpperCase(); }
+// D176: último final entre los partes de este equipo que aún esperan señal (cola local, FIFO → el último manda).
+function ultimoFinalPendiente(){
+  if(!EQ || !EQ.medidor || !window.TM2Offline || !TM2Offline.pendientes) return null;
+  const mios=TM2Offline.pendientes(it=>it.tipo==='parte' && it.payload && normCod(it.payload.codigo)===normCod(EQ.codigo));
+  if(!mios.length) return null;
+  const ts=mios[mios.length-1].payload.tramos||[], t=ts[ts.length-1];
+  if(!t || num(t.final)===null) return null;
+  return { final:num(t.final), fecha:t.fecha||'', hora_a:t.hora_a||'', origen:'telefono' };
+}
 function mostrar(id){ ['pantallaQR','pantallaError','formMain','pantallaOk'].forEach(p=>document.getElementById(p).classList.toggle('hidden', p!==id)); document.getElementById('submitBar').classList.toggle('hidden', id!=='formMain'); }
 function ccDe(cc){ return CC.find(x=>x.centro_coste===cc); }
 function ccLabelHTML(cc){ const c=ccDe(cc); if(!c) return '<b>'+esc(cc||'')+'</b>'; return '<b>'+esc(c.centro_coste)+'</b>'+(c.descripcion_cc?'<small>'+esc(c.descripcion_cc)+'</small>':''); }
@@ -133,15 +144,26 @@ async function cargar(){
     const cod = (eq && eq.toUpperCase()!=='DEMO') ? eq : DEMO_DATOS.equipos[0].codigo;
     sel.value=cod; data=demoEquipo(cod);
   } else {
+    // D176: la ficha del equipo (último final, operadores, CC, actividades) se guarda en el teléfono la
+    // última vez que abrió con señal (`tm2_cat_parte_<eq>`, mismo mecanismo que drenajes/asistencia/flota,
+    // D82). Sin señal se abre con esa copia; sin copia, el aviso dice que hay que abrirlo una vez con señal.
+    let r;
     try{
-      const r=await fetch(API+'&op=equipo&eq='+encodeURIComponent(eq), {cache:'no-store'});
-      data=await r.json();
+      r=await TM2Offline.catalogoCache('parte_'+(eq ? eq.toUpperCase().replace(/[^A-Z0-9]/g,'') : 'lista'), async function(){
+        const resp=await fetch(API+'&op=equipo&eq='+encodeURIComponent(eq), {cache:'no-store'});
+        const d=await resp.json();
+        if(!d || typeof d!=='object') throw new Error('respuesta ilegible');
+        return d;
+      }, 72);
     }catch(e){
-      document.getElementById('errorMsg').textContent='Sin señal o el servidor no responde. Revisa la conexión del teléfono y vuelve a intentar.';
+      document.getElementById('errorMsg').textContent= navigator.onLine
+        ? 'Sin señal o el servidor no responde. Revisa la conexión del teléfono y vuelve a intentar.'
+        : 'Sin señal, y este teléfono no tiene guardada la ficha de este equipo. Abre el parte una vez con señal: desde ahí funciona también sin señal.';
       mostrar('pantallaError'); return;
     }
+    data=r.data; CACHE_FRESCO=r.fresco; CACHE_GUARDADO=r.guardado;
   }
-  if(data.hoy) HOY=data.hoy;
+  if(data.hoy && CACHE_FRESCO) HOY=data.hoy; else HOY=hoyBogota();   // con copia vieja, «hoy» es el del teléfono, no el de la copia
   if((!eq && !DEMO) || !data.ok || !data.equipo){
     // pantalla "escanea tu QR" + selector de respaldo
     const sel=document.getElementById('selEquipo');
@@ -157,6 +179,10 @@ async function cargar(){
     mostrar('pantallaQR'); return;
   }
   EQ=data.equipo; ULTIMO=data.ultimo||null; OPERADORES=data.operadores||[]; CC=data.cc||[]; SUGS=data.sugerencias||[];
+  // D176: si hay partes de ESTE equipo esperando señal en el teléfono, el último final es el de ellos
+  // (el servidor todavía no los conoce). Nada más se toma de la cola: solo el medidor.
+  const pend=ultimoFinalPendiente();
+  if(pend) ULTIMO=pend;
   if(data.actividades) ACTS=Object.assign({ habituales:[], todas:[], proyecto_habitual:'3701' }, data.actividades);
   if(data.topes) TOPES=data.topes;
   document.getElementById('hCodigo').textContent='🚜 '+EQ.codigo;
@@ -167,6 +193,9 @@ async function cargar(){
   operador = localStorage.getItem(keyOp()) || '';
   pintarOperador();
   const av=document.getElementById('avisoTop'); av.classList.add('hidden');
+  const viejo=document.querySelector('#formMain .tm2off-banner-cat'); if(viejo) viejo.remove();
+  if(!CACHE_FRESCO) TM2Offline.bannerCatalogoViejo(document.querySelector('#formMain .container'),
+    'Sin señal: usando la ficha del equipo guardada el '+TM2Offline.fechaCorta(CACHE_GUARDADO)+'. El parte se guarda en el teléfono y sube solo al volver la señal.');
   if(!EQ.medidor){ av.innerHTML='Este equipo está <b>sin medidor definido</b> en el catálogo (PARTE_EQUIPOS). Se registra sin horómetro/kilometraje y quien revisa lo verá con la alerta <b>SIN_MEDIDOR</b>.'; av.classList.remove('hidden'); }
   // D173b: fuera de la flota de hoy (reemplazo, equipo devuelto o de otro frente): se reporta igual, con aviso.
   if(EQ.en_flota===false){ av.innerHTML=(av.classList.contains('hidden')?'':av.innerHTML+'<br>')+'Este equipo <b>no figura hoy en la flota</b> de la obra (¿reemplazo de otro varado?). Puedes reportar normal: quien revisa lo verá con la alerta <b>FUERA_DE_FLOTA</b>.'; av.classList.remove('hidden'); }
@@ -332,7 +361,7 @@ function pintarTotal(id){
     if(tot!==null && tot<0) h.innerHTML='<span class="err">El final es menor que el inicial: revisa los dos números.</span>';
     else if(i===0 && ULTIMO && num(t.inicial)!==null && Math.abs(num(t.inicial)-ULTIMO.final)>0.001)
       h.innerHTML='El inicial cambió: el último registrado era <b>'+fmt(ULTIMO.final)+'</b>'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+'. Se enviará marcado para revisión.';
-    else if(i===0 && ULTIMO) h.innerHTML='Inicial precargado del último parte'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+'. Cámbialo solo si el parte físico dice otra cosa.';
+    else if(i===0 && ULTIMO) h.innerHTML='Inicial precargado del último parte'+(ULTIMO.fecha?' ('+esc(ULTIMO.fecha)+')':'')+(ULTIMO.origen==='telefono'?', guardado en este teléfono y pendiente de subir':'')+'. Cámbialo solo si el parte físico dice otra cosa.';
     else h.innerHTML='';
   }
 }
@@ -508,17 +537,20 @@ async function enviar(){
   if(errs.length){ pintarResumen(); document.getElementById('resumenCard').scrollIntoView({behavior:'smooth',block:'start'}); alert('Revisa antes de enviar:\n\n• '+errs.join('\n• ')); return; }
   const payload=armarPayload(), fecha=payload.tramos[0].fecha, reporte=payload.tramos[0].reporte_num;
   enviando=true; const btn=document.getElementById('btnSubmit'); btn.disabled=true; btn.textContent='ENVIANDO…';
-  let data=null;
+  let data=null, encolado=false;
   if(DEMO){ await new Promise(r=>setTimeout(r,400)); data=demoReporte(payload); }
   else {
-    try{
-      const r=await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(payload) });
-      data=await r.json();
-    }catch(e){ data={ok:false, error:'Sin señal o el servidor no respondió. El parte NO se envió: acércate a una zona con señal y vuelve a pulsar ENVIAR (no se duplica).'}; }
+    // D176: POST directo (15 s); sin red / timeout / respuesta ilegible → cola local `tm2_cola_envios`
+    // (offline.js, D82). El servidor deduplica por `id_registro` (D165), así que un reenvío no duplica.
+    const r=await TM2Offline.enviarConCola({ tipo:'parte', url:APPS_SCRIPT_URL, payload:payload, fecha_obra:fecha, usuario:EQ.codigo+' · '+operador });
+    if(r.enviado) data=r.res;
+    else { encolado=true; data={ ok:true, guardadas:0, duplicadas:0, filas:[] }; }
   }
   enviando=false; btn.disabled=false; btn.textContent='ENVIAR PARTE →';
   if(!data || !data.ok){ alert('No se guardó:\n\n'+((data&&data.error)||'error desconocido')); return; }
   ultimoEnvio={ fecha:fecha, reporte:reporte, tramos:tramos.slice(), filas:data.filas||[] };
+  document.getElementById('okIco').textContent = encolado ? '📥' : '✅';
+  document.getElementById('okTit').textContent = encolado ? 'Parte guardado en el teléfono' : 'Parte enviado';
   const alertas=(data.filas||[]).reduce((a,f)=>a.concat(f.alertas||[]),[]);
   const okT=document.getElementById('okTramos');
   let k=0;
@@ -528,12 +560,15 @@ async function enviar(){
       const cc = p ? ccTexto(p.cc)+' · '+fmt(num(p.pct)||0)+' %'+(tot!==null&&tope?' = '+fmt(tot*(num(p.pct)||0)/100)+' '+tope.unidad:'') : ccTexto(t.reparto&&t.reparto[0]?t.reparto[0].cc:t.cc);
       return '<div class="r-row"><b>'+(p?'Parte '+(j+1)+' de '+partes.length:esc(EQ.codigo))+'</b><br>'+esc(cc)+(!p&&EQ.medidor?'<br>'+esc(t.inicial)+' → '+esc(t.final)+' = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?esc(tope.unidad):'')+'</b>':'')+(t.desc?'<br><i>'+esc(t.desc)+'</i>':'')
         +((f.alertas&&f.alertas.length)?'<br><span data-estilo="color:var(--accent-txt)">Para revisión: '+esc(f.alertas.join(', '))+'</span>':'')+'</div>'; }).join(''); }).join('');
+  const nFilas=(data.guardadas||0)+(data.duplicadas||0);
   document.getElementById('okMsg').innerHTML='<b>'+esc(EQ.codigo)+'</b> · '+esc(fecha)+' · parte nº '+esc(reporte)+' · '+esc(operador)+'<br>'
-    +((data.guardadas||0)+(data.duplicadas||0))+' fila(s) registrada(s) como <b>pendiente</b> de revisión.'
+    +(encolado
+      ? '<span data-estilo="color:var(--accent-txt)">Sin señal: el parte quedó <b>guardado en este teléfono</b> y subirá solo cuando vuelva la señal (también al abrir cualquier pantalla de la app). No borres los datos del navegador mientras haya pendientes.</span>'
+      : nFilas+' fila(s) registrada(s) como <b>pendiente</b> de revisión.')
     +(DEMO?'<br><span data-estilo="color:var(--accent-txt)">Modo de prueba: no se guardó nada.</span>':'')
     +(alertas.length?'<br><span data-estilo="color:var(--accent-txt)">Quedó marcado para que maquinaria lo mire ('+esc([...new Set(alertas)].join(', '))+'). No tienes que hacer nada más.</span>':'');
   // el último final ahora es el del último tramo enviado
-  const ultT=tramos[tramos.length-1]; if(EQ.medidor && num(ultT.final)!==null) ULTIMO={ final:num(ultT.final), fecha:fecha, hora_a:ultT.hora_a, origen:'bandeja' };
+  const ultT=tramos[tramos.length-1]; if(EQ.medidor && num(ultT.final)!==null) ULTIMO={ final:num(ultT.final), fecha:fecha, hora_a:ultT.hora_a, origen:encolado?'telefono':'bandeja' };
   mostrar('pantallaOk'); window.scrollTo(0,0);
 }
 function otroTramo(){
