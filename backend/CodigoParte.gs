@@ -53,6 +53,10 @@ const PARTE_EQUIPOS_HEADERS     = ['codigo','tipo','placa','proveedor','medidor'
 const PARTE_OPERADORES_HEADERS  = ['operador','partes_ult_4_meses','activo'];
 const PARTE_CC_HEADERS          = ['centro_coste','proyecto','descripcion_cc','usos_ult_4_meses','activo'];
 const PARTE_ACTIVIDADES_HEADERS = ['tipo_equipo','descripcion_trabajo','veces'];
+// D174: tabla actividad → ítem por tipo de equipo (la «máscara» del operador). `actividad` en palabras
+// de obra; vacía → se completa con la descripción del ítem de la BASE. Dueño: Jeisson (quien asigna
+// los CC). Semilla: PARTE_ITEMS_semilla.csv (histórico de BASE MAQUINARIA UF1-UF2, 6 meses).
+const PARTE_ITEMS_HEADERS = ['tipo_equipo','item','actividad','veces','activo'];
 // PARTE_BANDEJA: esquema FIJO del código (como BANDEJA). Nunca se borra una fila: el estado cambia.
 const PARTE_BANDEJA_HEADERS = ['id_registro','timestamp','estado','fecha','codigo','tipo','placa','medidor',
   'reporte_num','inicial','final','total','inicial_modificado','horas_varada','horas_lluvia','hora_de','hora_a',
@@ -263,6 +267,54 @@ function parteSelectorEquipos_(){
   });
   return out;
 }
+/* ============ D174 — actividad primero, CC derivado ============ */
+function parteItemDeCC_(cc){ const m=/^37\d\d\.(.+)$/.exec(String(cc==null?'':cc).trim()); return m ? m[1] : ''; }
+function parteItems_(){
+  const out=[];
+  try{
+    readSheet('PARTE_ITEMS').forEach(function(r){
+      const item=parteTexto_(r.item); if(!item || !parteSiNo_(r.activo, true)) return;
+      out.push({ tipo:parteTexto_(r.tipo_equipo), item:item, actividad:parteTexto_(r.actividad), veces:parteNum_(r.veces)||0 });
+    });
+  }catch(err){ /* hoja ausente: sin tabla, el formulario cae al CC directo */ }
+  return out;
+}
+// Etiqueta de un ítem: la de la tabla; si no, la descripción del ítem en PARTE_CC/BASE; si no, el ítem.
+function parteEtiquetaItem_(item, tabla, ccs){
+  const conEtq=tabla.filter(function(x){ return x.item===item && x.actividad; }).sort(function(a,b){ return b.veces-a.veces; })[0];
+  if(conEtq) return conEtq.actividad;
+  const c=ccs.filter(function(x){ return !x.pseudo && parteItemDeCC_(x.centro_coste)===item && x.descripcion_cc; })[0];
+  return c ? c.descripcion_cc : item;
+}
+/* Tres capas (backlog 4.06): habituales = ítems del EQUIPO en los últimos 30 días (PARTE_BANDEJA) +
+ * los de su TIPO en la tabla; todas = la tabla entera sin repetir ítem. Nada se recorta: lo que no
+ * está en habituales está en todas, y lo que no está en todas se escribe en texto libre (SIN_CC). */
+function parteActividades_(q, hist){
+  const tabla=parteItems_(), ccs=parteCC_(), hoy=parteHoy_(), desde=parteFechaMasDias_(hoy, -PARTE_DIAS_CC_RECIENTE);
+  const propios={}; let ultimoProy='', ultimaFecha='';
+  (hist||[]).forEach(function(r){
+    if(parteEstadoDe_(r)==='descartado') return;
+    const cc=parteTexto_(r.centro_coste), item=parteItemDeCC_(cc); if(!item) return;
+    if(r.fecha>=desde) propios[item]=(propios[item]||0)+1;
+    if(r.fecha>ultimaFecha){ ultimaFecha=r.fecha; ultimoProy=cc.slice(0,4); }
+  });
+  const exacto=normTexto(q.tipo), base=parteTipoBase_(q.tipo);
+  let delTipo=tabla.filter(function(x){ return normTexto(x.tipo)===exacto; });
+  if(!delTipo.length) delTipo=tabla.filter(function(x){ return parteTipoBase_(x.tipo)===base; });
+  if(!delTipo.length) delTipo=tabla.filter(function(x){ const b=parteTipoBase_(x.tipo); return b && base && (b.indexOf(base)===0 || base.indexOf(b)===0); });
+  const vistos={}, habituales=[];
+  Object.keys(propios).sort(function(a,b){ return propios[b]-propios[a]; }).forEach(function(item){
+    vistos[item]=1; habituales.push({ item:item, actividad:parteEtiquetaItem_(item, tabla, ccs), veces:propios[item], propio:true });
+  });
+  delTipo.sort(function(a,b){ return b.veces-a.veces; }).forEach(function(x){
+    if(vistos[x.item]) return; vistos[x.item]=1;
+    habituales.push({ item:x.item, actividad:parteEtiquetaItem_(x.item, tabla, ccs), veces:x.veces, propio:false });
+  });
+  const todosV={}, todas=[];
+  tabla.forEach(function(x){ if(todosV[x.item]) return; todosV[x.item]=1; todas.push({ item:x.item, actividad:parteEtiquetaItem_(x.item, tabla, ccs) }); });
+  todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:1; });
+  return { habituales:habituales.slice(0,8), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
+}
 // ¿Se espera este equipo en esa fecha? Devuelve la ficha (con `frente`) o null.
 function parteEquipoVigente_(cod, fecha){
   const k=parteNormCod_(cod);
@@ -396,10 +448,12 @@ function parteEquipo(e){
   const q = vig || mapa[parteNormCod_(eq)];
   if(!q) return json({ ok:false, error:'El código «'+eq+'» no tiene ficha en PARTE_EQUIPOS. Elige tu equipo en la lista o avisa a maquinaria (un equipo nuevo se da de alta en Maquinaria › Flota).', equipos:lista, hoy:parteHoy_() });
   const ultimo=parteUltimoFinal_(q);
+  const hist=parteCols_('PARTE_BANDEJA', PARTE_COLS_CLAVE).filter(function(r){ return parteNormCod_(r.codigo)===parteNormCod_(q.codigo); });
   return json({ ok:true,
     equipo:{ codigo:q.codigo, tipo:q.tipo, placa:q.placa, proveedor:q.proveedor, medidor:q.medidor, activo:q.activo,
              en_flota: !!vig },
     ultimo:ultimo, operadores:parteOperadores_(), cc:parteCC_(), sugerencias:parteSugerencias_(q.tipo),
+    actividades:parteActividades_(q, hist),   // D174: habituales · todas · proyecto_habitual
     topes:PARTE_TOPES, hoy:parteHoy_() });
 }
 
@@ -521,7 +575,9 @@ function parteReporte(body, ses){
     // lluvia o taller los cierra quien revisa desde «Equipos sin parte» y ese día no hubo parte en papel.
     if(!reporte && !(origen==='manual' && parteEsPseudoCC_(cc))) return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
     if(!operador) return rechazo('Tramo '+n+': falta el operador. No se guardó nada.');
-    if(!cc)       return rechazo('Tramo '+n+': falta el centro de coste. No se guardó nada.');
+    // D174: sin CC pero con descripción = texto libre (capa 3); llega con SIN_CC y lo pone revisión.
+    const sinCC = !cc;
+    if(sinCC && !parteTexto_(t.descripcion_trabajo)) return rechazo('Tramo '+n+': falta el centro de coste o, si la actividad no está en la lista, escribe qué hizo la máquina. No se guardó nada.');
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const sinMedidor = !q.medidor;
     if(!sinMedidor && (ini===null || fin===null)) return rechazo('Tramo '+n+': faltan el medidor inicial o final. No se guardó nada.');
@@ -539,9 +595,10 @@ function parteReporte(body, ses){
     const dup = !!hDe && (hist.some(function(r){ return parteEstadoDe_(r)!=='descartado' && r.fecha===fecha && parteHoraStr_(r.hora_de)===hDe; })
              || filas.some(function(f){ return f[3]===fecha && parteHoraStr_(f[15])===hDe; }));
     if(dup) alertas.push('DUPLICADO');
-    if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');
+    if(sinCC) alertas.push('SIN_CC');
+    else if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');
     if(sinMedidor) alertas.push('SIN_MEDIDOR');
-    if(!ccValidos[normTexto(cc)]) alertas.push('CC_DESCONOCIDO');
+    if(!sinCC && !ccValidos[normTexto(cc)]) alertas.push('CC_DESCONOCIDO');
     if(fueraDeFlota) alertas.push('FUERA_DE_FLOTA');
 
     const id = parteTexto_(t.id_registro) || Utilities.getUuid();
@@ -651,6 +708,8 @@ function parteRevisar(body, ses){
     const est=parteTexto_(c.estado).toLowerCase();
     if(est){
       if(PARTE_ESTADOS.indexOf(est)<0){ errores.push({ id_registro:id, error:'estado desconocido' }); return; }
+      // D174: una fila de texto libre (SIN_CC) no se aprueba sin ponerle el centro de coste.
+      if(est==='aprobado' && !parteTexto_(obj.centro_coste)){ errores.push({ id_registro:id, error:obj.codigo+': sin centro de coste; ponlo antes de aprobar' }); return; }
       obj.estado=est; tocado=true;
     }
     if(!tocado){ errores.push({ id_registro:id, error:'sin cambios' }); return; }
@@ -744,6 +803,7 @@ function setupParte(){
   asegura('PARTE_OPERADORES', PARTE_OPERADORES_HEADERS);
   const cc=asegura('PARTE_CC', PARTE_CC_HEADERS);
   asegura('PARTE_ACTIVIDADES', PARTE_ACTIVIDADES_HEADERS);
+  asegura('PARTE_ITEMS', PARTE_ITEMS_HEADERS);   // D174
   const ban=getSheet('PARTE_BANDEJA', PARTE_BANDEJA_HEADERS);   // esquema fijo: auto-sana el encabezado
   parteFormatoTexto_(ban, 2, Math.max(ban.getMaxRows()-1, 1));    // texto en nº de parte / horas / código
   // pseudo-CC en la hoja (el código los ofrece igual; aquí es para que se VEAN y se puedan describir)
@@ -753,7 +813,7 @@ function setupParte(){
   const nuevas=PARTE_CC_PSEUDO.filter(function(p){ return !existentes[normTexto(p.centro_coste)]; })
     .map(function(p){ return h.map(function(k){ return k==='centro_coste'?p.centro_coste : k==='descripcion_cc'?p.descripcion_cc : k==='activo'?'SI' : ''; }); });
   if(nuevas.length){ ensureRows_(cc, nuevas.length); cc.getRange(cc.getLastRow()+1,1,nuevas.length,h.length).setValues(nuevas); invalidarHoja_('PARTE_CC'); }
-  Logger.log('setupParte: hojas PARTE_EQUIPOS · PARTE_OPERADORES · PARTE_CC (+'+nuevas.length+' pseudo-CC) · PARTE_ACTIVIDADES · PARTE_BANDEJA listas. '
+  Logger.log('setupParte: hojas PARTE_EQUIPOS · PARTE_OPERADORES · PARTE_CC (+'+nuevas.length+' pseudo-CC) · PARTE_ACTIVIDADES · PARTE_ITEMS · PARTE_BANDEJA listas. '
     + 'Ahora importa los CSV de backend/seeds/parte/ (Reemplazar hoja actual) y vuelve a correr setupParte().');
   return 'ok';
 }

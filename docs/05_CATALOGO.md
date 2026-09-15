@@ -170,22 +170,39 @@ distinción de material se hace por actividad, no por origen. El **fresado** sig
 Terraplén (genera fila de terraplén) · Puente · UF3 (D160) · ODL · ODT · Botadero.
 Solo **Terraplén** genera fila de terraplén; el resto solo cuenta para la excavación del origen (Botadero va como excavación NO APROVECHABLE, D67). **Puente/UF3/ODL/ODT** cuentan para la excavación y salen en la nota del reporte, pero no en la suma del terraplén (UF3 = destino, no confundir con el material `Terraplén de UF3` del capataz, §1).
 
-## 4. Máquinas — catálogo ÚNICO = hoja `PARTE_EQUIPOS` (D171)
+## 4. Máquinas — ficha en `PARTE_EQUIPOS`, estancias en `MAQUINAS` (D171/D173)
 
-**Desde D171 (sep-2026) la fuente única de máquinas para TODO el sistema es la hoja `PARTE_EQUIPOS`** del Sheet de obra (`codigo · tipo · placa · proveedor · medidor · ultima_fecha · ultimo_final · activo`; semilla en `backend/seeds/parte/PARTE_EQUIPOS_semilla.csv`; `activo` vacío = activo). Es la misma lista del Parte Digital (D165) y la que el **reporte del capataz** ofrece como chips (`?action=maquinas` → `equipos`, `flota.js`). Alta/baja = editar la fila (`activo=SI/NO`), sin código; un equipo nuevo necesita además su QR (`qr/README.md`). **El capataz ya no captura horas, operador ni motivo por máquina** — solo el código; horas/operador/CC/motivo salen del parte (`PARTE_BANDEJA`). Las horas programadas 5/6.4 (D10) y las horas muertas se calculan sobre el parte, no en el formulario.
+**Desde D173 (sep-2026) la flota vive en DOS hojas del Sheet de obra con un rol cada una:** `MAQUINAS` = **quién está en obra, desde cuándo y en qué frente** (una fila por estancia: `id_maquina · tipo · horas_prog · propiedad · fecha_ingreso · fecha_retiro · notas · frente`; ventana semiabierta `[ingreso, retiro)`; se administra desde Maquinaria › Flota; semilla `backend/seeds/MAQUINAS.tsv`) y `PARTE_EQUIPOS` = **la ficha** de cada equipo (`codigo · tipo · placa · proveedor · medidor · ultima_fecha · ultimo_final · activo`; semilla `backend/seeds/parte/PARTE_EQUIPOS_semilla.csv`; el alta desde Flota la crea sola). El Parte Digital espera cada día a los vigentes de UF1-UF2; un equipo con ficha pero fuera de la flota reporta igual con la alerta `FUERA_DE_FLOTA` (D173b). El reporte del capataz ofrece como chips los vigentes del día. **El capataz ya no captura horas, operador ni motivo** (D171).
 
-La hoja `MAQUINAS` (D138/D139, estancias con fechas) **ya no es catálogo del capataz**: queda solo para las «faltantes» del panel de producción y el reparto mensual (D143), pendiente de consolidar en `PARTE_EQUIPOS` (backlog V3-06). La tabla que sigue y las notas D61/D136/D137/D138/D139 se conservan como **histórico** de la flota de tierras; no las mantengas a mano.
+**Flota vigente UF1-UF2 al 15-sep-2026 (25 equipos; la verdad está en la hoja, esta tabla es la foto):**
 
-| ID | Tipo | Hrs prog | Proveedor |
-|---|---|---|---|
-| BL005 | BULLDOZER | 6.4 | Propia |
-| EXC015 | EXCAVADORA | 6.4 | Propia |
-| MO03, MO04, MO09 | MOTONIVELADORA | 6.4 | Propias |
-| FNG02 | FINISHER | 6.4 | Propia |
-| CR019, CR013, CR016, CR08 | VIBROCOMPACTADOR | 6.4 | ORTIZ (propios) |
-| NH403 | VIBROCOMPACTADOR | 5 | DINISSAN (alquilado) |
-| CR026 | MINIBULDOZER | 6.4 | ORTIZ (propia) |
-| RT-02 ("la pajarita") | RETROEXCAVADORA | 5 | Alquilada |
+| Grupo | Equipos | Propiedad / proveedor |
+|---|---|---|
+| BULLDOZER | BL005 | propia |
+| EXCAVADORA | EXC015 · EXC030 · EXC04 · MC64 | EXC015 propia; EXC030/EXC04 EQUINORTE; MC64 GEOEXCON (retro de llantas) |
+| MOTONIVELADORA | MO004 · MO009 | propias (MO003 a taller 5-sep) |
+| VIBROCOMPACTADOR | CR016 · CR019 · NH403 | CR propios; NH403 DINISSAN (CR013 a taller 5-sep; CR008/NG002 intermitentes BTC, fuera desde 4-sep) |
+| MINIBULDOZER · RETROEXCAVADORA | CR026 · RT-02 | CR026 propio; RT-02 MAQUISABANA (la pajarita) |
+| VOLQUETA | VOL012 · VOL044 · VOL048 · VOL056 · VOL065 · VOL067 | propias (VOL010/VOL047/VOL054 a taller 5-sep; VOL031 29-ago; VOL039 sin parte desde 7-sep, CONFIRMAR) |
+| TRACTOCAMION / CAMABAJA | TC095 · SJQ401 | TC095 propia; SJQ401 ASOVOLSAT (camabaja alquilada del mes, desde 7-sep; LPM670 hasta 5-sep). TC065/TC092 a TM1 desde 7-sep |
+| CARROTANQUE | CT012 · XMC714 | CT012 propio; XMC714 TRANSVISA (XVX241 hasta 21-ago) |
+| TURBO · CAMION | LPM206 · CG007 | LPM206 COTRASABANA; CG007 propio |
+| LUMINARIA | TI12 | propia (sin parte desde 1-sep, CONFIRMAR) |
+
+**UF3 (responsable Alfonso) queda fuera de la flota y del parte por decisión del dueño (sep-2026; backlog 4.05):** CAT074, LPL321, MNC319, M73, EXC190, RT-01, SRS105, 15, 18, EXC026, CR028, CR029, TI08, TI011, VOL022, VOL040, MC86. Conservan ficha con `activo=NO`.
+
+**Actividades del parte digital (D174):** el operador elige la actividad en palabras de obra y el CC sale solo (ítem + proyecto por PR). La tabla vive en la hoja `PARTE_ITEMS` (`tipo_equipo · item · actividad`), sembrada del histórico; **dueño: Jeisson**. Etiquetas actuales: 01.02 Demolición de estructuras · 02.01 Desmonte y limpieza · 02.03 Descapote · 02.05 Excavación (cargue de volquetas) · 02.06 Excavación de préstamo · 02.07 Terraplén · 02.08 Botadero / ZODME · 02.10 Transporte de préstamo · 02.11 Transporte de material para terraplén · 02.12 Muro en tierra (MSR) · 03.01 Subbase granular · 03.03 Base granular / BTC · 04.01 Riego de imprimación / humectación · 05.04 Terraplén en MSR · 06.01 Excavación para drenajes (ODT) · 06.02 Relleno de drenajes (ODT) · 06.05 Tubería de concreto (ODT) · 07.01 Cunetas en concreto · I0408 Paisajismo / zonas verdes · 11.01 Señalización / PMT. Los demás ítems toman la descripción de la BASE hasta que Jeisson les ponga nombre.
+
+**Tipos.** De producción (regla de producción nula por tipo, ven el panel del día y la chequeadora): BULLDOZER · EXCAVADORA · MOTONIVELADORA · FINISHER · VIBROCOMPACTADOR · MINICARGADOR · MINIBULDOZER · RETROEXCAVADORA. De flota (solo Flota y parte): VOLQUETA · CAMABAJA · TRACTOCAMION · CARROTANQUE · CAMION · TURBO · CISTERNA · LUMINARIA. Un tipo nuevo se acepta con aviso, sin producción.
+
+**Cómo añadir y quitar maquinaria (un solo sitio: Maquinaria › Flota; roles admin/residente/jeisson):**
+- Llega un equipo → **Dar de alta**: código del parte (MO003, VOL048, RT-02 con guion), tipo, frente, propiedad, fecha de ingreso, placa, medidor (HORÓMETRO/KM), proveedor. Crea la ficha en `PARTE_EQUIPOS` si falta. Luego `python3 tools/generar_qr.py --solo CODIGO` e imprimir y pegar la etiqueta.
+- Se vara y la reemplazan uno o dos días → **nada en la Flota**: la varada se cierra como «Taller» en Equipos sin parte y el reemplazo reporta por su QR (llega con alerta `FUERA_DE_FLOTA`). Solo si el reemplazo se queda semanas, dale el alta.
+- Se va (devolución, taller largo, a otra obra) → **Dar de baja** con el PRIMER día que ya no estuvo. Deja de esperarse en «Equipos sin parte»; su histórico no se toca.
+- Vuelve → **Reingreso** (fila nueva, mismo código, mismo QR). Nunca editar la estancia vieja.
+- Cambio de frente (UF1-UF2 ↔ UF3) → baja en un frente + alta en el otro. **Corregir** es solo para una estancia mal escrita.
+
+**Histórico (se conserva como registro; no mantener a mano):**
 
 **Retiradas de la obra (jun-2026, D61):** CAT320 (excavadora alquilada) y MC705 (motoniveladora alquilada). Ya no aparecen en los desplegables de capataz/chequeadora, ni en el panel de producción, ni en el estado de máquinas faltantes.
 

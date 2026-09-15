@@ -76,7 +76,7 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │  GET  ?action=consolidado&fecha=…            → lo ya enviado a DATA                     │
 │  GET  ?action=consolidado&desde=…&hasta=…    → filas A–T de DATA + climaPorDia (D65/D37)│
 │  GET  ?action=estado&fecha=…                 → máquinas reportadas (estado.html, OBSOLETO D171)│
-│  GET  ?action=maquinas&fecha=…               → flota MAQUINAS del día + `equipos` (PARTE_EQUIPOS, D171)│
+│  GET  ?action=maquinas&fecha=…               → flota MAQUINAS del día (solo tipos de producción) + `equipos` (vigentes del día, D171/D173)│
 │  GET  ?action=debug&fecha=…                  → diagnóstico                              │
 │  GET  ?action=cubicaje                        → mapa placa→cubicaje (frontend, D53/2.10) │
 │  GET  ?action=volquetas&fecha=…               → filas VOLQUETAS del día (digitadora, D83) │
@@ -104,8 +104,9 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │              D171: G operador · L horas_operadas · O horas_mantenimiento · R ESTADO ·     │
 │              app_horas_programadas · app_horas_muertas · motivo → VACÍAS desde D171      │
 │              (filas del capataz; layout intacto). Horas/operador/motivo → PARTE_BANDEJA. │
-│  PARTE_EQUIPOS · PARTE_BANDEJA · PARTE_* (D165): catálogo ÚNICO de máquinas y parte     │
-│              digital (ver módulo abajo). MAQUINAS (D138) = solo estancias con fechas.    │
+│  PARTE_EQUIPOS · PARTE_BANDEJA · PARTE_* (D165): ficha de cada equipo y parte digital    │
+│              (ver módulo abajo). MAQUINAS (D138/D173) = estancias de TODA la flota con   │
+│              `frente`; el parte espera a los vigentes del día (alerta FUERA_DE_FLOTA).   │
 │  OBSERVACIONES nota GENERAL del día, 1 fila por envío (tierras y drenajes, D103); col   │
 │              `area` sellada con las áreas de las líneas del reporte (D86); no a DATA    │
 │  VOLQUETAS   desglose por placa de la chequeadora (1 fila/placa, informativo; no a DATA) │
@@ -370,9 +371,13 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
                                       ▼
 ┌──────────────── GOOGLE SHEETS (mismo archivo) ───────────────────────────────────────────┐
 │  PARTE_EQUIPOS      codigo·tipo·placa·proveedor·medidor·ultima_fecha·ultimo_final·activo   │
-│                     (+ultimo_final_manual)  — catálogo; encabezado = CSV semilla           │
+│                     (+ultimo_final_manual)  — FICHA del equipo (D173); `activo` = respaldo │
+│                     si MAQUINAS está vacía. MAQUINAS: id_maquina·tipo·horas_prog·propiedad·│
+│                     fecha_ingreso·fecha_retiro·notas·frente (estancias, D138/D173)         │
 │  PARTE_OPERADORES   operador·partes_ult_4_meses·activo                                     │
 │  PARTE_CC           centro_coste·proyecto·descripcion_cc·usos_ult_4_meses·activo           │
+│  PARTE_ITEMS        tipo_equipo·item·actividad·veces·activo — actividad → ítem por tipo   │
+│                     (D174, «máscara» del operador; dueño Jeisson). op=equipo → actividades │
 │                     (+ pseudo-CC Taller · Disponible · Domingo/Festivo)                    │
 │  PARTE_ACTIVIDADES  tipo_equipo·descripcion_trabajo·veces  (solo sugerencias)              │
 │  PARTE_BANDEJA      27 cols: id_registro·timestamp·estado·fecha·codigo·tipo·placa·medidor· │
@@ -405,7 +410,9 @@ Bloque gemelo «ENDURECIMIENTO DEL BACKEND» en `Codigo.gs` y `CodigoAsistencias
 │               ──► action de siempre ──► finally: logEscribir_() = UNA appendRow en hoja LOG     │
 │  LOG          fecha_hora · usuario · rol · action · resultado(ok/rechazado/error) · motivo · ms  │
 │  Parte (QR)   identidad = código de equipo; 20 envíos/h por equipo, 200/h global; equipo debe   │
-│               existir en PARTE_EQUIPOS y estar activo → si no {ok:false, error:'equipo'}        │
+│               tener FICHA en PARTE_EQUIPOS → si no {ok:false, error:'equipo'}; no vigente en la  │
+│               flota ese día (D173) → se acepta con alerta FUERA_DE_FLOTA (D173b); sin CC pero  │
+│               con descripción → alerta SIN_CC (D174) y `op=revisar` no aprueba hasta ponerlo  │
 │  Respaldo     respaldoDiario() → Drive Galca_respaldos/TM2_Sur/<prefijo>_<yyyy-MM-dd>, poda 30 d │
 │               instalarTriggerRespaldo() → trigger diario 02:00 America/Bogota                    │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
@@ -542,8 +549,8 @@ Verificación: banco en Node del Worker (41/41, Google simulado), 21 pantallas e
 
 ```
 reporte-capataz.html ──?action=maquinas&fecha=──> Codigo.gs.maquinasCatalogo
-   (flota.js: TM2Flota.cargar → equiposCapataz)     ├─ maquinas: hoja MAQUINAS (estancias, D138) — chequeadora/encargado/prod.
-   chips por código, búsqueda, agrupado por tipo    └─ equipos:  PARTE_EQUIPOS activo=SI (código·tipo·placa) — capataz (D171)
+   (flota.js: TM2Flota.cargar → equiposCapataz)     ├─ maquinas: hoja MAQUINAS vigentes ese día, SOLO tipos de producción — chequeadora/encargado/prod.
+   chips por código, búsqueda, agrupado por tipo    └─ equipos:  vigentes ese día en MAQUINAS (frente UF1-UF2) + ficha PARTE_EQUIPOS — capataz (D171/D173)
    caché del teléfono (D82) → respaldo escrito en la pantalla si nunca hubo señal
 POST {reporte, cantidades:[{…, equipos:[{id_registro,id_maquina,tipo_equipo} | 'CR026', …]}]}
    → guardarReporte: 1 fila MAQUINARIA por equipo: B fecha · D proyecto · E id_maquina · H/I derivadas ·
@@ -553,7 +560,7 @@ POST {reporte, cantidades:[{…, equipos:[{id_registro,id_maquina,tipo_equipo} |
    Payload viejo (cola offline con horas/operador/motivo) → aceptado; campos descartados en silencio.
 ```
 
-- **Catálogo único de máquinas = `PARTE_EQUIPOS`.** `MAQUINAS` (D138/D139) queda solo como registro de estancias para «faltantes» del panel de producción y el reparto mensual (D143); consolidarla es backlog V3-06.
+- **Ficha = `PARTE_EQUIPOS`; estancias = `MAQUINAS` (D173).** `MAQUINAS` es la flota COMPLETA (pesada + transporte + luminarias) con `frente`; el parte espera a los vigentes del día (`flotaEnFecha_(fecha,{todos:true,frentes:PARTE_FRENTES})` en `parteEquiposActivos_(fecha)`), con respaldo a `activo` si la hoja está vacía. `flota_guardar` acepta además `frente · placa · proveedor · medidor` y escribe la ficha en `PARTE_EQUIPOS` (`fichaParteAsegurar_`); `?action=flota` devuelve `tipos_produccion · frentes · frentes_parte` y, por estancia, `frente · placa · medidor · con_ficha`. `op=equipo` devuelve `en_flota` y un selector con los vigentes primero; `op=reporte` añade la alerta `FUERA_DE_FLOTA` cuando el equipo no está vigente ese día (D173b).
 - **Lectores tolerantes:** `bandeja`, `estado`, `maquinaria_produccion`, `encargado.html` y `produccion-maquinaria.html` trabajan con celdas de horas vacías (filas nuevas) y con horas (filas viejas) mezcladas.
 - **`estado.html` obsoleto:** aviso arriba que remite a «Equipos sin parte» de `revision-maquinaria.html`; en `menu.html` como «Estado maquinaria (capataz, obsoleto)». No se borra.
 - **`sw.js` → `tm2-v12`** (flota.js cambió y el formulario nuevo depende de `equiposCapataz`).

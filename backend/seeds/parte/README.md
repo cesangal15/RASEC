@@ -24,6 +24,12 @@ BANDEJA/DATA; ID `1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM`). Son CSV con co
    - `PARTE_CC_semilla.csv`           → hoja `PARTE_CC` (`descripcion_cc` viene vacía: se puede
      completar a mano y el buscador del formulario la muestra).
    - `PARTE_ACTIVIDADES_frecuentes.csv` → hoja `PARTE_ACTIVIDADES` (solo sugerencias, por tipo).
+   - **`PARTE_ITEMS_semilla.csv` → hoja `PARTE_ITEMS` (D174):** `tipo_equipo,item,actividad,veces,activo`.
+     La tabla actividad → ítem por tipo de equipo: la «máscara» que ve el operador (elige «Terraplén»
+     y el CC sale solo: ítem + proyecto por PR). Sembrada del histórico de BASE MAQUINARIA (UF1-UF2,
+     16-mar → 10-sep-2026, ítems con ≥3 partes). Las `actividad` en blanco las rellena el backend con
+     la descripción del ítem de la BASE; **dueño: Jeisson** — corrige nombres, quita lo que no aplique
+     y añade una fila cuando aparezca un ítem nuevo (o `activo=NO` para esconderla).
 3. Volver a ejecutar **`setupParte()`**: repone las columnas que el CSV no trae (`activo`,
    `ultimo_final_manual`) y agrega los pseudo-CC `Taller` · `Disponible` · `Domingo/Festivo` a
    `PARTE_CC` (el código los ofrece aunque falten; en la hoja quedan para que se vean).
