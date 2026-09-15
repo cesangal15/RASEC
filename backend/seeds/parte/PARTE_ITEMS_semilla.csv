@@ -35,9 +35,7 @@ CAMIONES,07.02,Terraplen,4,SI
 CAMIONES,07.02,Humectacion terraplen,3,SI
 CAMIONES,07.02,Humectacion sub base,3,SI
 CAMIONES,07.10,Tubería de Concreto Reforzado de 600 mm de diámetro interior,11,SI
-CAMIONES,I0408,Humectacion terraplen llenado de fresadora,4,SI
-CAMIONES,I0408,Humectacion terraplen,4,SI
-CAMIONES,I0408,Humectacion humectacion terraplen,4,SI
+CAMIONES,I0408,Transporte de personal,12,SI
 CAMIONES,05.04,Relleno para muros de tierra,8,SI
 CAMIONES,I0513,MONTAJE / DESMONTAJE CAMPAMENTOS,7,SI
 CAMIONES,11.04,Imprevistos (bloqueos - Paros),6,SI
@@ -61,7 +59,6 @@ COMPACTADORES,03.03,Compactacion btc,19,SI
 COMPACTADORES,03.03,Compactando btc,15,SI
 COMPACTADORES,03.03,Compactacion base estabilizada btc,14,SI
 COMPACTADORES,11.04,Imprevistos (bloqueos - Paros),14,SI
-COMPACTADORES,I0408,TRANSPORTE DE PERSONAL A OBRA,4,SI
 EXCAVADORA,02.05,Cargue de volquetas,10,SI
 EXCAVADORA,02.05,Corte,4,SI
 EXCAVADORA,06.01,Excavando,3,SI
@@ -90,7 +87,6 @@ EXCAVADORAS,06.02,Cargue de volquetas,3,SI
 EXCAVADORAS,06.02,Apoyo a odt,3,SI
 EXCAVADORAS,06.01,Excavaciones varias sin clasicar,8,SI
 EXCAVADORAS,02.01,Desmonte y limpieza en bosque,3,SI
-EXCAVADORAS,I0408,TRANSPORTE DE PERSONAL A OBRA,3,SI
 EXTENDEDORAS,03.03,Colocacion btc,45,SI
 EXTENDEDORAS,03.03,Limpieza de equipo,32,SI
 EXTENDEDORAS,03.03,Limpieza equipo,5,SI
@@ -112,7 +108,6 @@ MOTONIVELADORAS,03.01,Cereo terraplen,15,SI
 MOTONIVELADORAS,03.03,Extendiendo btc,11,SI
 MOTONIVELADORAS,03.03,Extendido btc,8,SI
 MOTONIVELADORAS,11.04,Imprevistos (bloqueos - Paros),8,SI
-MOTONIVELADORAS,I0408,TRANSPORTE DE PERSONAL A OBRA,3,SI
 RETRO DE LLANTAS,06.02,Excavacion,21,SI
 RETRO DE LLANTAS,06.01,Excavacion,27,SI
 RETRO DE LLANTAS,06.01,Cargue de volquetas odt,6,SI
@@ -155,9 +150,8 @@ TRACTOCAMIONES,02.05,Excavaciones en material común de la Explanación y Canale
 TRACTOCAMIONES,03.03,Base granular estabilizada con cemento (No incluye cemento),13,SI
 TRACTOCAMIONES,06.04,Cargue de hierro,3,SI
 TRACTOCAMIONES,02.03,Desmonte y limpieza en zonas no boscosas,11,SI
-TRACTOCAMIONES,02.10,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (100 - 1.000 m",8,SI
+TRACTOCAMIONES,02.10,Cargue terraplen (100 m a 1 km),8,SI
 TRACTOCAMIONES,06.01,Excavaciones varias sin clasicar,6,SI
-TRACTOCAMIONES,I0408,TRANSPORTE DE PERSONAL A OBRA,6,SI
 TRACTOCAMIONES,04.03,Mezcla densa en caliente tipo MDC-25 Base Asfáltica,4,SI
 TRACTOCAMIONES,11.04,Imprevistos (bloqueos - Paros),4,SI
 TRACTOCAMIONES,07.01,Excavaciones varias sin clasicar,4,SI
@@ -180,12 +174,11 @@ VIBROCOMPACTADOR,03.01,Compactacion sub base,9,SI
 VIBROCOMPACTADOR,02.12,Compactando terraplen,10,SI
 VIBROCOMPACTADOR,11.04,Imprevistos (bloqueos - Paros),9,SI
 VIBROCOMPACTADOR,02.08,Conformación y disposición de sobrantes (incluye obras de adecuación),5,SI
-VIBROCOMPACTADOR,I0408,TRANSPORTE DE PERSONAL A OBRA,3,SI
 VIBROCOMPACTADOR RENTAL 900,02.07,Compactando terraplen,18,SI
 VIBROCOMPACTADOR RENTAL 900,02.07,Compactando corona,17,SI
 VIBROCOMPACTADOR RENTAL 900,03.01,Subbase Granular,9,SI
-VOLQUETAS DOBLETROQUE,02.11,Terraplen,156,SI
-VOLQUETAS DOBLETROQUE,02.10,Terraplen,29,SI
+VOLQUETAS DOBLETROQUE,02.11,Cargue terraplen (más de 1 km),156,SI
+VOLQUETAS DOBLETROQUE,02.10,Cargue terraplen (100 m a 1 km),29,SI
 VOLQUETAS DOBLETROQUE,03.04,Cargue de btc de la putana,21,SI
 VOLQUETAS DOBLETROQUE,03.04,Cargue btc,19,SI
 VOLQUETAS DOBLETROQUE,03.02,Transporte de subbase granular,97,SI
