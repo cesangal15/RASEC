@@ -60,7 +60,7 @@
       <div class="lateral">
         <div class="card" id="cardFalt">
           <div class="section-title">Equipos sin parte <span class="count" id="cntFalt">0</span></div>
-          <div class="u-mb8 intro">Equipos <b>vigentes ese día en la flota</b> (Maquinaria › Flota, hoja <code>MAQUINAS</code>; frente UF1-UF2) sin fila (no descartada) en la fecha. Si sobra o falta un equipo, se corrige allí con un alta o una baja, no aquí. Marca los que aplican y elige el motivo; se crea una fila por equipo con el medidor sin cambio (inicial = final), igual que «Día sin operación» del parte del operador.</div>
+          <div class="u-mb8 intro">Equipos <b>vigentes ese día en la flota</b> (Maquinaria › Flota, hoja <code>MAQUINAS</code>; frente UF1-UF2) sin fila (no descartada) en la fecha. Una <b>varada</b> se cierra aquí como Taller; su <b>reemplazo</b> reporta por su QR sin pasar por la Flota (llega con la alerta <code>FUERA_DE_FLOTA</code>). Altas y bajas de verdad (equipo nuevo, devolución, camabaja del mes) van en la Flota. Marca los que aplican y elige el motivo; se crea una fila por equipo con el medidor sin cambio (inicial = final), igual que «Día sin operación» del parte del operador.</div>
           <div class="sinop" id="sinopBar">
             <div class="sinop-top">
               <label class="sinop-todos"><input type="checkbox" id="selTodos" checked data-on-change="selFaltantes(this.checked)"> Todos</label>

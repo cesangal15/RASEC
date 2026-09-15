@@ -52,7 +52,7 @@ async function cargarBandeja(){
   pintarBandeja();
 }
 function alertasDe(r){ return String(r.alertas||'').split(';').map(s=>s.trim()).filter(Boolean); }
-const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC' };
+const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC', FUERA_DE_FLOTA:'Reportó sin estar vigente ese día en la flota (Maquinaria › Flota): reemplazo de un día, equipo devuelto o de otro frente. Si se queda, dale el alta' };
 function pintarBandeja(){
   const p=BAND.pendientes||[], rv=BAND.revisadas||[], falt=BAND.faltantes||[];
   const conAl=p.filter(r=>alertasDe(r).length).length;
