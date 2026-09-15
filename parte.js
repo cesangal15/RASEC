@@ -76,6 +76,7 @@ function demoReporte(payload){
 /* ---------- estado ---------- */
 let EQ = null;            // {codigo,tipo,placa,proveedor,medidor,activo}
 let ULTIMO = null;        // {final,fecha,hora_a,origen}
+const HORA_DE_DEF='07:00', HORA_A_DEF='15:30';   // jornada estándar del parte (solo valor inicial, editable)
 let OPERADORES = [], CC = [], SUGS = [], TOPES = {HOROMETRO:{bloquea:24,alerta:12,unidad:'h'},KM:{bloquea:700,alerta:400,unidad:'km'}};
 let HOY = hoyBogota();
 let tramos = [];          // [{id, inicial, final, hora_de, hora_a, cc, pr, uf, desc, varada, lluvia, obs, iniPre, reparto:null|[{cc,pct,pr}]}]
@@ -168,7 +169,9 @@ function pintarOperador(){
 function nuevoTramo(base){
   const prev=tramos[tramos.length-1];
   const iniPre = prev ? (prev.final!==''?prev.final:prev.inicial) : (ULTIMO ? ULTIMO.final : '');
-  return Object.assign({ id:uuid(), inicial: iniPre===null?'':iniPre, final:'', hora_de: prev ? prev.hora_a : '', hora_a:'', cc:'', pr: prev?prev.pr:'', uf:'', desc:'', varada:'', lluvia:'', obs:'', iniPre: iniPre===null?'':iniPre, reparto:null }, base||{});
+  // Jornada estándar por defecto (pedido del dueño, sep-2026): 07:00–15:30 en el primer tramo; el
+  // operador solo la toca si hubo extras. Un tramo siguiente arranca donde acabó el anterior, sin hora fin.
+  return Object.assign({ id:uuid(), inicial: iniPre===null?'':iniPre, final:'', hora_de: prev ? prev.hora_a : HORA_DE_DEF, hora_a: prev ? '' : HORA_A_DEF, cc:'', pr: prev?prev.pr:'', uf:'', desc:'', varada:'', lluvia:'', obs:'', iniPre: iniPre===null?'':iniPre, reparto:null }, base||{});
 }
 function addTramo(){
   const t=nuevoTramo(); tramos.push(t); render();
@@ -461,7 +464,7 @@ function otroTramo(){
   // mismo parte físico, mismo operador, mismo día: un tramo nuevo que arranca donde terminó el anterior
   const u=ultimoEnvio, prev=u?u.tramos[u.tramos.length-1]:null;
   tramos=[]; intento=false;
-  tramos=[nuevoTramo({ inicial: ULTIMO?ULTIMO.final:'', hora_de: prev?prev.hora_a:'', pr: prev?prev.pr:'', iniPre: ULTIMO?ULTIMO.final:'' })];
+  tramos=[nuevoTramo({ inicial: ULTIMO?ULTIMO.final:'', hora_de: prev?prev.hora_a:HORA_DE_DEF, hora_a: prev?'':HORA_A_DEF, pr: prev?prev.pr:'', iniPre: ULTIMO?ULTIMO.final:'' })];
   if(u){ document.getElementById('fecha').value=u.fecha; document.getElementById('reporteNum').value=u.reporte; }
   render(); mostrar('formMain'); window.scrollTo(0,0);
 }
