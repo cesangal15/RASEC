@@ -284,8 +284,19 @@ módulo deriva las áreas del mapa por usuario y no del token.
 Asistencias. Es el catálogo de la flota, que hasta D138 vivía escrito en `Codigo.gs` y en cuatro
 pantallas.
 
-**MAQUINAS.tsv** → hoja nueva `MAQUINAS`, pegando desde A1 (incluye la fila de encabezados).
-`id_maquina · tipo · horas_prog · propiedad · fecha_ingreso · fecha_retiro · notas`
+**MAQUINAS.tsv** → hoja `MAQUINAS`, pegando desde A1 (incluye la fila de encabezados).
+`id_maquina · tipo · horas_prog · propiedad · fecha_ingreso · fecha_retiro · notas · frente`
+
+**D173 (sep-2026): la hoja es la flota COMPLETA de UF1-UF2, no solo la pesada.** 53 estancias
+(foto del Excel de partes, hoja «Control de partes», al 15-sep-2026): pesada + volquetas +
+tractocamiones/camabajas + carrotanques + turbo + camiones + luminaria; 25 vigentes hoy. Columna
+nueva **`frente`** (`UF1-UF2` / `UF3`, vacío = UF1-UF2): el Parte Digital espera cada día a los
+vigentes de UF1-UF2 («Equipos sin parte»), el panel de producción sigue viendo solo los tipos que
+producen. Los `id_maquina` son ahora los **códigos del parte** (MO003, CR008, NG002…), no los
+`dim_maquinaria` viejos (MO03, CR08, FNG02): si ya tienes la hoja con los códigos viejos,
+**reemplázala entera** por esta semilla (o corrige esos cuatro ids a mano). Dos filas marcadas
+`CONFIRMAR` (VOL039, TI12) son dudas del Excel, no datos: revísalas. UF3 no viene en la semilla
+(descartada por ahora); cuando entre, sus estancias van aquí con `frente=UF3`.
 
 ## Cómo se lee
 
@@ -296,8 +307,11 @@ pantallas.
   `activaEnFecha` de D85). Vacía = sigue en obra.
 - **`horas_prog` puede ir vacía:** se deduce de `propiedad` (alquilada 5 h / propia 6.4 h, D10).
 - **`tipo`** decide si la máquina genera producción (los vibros, minicargador, minibuldózer y
-  retroexcavadora nunca la generan — D41/D44/D111). Un tipo desconocido no rompe nada, pero el
-  endpoint lo avisa y la trata como productiva.
+  retroexcavadora nunca la generan — D41/D44/D111). Tipos de producción: BULLDOZER · EXCAVADORA ·
+  MOTONIVELADORA · FINISHER · VIBROCOMPACTADOR · MINICARGADOR · MINIBULDOZER · RETROEXCAVADORA.
+  Tipos de flota (D173, sin producción): VOLQUETA · CAMABAJA · TRACTOCAMION · CARROTANQUE · CAMION ·
+  TURBO · CISTERNA · LUMINARIA. Un tipo desconocido no rompe nada: el endpoint lo avisa y lo trata
+  como equipo sin producción (solo flota y parte).
 
 ## Alta y baja, ya sin tocar código
 

@@ -117,6 +117,18 @@
             background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;}
   .tchip{font-size:11.5px;border:1px solid var(--border);border-radius:20px;padding:4px 11px;color:var(--muted);white-space:nowrap;}
   .tchip b{font-family:'Syne',sans-serif;color:var(--accent-txt);font-size:12.5px;margin-right:4px;}
+  .fk.alerta .k-val{color:var(--accent-txt);}
+  /* ---- D173: chips de frente (toda la obra / UF1-UF2 / UF3) y ficha del equipo en la fila ---- */
+  .frente-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .fchip{background:var(--input-bg);border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;
+         font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;padding:7px 14px;}
+  .fchip:hover{border-color:var(--accent);color:var(--accent-txt);}
+  .fchip.on{border-color:var(--accent);color:var(--accent-txt);background:rgba(245,166,35,0.10);}
+  .fchip .fparte{font-family:'DM Sans',sans-serif;font-weight:400;letter-spacing:0;text-transform:none;font-size:10.5px;opacity:.85;}
+  .tr .cid .csub{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:10.5px;letter-spacing:0;color:var(--muted);
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+  .tr .cid .sinficha{color:var(--accent-txt);}
+  .tr .cid .frchip{border:1px solid var(--border);border-radius:10px;padding:0 6px;font-size:9.5px;letter-spacing:.5px;}
   .flota-barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
   .flota-barra .buscador{flex:1;min-width:200px;max-width:320px;}
   .flota-barra input[type="text"]{padding:9px 13px;font-size:13px;}

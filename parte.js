@@ -122,7 +122,12 @@ async function cargar(){
     // pantalla "escanea tu QR" + selector de respaldo
     const sel=document.getElementById('selEquipo');
     const lista=(data.equipos||[]);
-    sel.innerHTML='<option value="">— Elige tu equipo —</option>'+lista.map(q=>'<option value="'+esc(q.codigo)+'">'+esc(q.codigo)+' · '+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+'</option>').join('');
+    // D173b: vigentes hoy primero; debajo, el resto de fichas (reemplazos, equipos fuera): todos pueden reportar.
+    const opt=q=>'<option value="'+esc(q.codigo)+'">'+esc(q.codigo)+' · '+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+'</option>';
+    const vig=lista.filter(q=>q.en_flota!==false), otros=lista.filter(q=>q.en_flota===false);
+    sel.innerHTML='<option value="">— Elige tu equipo —</option>'+
+      (otros.length ? '<optgroup label="En la flota hoy">'+vig.map(opt).join('')+'</optgroup><optgroup label="Otros equipos con ficha (reemplazos, fuera de la flota)">'+otros.map(opt).join('')+'</optgroup>'
+                    : vig.map(opt).join(''));
     document.getElementById('qrError').textContent = (eq && !data.ok) ? (data.error||'') : '';
     document.getElementById('hCodigo').textContent='🚜 Parte'; document.getElementById('hSub').textContent='Elige tu equipo';
     mostrar('pantallaQR'); return;
@@ -138,6 +143,8 @@ async function cargar(){
   pintarOperador();
   const av=document.getElementById('avisoTop'); av.classList.add('hidden');
   if(!EQ.medidor){ av.innerHTML='Este equipo está <b>sin medidor definido</b> en el catálogo (PARTE_EQUIPOS). Se registra sin horómetro/kilometraje y quien revisa lo verá con la alerta <b>SIN_MEDIDOR</b>.'; av.classList.remove('hidden'); }
+  // D173b: fuera de la flota de hoy (reemplazo, equipo devuelto o de otro frente): se reporta igual, con aviso.
+  if(EQ.en_flota===false){ av.innerHTML=(av.classList.contains('hidden')?'':av.innerHTML+'<br>')+'Este equipo <b>no figura hoy en la flota</b> de la obra (¿reemplazo de otro varado?). Puedes reportar normal: quien revisa lo verá con la alerta <b>FUERA_DE_FLOTA</b>.'; av.classList.remove('hidden'); }
   else if(!ULTIMO){ av.innerHTML='No hay un <b>medidor anterior</b> registrado para este equipo: escribe el inicial tal como está en el parte físico.'; av.classList.remove('hidden'); }
   else if(!EQ.activo){ av.innerHTML='Este equipo figura <b>inactivo</b> en el catálogo. El parte se guarda igual y lo revisa maquinaria.'; av.classList.remove('hidden'); }
   tramos=[]; intento=false; addTramo();
