@@ -1,6 +1,6 @@
 # DOCUMENTO MAESTRO — Sistema de Reporte Diario de Obra TM2 Sur
 
-**Versión:** 2.0 · **Fecha de corte:** 2026-09-14 · **Estado:** V1 ✅ cerrado · V2 entregada en su mayor parte · módulos **Asistencias** y **Parte Digital de Maquinaria** en uso.
+**Versión:** 2.1 · **Fecha de corte:** 2026-09-15 · **Estado:** V1 ✅ cerrado · V2 entregada en su mayor parte · módulos **Asistencias** y **Parte Digital de Maquinaria** en uso.
 
 > **Jerarquía de fuentes.** Este documento es la referencia extendida. Ante cualquier diferencia manda `02_REGISTRO_DECISIONES.md` (decisiones), luego `PROJECT_CONTEXT.md` (reglas vigentes), `03_BACKLOG.md` (alcance), `04_ARQUITECTURA.md` (técnico), `05_CATALOGO.md` (catálogos) y `OPERACIONES.md` (despliegue y operación). Los números **Dxx** remiten al registro.
 >
@@ -186,7 +186,7 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 
 **Chequeadora (D54):**
 - Registra las excavadoras del origen. Producción = total excavado ÷ nº de máquinas.
-- ⚠️ Su bloque **aún captura operador y horas**: el recorte D171 está pendiente (V3-06b, §9).
+- Desde **D177 (sep-2026)** su bloque **ya no captura operador ni horas**: solo elige los códigos de las excavadoras (recorte D171); la producción (col T) sigue por reparto D54 (total ÷ nº de excavadoras).
 
 **Panel «Maquinaria» (`produccion-maquinaria.html`):**
 - Pestaña Producción del día (D59–D62): ajusta la columna T con el volumen oficial, redirige producción huérfana y registra faltantes.
@@ -312,7 +312,7 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 | Plantilla Parte de Trabajo (Navision) | Destino del export de asistencias (hoja `Parte`). |
 | Modelo_Produccion_Maquinaria_v2.xlsx | **Fuera de uso desde D171.** |
 
-## 9. Pendientes vigentes (al 14-sep-2026)
+## 9. Pendientes vigentes (al 15-sep-2026)
 
 **Tareas del usuario (sin código):**
 
@@ -323,11 +323,11 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 | Equipos sin tipo | Revisar GQW139, SJQ401 y TAR538: sin `tipo` en `PARTE_EQUIPOS` no tienen QR. Completar el tipo y regenerar con `generar_qr.py --solo CODIGO`, si siguen en obra. |
 | Usuario revisor (opcional) | Crear un usuario con rol `parte_maquinaria` en `USUARIOS` solo si otra persona va a revisar partes. |
 
-**Desarrollo en curso:**
+**Desarrollo reciente (cerrado sep-2026):**
 
 | Ítem | Detalle |
 |---|---|
-| V3-06(b) | Aplicar el recorte D171 al bloque de excavadoras de la chequeadora: solo códigos; operador, horas y motivo fuera. Pendiente confirmar si la producción sigue siendo total ÷ nº de máquinas (D54). Genera decisión nueva que enmienda D54(b). |
+| V3-06(b) | **✅ Hecho y validado en campo (D177, sep-2026):** la chequeadora captura solo los códigos de las excavadoras; operador, horas y motivo fuera; la producción (col T) sigue por reparto D54 (total ÷ nº de excavadoras). Enmienda D54(b). |
 | V3-06(c) | **Obsoleto:** desde D173b un equipo con ficha fuera de flota se guarda con alerta, así que el texto de `parte.html` es correcto. |
 
 **Backlog abierto, no iniciar sin pedido del dueño:**
@@ -339,11 +339,12 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 - 4.01 base de datos real · 4.03 subdominio por obra · 4.8 archivado del histórico
 - 4.14 cuadrilla propia de angie (no implementar hasta que la pida) · 2.33 rutas sin `.html` (no se hará)
 
-**Inconsistencias documentales por revisar:**
-- **03_BACKLOG:** los estados de 2.8/2.9 (D82 ya cerrada), de 2.10 (implementado con D54) y de 4.12 (según 4.3, `proyecto_3703` ya está cargado).
-- **PROJECT_CONTEXT:** la línea «Estado» sigue con el texto de jun-2026.
-- **04_ARQUITECTURA:** tiene un aviso de desfase desde D107.
-- **05_CATALOGO:** §6–§7 conserva usuarios y fuentes de la etapa V1.
+**Inconsistencias documentales — resueltas en la puesta al día de sep-2026 (v2.1):**
+- **03_BACKLOG:** 2.8/2.9 → Hechos (D82); 2.10 validado (D54); 4.12 cerrado (`proyecto_3703` cargado, asistencias UF3 OK); V3-06(b) cerrado (D177), V3-06(c) obsoleto (D173b).
+- **PROJECT_CONTEXT:** línea «Estado» reescrita al estado real de sep-2026.
+- **04_ARQUITECTURA:** retirado el aviso de desfase; incorporados D107–D142 y los endpoints de Flota (D139) y Tablero (D158).
+- **05_CATALOGO:** §6 (capataz solo código + Parte Digital, D171/D165) y §7 (usuarios vigentes, sin claves) al día; luminaria TI12 dada de baja.
+- **Secretos:** retirados de `/docs` claves, IDs de Sheets y URLs `/exec` (Tarea 0); regla nueva en PROJECT_CONTEXT.
 
 ## 10. Resolución de los pendientes de la versión 1.1
 
@@ -364,3 +365,4 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 |---|---|---|
 | 1.1 | 2026-06-19 | V1 cerrado; V2 en preparación (2.10). |
 | 2.0 | 2026-09-14 | Reescritura completa. Se agregan drenajes, Parte Digital, Asistencias, flota viva, autenticación, Worker, endurecimiento, entorno de prueba, offline, tablero y digitadora. Se retiran contraseñas e IDs del documento. Pendientes actualizados. |
+| 2.1 | 2026-09-15 | Puesta al día tras confirmar con el dueño: estados de decisiones validados/desplegados en campo (sep-2026); backlog 2.8/2.9/4.12/V3-06 al día; PROJECT_CONTEXT «Estado» reescrito; 04_ARQUITECTURA sin aviso de desfase (D107–D142, Flota, Tablero); 05_CATALOGO §6–§7 al día; secretos fuera de /docs. |
