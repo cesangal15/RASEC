@@ -699,7 +699,20 @@ async function enviar(){
       document.getElementById('confirmBox').innerHTML=`<div class="confirm-ok">✓ Guardado en el servidor: ${data.filas} fila(s) para ${esc(STATE.cuadrillaActual)} · ${STATE.fecha}.</div>`;
     } else {
       render();
-      alert('El servidor respondió con un error: '+((data&&data.error)||'desconocido'));
+      // D166: cuando el backend RECHAZA el payload devuelve `campo` (qué dato) y `detalle` (por qué),
+      // y los deja en el LOG. Antes se mostraba solo la palabra cruda "payload", que no le dice nada al
+      // capataz en campo (típicamente es la FECHA del teléfono adelantada → "fecha futura", o una HORA
+      // de entrada/salida ilegible). Ahora se traduce a algo accionable con el campo y el motivo.
+      let msg;
+      if(data && data.error==='payload'){
+        const campo=data.campo?String(data.campo):'', detalle=data.detalle?String(data.detalle):'';
+        msg='El servidor no aceptó un dato del reporte'
+          + (campo?(' ('+campo+(detalle?': '+detalle:'')+')'):(detalle?(' ('+detalle+')'):''))
+          + '.\n\nRevisa la FECHA (que el día del teléfono sea el correcto) y las HORAS de entrada/salida, y vuelve a intentarlo.';
+      } else {
+        msg='El servidor respondió con un error: '+((data&&data.error)||'desconocido');
+      }
+      alert(msg);
     }
   } else {
     // encolado: confirmación NARANJA (guardado local) — nunca el verde de servidor
