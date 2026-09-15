@@ -282,6 +282,10 @@ console.log('\n4 · Validación de payload por action de escritura');
   const fila={ codigo:'C1', cedula:'1', nombre:'Juan', cargo:'Ayudante', cc:'3701.I010305', proyecto:'3701', hora_entrada:'07:00', hora_salida:'17:00', presente:'Si', motivo_ausencia:'', observacion:'', turno:'1' };
   r=post(as,{ token:ta, action:'reporte_asistencia', fecha:HOY, cuadrilla:'ANGEL', reporta:'admin', filas:[fila] });
   ok('asistencias: reporte bien formado entra', r.ok===true && r.filas===1, JSON.stringify(r).slice(0,100));
+  // cc largo legítimo del catálogo (código + descripción, 107 chars) ENTRA — el tope de 100 lo rebotaba.
+  const ccLargo='3702.02.11| Transporte materiales provenientes de excavación de explanación, canales y préstamos (>1.000 m)';
+  r=post(as,{ token:ta, action:'reporte_asistencia', fecha:HOY, cuadrilla:'ANGEL', filas:[Object.assign({}, fila, { cc:ccLargo })] });
+  ok('cc largo del catálogo ('+ccLargo.length+' chars) entra, no rebota como payload', r.ok===true && r.filas===1, JSON.stringify(r).slice(0,120));
   ok('…con su fila de LOG (usuario del token, action, ok)', ultimaLog(as)[1]==='admin' && ultimaLog(as)[3]==='reporte_asistencia' && ultimaLog(as)[4]==='ok');
   r=post(as,{ token:ta, action:'reporte_asistencia', fecha:HOY, cuadrilla:'ANGEL', filas:[Object.assign({}, fila, { hora_entrada:'a las siete' })] });
   ok('hora_entrada ilegible → payload/filas[0].hora_entrada', r.error==='payload' && r.campo==='filas[0].hora_entrada', JSON.stringify(r));

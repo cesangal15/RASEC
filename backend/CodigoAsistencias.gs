@@ -573,8 +573,13 @@ function quitarTriggerRespaldo(){
  * Solo lo que viene; lo ausente lo resuelve cada función con sus defaults de siempre. Los mensajes de
  * negocio existentes (ERROR_FECHA, cuadrilla de otra área, topes de extras desde CONFIG, «no
  * autorizado»…) se conservan tal cual: esto es la red de TIPOS/RANGOS/LONGITUDES que faltaba debajo. */
+// `cc` NO lleva tope de 100: es el string COMPLETO del catálogo `CAT_CC.string_cc` (código +
+// descripción, p. ej. "3702.02.11| Transporte materiales provenientes de excavación… (>1.000 m)" =
+// 107 chars). Con el tope de 100 de D166, los CC largos legítimos rebotaban con error:'payload' y la
+// cola offline (D82) reintentaba en vano. Queda en el cubo de texto normal (VAL_MAX_TEXTO=500), que
+// es donde el comentario de esa constante ya ubicaba a los CC.
 const VAL_ASIS_FILA = {
-  codigo:['t',50], cedula:['t',50], nombre:['t',200], cargo:['t',100], cuadrilla:['t',100], cc:['t',100], proyecto:['t',20],
+  codigo:['t',50], cedula:['t',50], nombre:['t',200], cargo:['t',100], cuadrilla:['t',100], cc:['t'], proyecto:['t',20],
   hora_entrada:['h'], hora_salida:['h'], presente:['t',10], motivo_ausencia:['t',200], observacion:['tl'], turno:['t',50]
 };
 const VAL_ASIS_REPORTE    = { fecha:['f',0], cuadrilla:['t',100], reporta:['t',100], nota:['tl'], filas:['a'] };
@@ -582,7 +587,7 @@ const VAL_ASIS_INDIVIDUAL = { fecha:['f',0], filas:['a'] };
 const VAL_ASIS_PERSONAL   = { op:['l',['alta','retiro','mover','reactivar']], codigo:['t',50], cedula:['t',50], nombre:['t',200],
                               cargo:['t',100], cuadrilla:['t',100], fecha_ingreso:['f',VAL_DIAS_FUTURO_FLOTA],
                               fecha_retiro:['f',VAL_DIAS_FUTURO_FLOTA], _row:['e',1,10000000] };
-const VAL_ASIS_EXTRAS     = { fecha:['f',0], cc:['t',100], horas:['n',0,VAL_MAX_HORAS], tipo:['l',['diurna','nocturna','domfest']] };
+const VAL_ASIS_EXTRAS     = { fecha:['f',0], cc:['t'], horas:['n',0,VAL_MAX_HORAS], tipo:['l',['diurna','nocturna','domfest']] };
 const VAL_ASIS_EXTRAS_DEL = { fecha:['f',0] };
 
 // Devuelve la RESPUESTA de rechazo (lista para `return`) o null si el payload pasa.
