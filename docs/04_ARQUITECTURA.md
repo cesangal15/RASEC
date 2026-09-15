@@ -8,7 +8,7 @@
 │                        ├── encargado.html      (encargado, admin)                       │
 │                        ├── reporte-capataz.html (capataz, encargado, admin)             │
 │                        ├── reporte-chequeadora.html (chequeadora, admin)                │
-│                        ├── estado.html          (admin)                                 │
+│                        ├── estado.html          (admin — OBSOLETO D171)                 │
 │                        ├── produccion-maquinaria.html "Maquinaria" (admin · residente ·  │
 │                        │      jeisson solo Flota · jefe solo lectura — D139: pestañas     │
 │                        │      Producción del día + Flota, alta/baja sobre hoja MAQUINAS)  │
@@ -69,9 +69,9 @@ lleva `min-width:0`, o un hijo ancho ensancha su columna en vez de hacer scroll 
 se envuelven en `.pc-panels`/`.pc-group`/`.pc-tiles` (en `display:contents` bajo 1100px) y a
 partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 accesos, solo estilo.
 
-                                     │ fetch GET/POST (Content-Type: text/plain)
+                                     │ fetch a https://api.galca.app (Worker D169) · Content-Type: text/plain
                                      ▼
-┌──────────────────── GOOGLE APPS SCRIPT v6 (API, una sola URL) ──────────────────────────┐
+┌──────── API vía WORKER `api.galca.app` (D169) → GOOGLE APPS SCRIPT (una sola URL /exec) ─┐
 │  GET  ?action=bandeja&fecha=…[&proyecto=…][&area=…] → crudo del día por área (D70)      │
 │  GET  ?action=consolidado&fecha=…            → lo ya enviado a DATA                     │
 │  GET  ?action=consolidado&desde=…&hasta=…    → filas A–T de DATA + climaPorDia (D65/D37)│
@@ -126,6 +126,34 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │    parte en Reparto_Produccion_Maquinaria.html). Se conserva como histórico.            │
 └─────────────────────────────────────────────────────────────────────────────────────--─┘
 ```
+
+## Pantallas y roles (vigente, sep-2026)
+
+Complementa el diagrama de arriba. Todas hablan con la API en **`https://api.galca.app`** (Worker, D169); las claves viven en la hoja `USUARIOS` (D108).
+
+| Pantalla | Acceso | Función |
+|---|---|---|
+| `index.html` | todos | Login contra `USUARIOS` (D108); «Continuar como X» y validación sin señal tras el primer login. |
+| `menu.html` | admin | Hub por grupos (revisión, campo, maquinaria · parte, asistencias, Excel). |
+| `seleccion-reporte.html` | doble deber + roles de asistencias | Tiles de reporte de obra y de asistencia. |
+| `reporte-capataz.html` | capataz, encargado, residente, admin | Actividades + **solo el CÓDIGO** de máquina por actividad (D171). |
+| `reporte-chequeadora.html` | chequeadora, admin | Origen + líneas por PK con placas y cubicaje + códigos de excavadoras (D54/D177). |
+| `encargado.html` | encargado, residente, admin | Bandeja de tierras: reconciliación, subtramos, clima, Enviar a DATA, WhatsApp. |
+| `reporte-drenajes.html` | capataz_odt/odl, admin | Reporte de drenajes; área por CC (06→ODT/07→ODL, D70/D84). |
+| `residente-drenajes.html` | residente_dren, admin | Bandeja combinada ODT+ODL, envío por área. |
+| `residente.html` | residente, admin | Panel de selección del residente. |
+| `jefe.html` | jefe, residente, admin | Consulta post-DATA por rango, filtro de área, copiado A:S (D65). |
+| `tablero-produccion.html` (+`tablero/`) | admin, jefe, residentes | Tablero de producción; foto compartida (D158). |
+| `produccion-maquinaria.html` («Maquinaria») | admin, residente; jeisson (Flota); jefe (lectura) | Producción del día + Flota sobre `MAQUINAS` (D59–D62/D139). |
+| `parte.html?eq=<código>` | **público por QR** | Parte digital del equipo; identidad = equipo (D165). |
+| `revision-maquinaria.html` | admin, encargado, residente, parte_maquinaria | Revisión de partes, «Equipos sin parte», Base B→AR (D165). |
+| `digitadora.html` | digitadora, admin | Pre-llenado de la BASE de transporte (D83). |
+| `asistencia.html` | responsables de cuadrilla + roles de asistencias | Formulario de asistencia (D69). |
+| `resumen-asistencia.html` | residente, admin, roles de asistencias/drenajes | Resumen del día, faltantes, export Navision, gestión de personal (D69). |
+| `horas-persona.html` | mismos del resumen (acotados por área) | Horas por persona (D112); «Mis horas extra» solo admin (D142). |
+| `mis-extras.html` | admin | Registro de extras del admin (D73/D142). |
+| `estado.html` | admin (por URL) | **Obsoleto (D171):** lo reemplaza «Equipos sin parte». |
+| `Reparto_Produccion_Maquinaria.html` · `conciliador/index.html` | escritorio (desde el menú) | Reparto mensual por CC · Conciliador de Actas. |
 
 ## Flujo de captura (diario)
 
@@ -248,7 +276,7 @@ partir de 1100px pasan a un tablero bento con hero de bienvenida — mismos 12 a
 │      las filas huérfanas con el día de su `timestamp`.                 │
 └────────────────────────┬────────────────────────────────────────────--┘
                           ▼
-┌── GOOGLE SHEET NUEVO (1KrhzaIg3BSspyi0oH0gHkAJnSRXaOIdel_pKaMVHX9w) ───┐
+┌── GOOGLE SHEET NUEVO (ID en el Script de asistencias) ─────────────────┐
 │  PERSONAL · CUADRILLAS · ASISTENCIA · CONFIG · FESTIVOS ·              │
 │  CAT_TRABAJADORES · CAT_CC · CAT_MOTIVOS (catálogo completo, D78) ·    │
 │  MOTIVOS_USADOS (frecuentes, D78) · EXTRAS_ADMIN (D73) —               │
@@ -321,7 +349,19 @@ Captura_Diaria es una **tabla de Excel** (`fact_produccion`, A1:AA). Se pegan SO
 
 ---
 
-> ⚠️ **AVISO DE DESFASE (anotado en D119, ago-2026).** Este documento **no refleja nada desde D107**: le faltan **D107** (escritura quirúrgica), **D108** (login por hoja `USUARIOS`), **D109** (token firmado HMAC-SHA256 y puerta única en `doGet`/`doPost`), **D112** (`horas-nomina.js` y `?action=persona`), **D113**, **D115** (`usaFlujoDomFest`), **D116**, **D117** y **D118** (una persona, una fila). De D119 se agregó **solo** lo de su propia decisión (el rol nuevo en `areasDeUsuario`, la regla de intersección de `areasEfectivas` y la normalización de `area` vacía). Tampoco refleja **D142** (ago-2026), que agrega el endpoint `GET ?action=persona_admin&desde=&hasta=` —las horas del propio admin desde `EXTRAS_ADMIN`, solo lectura, con guard por `rol==='admin'` del token— y hace que `doGet` propague el rol de la sesión en `e.parameter._rol`. **Ponerlo al día es un trabajo aparte**; mientras tanto, la fuente de verdad es `02_REGISTRO_DECISIONES.md`.
+## Autenticación, lecturas por fecha y clasificación de horas (D107–D142)
+
+**Lectura por fecha en dos pasos (D107, sobre `Codigo.gs`).** Los endpoints por fecha ya no leen la hoja entera: `leerFilasPorFecha_` escanea solo la columna `fecha` y trae por bloques contiguos las filas del día (variante por NOMBRE de columna y variante CRUDA por índice para el layout A–T de DATA). Enganchado en `bandeja`, `estado`, `maquinaria_produccion`, `volquetas`, `consolidado` de un día y `debug`; `enviar_data` escanea tres columnas y borra por tramos. Cada respuesta trae `_celdas`. **Escritura quirúrgica:** re-enviar una fecha+área/cuadrilla pisa solo esas filas. NO se aplica a las rutas de escritura genéricas (misma razón que en asistencias, D102).
+
+**Login por hoja `USUARIOS` (D108).** Las contraseñas salieron de `index.html`: viven en la hoja privada `USUARIOS` (`usuario·clave·rol·areas·redirige·estado`), con la clave en hash SHA-256 de `usuario:clave` (`endurecerClaves()`); las valida `POST {action:'login'}`. `estado`≠`activo` bloquea sin borrar la fila. El modo sin señal se conserva con sesión y credencial recordadas (señal una vez por teléfono).
+
+**Token firmado y puerta única (D109).** Al entrar, el backend emite un token con `usuario·rol·áreas` firmado con HMAC-SHA256 (secreto en las Propiedades del Script). `doGet`/`doPost` de los DOS Apps Script lo verifican en una puerta única y **sobrescriben la identidad** con la del token: el resto del código sigue leyendo `usuario` igual pero el cliente ya no se la puede inventar. No caduca por reloj sino por versión (`AUTH_V` saca a todos; `estado` saca a uno) — compatible con la cola offline. En el cliente, `auth.js` envuelve `fetch` y adjunta el token a toda llamada (~60); la cola lo pega al enviar, no al encolar. El secreto es por proyecto: se copia a mano de obra (emisor) a asistencias (verificador).
+
+**Clasificación de horas compartida (D112).** El clasificador de horas se extrajo a `horas-nomina.js`, usado por el Parte de Navision (asistencias) y por la pantalla nueva `horas-persona.html`; el backend manda el crudo y clasifica el cliente, para que no diverjan. Endpoint `GET ?action=persona&codigo=&cedula=&desde=&hasta=` (solo lectura, acotado al área del usuario POR EL BACKEND, corte 11→10, tope 186 días).
+
+**Reglas de horas Dom/Fest y «una persona, una fila» (D113/D115–D118).** D115: `usaFlujoDomFest` decide por fecha el reparto de extras (día normal → E diurna / F nocturna topadas; dom/fest → D hasta el tope y el resto a H). D116/D117/D118 consolidan una fila por persona en el Parte de Navision. D113: el terraplén por material (`crudo de río` / `de UF3`) viaja en la columna interna `actividad`, sin tocar el esquema de ninguna hoja.
+
+**Extras del admin (D142).** Endpoint `GET ?action=persona_admin&desde=&hasta=` — las horas del propio admin desde la hoja `EXTRAS_ADMIN`, solo lectura, con guard por `rol==='admin'` del **token** (`doGet` pone `e.parameter._rol` desde la sesión; un `&_rol=admin` tecleado se pisa). Su reparto vive en `horas-nomina.js` (`clasificarExtraAdmin`), compartido con el Parte. Pantallas: `mis-extras.html` (registro) y la entrada «Mis horas extra» de `horas-persona.html`.
 
 ---
 
@@ -570,3 +610,17 @@ POST {reporte, cantidades:[{…, equipos:[{id_registro,id_maquina,tipo_equipo} |
 - **`estado.html` obsoleto:** aviso arriba que remite a «Equipos sin parte» de `revision-maquinaria.html`; en `menu.html` como «Estado maquinaria (capataz, obsoleto)». No se borra.
 - **`sw.js` → `tm2-v12`** (flota.js cambió y el formulario nuevo depende de `equiposCapataz`).
 - Verificación: `backend/pruebas/verificar_d171_recorte_equipos.js`.
+
+## D139 — Endpoints de la Flota (`MAQUINAS`)
+
+- `GET ?action=flota&fecha=` — SOLO LECTURA: estancias + los `avisos` de la hoja (distinto de `?action=maquinas`, que sirve la flota del día para la captura).
+- `POST {action:'flota_guardar', op:'alta'|'baja'|'corregir', …}` — escribe la hoja `MAQUINAS` desde la pestaña **Flota** de `produccion-maquinaria.html`; **rol verificado en el SERVIDOR** (D109), `fdateValida_` (D106), rechazo de clave duplicada (`id_maquina`+`fecha_ingreso`) y de estancias traslapadas, e invalidación de las DOS memorias (`invalidarHoja_` y `_flotaRows`). Accesos: admin/residente editan las dos pestañas; `jeisson` solo Flota; `jefe` en solo lectura.
+
+## D158 — Tablero de producción (`tablero-produccion.html`)
+
+Un solo HTML (SheetJS embebido + motor + foto de datos embebida) que reemplaza la hoja GRAFICOS del Excel; lo ven **admin, jefe y los dos residentes** (la opción de Maquinaria sale del panel del jefe). Los archivos son `tablero-xlsx.js` + `tablero-produccion.js` y la subcarpeta `tablero/` (con su propia CSP por hash).
+
+- **Foto de datos COMPARTIDA (no per-navegador):** vive en el Sheet por el mismo Apps Script. `GET ?action=tablero` la lee (**pública, sin token** — el Worker la exceptúa, D169) y `POST {action:'tablero_guardar'}` la publica (troceada en celdas de 40.000 con prefijo `~`). **Publican solo admin y jefe**, decidido por el SERVIDOR con el token firmado (D109).
+- Al abrir, la página pinta con lo que trae embebido y sincroniza en segundo plano: nunca hay pantalla en blanco delante de una sala.
+- **Standby / utilización por máquina** = días con parte × horas programadas − mantenimiento − paradas de taller (la lluvia no se resta). Definiciones finales de las métricas en D162; avance en D163.
+- Requiere redesplegar el Apps Script (endpoints `tablero` / `tablero_guardar`). Verificación `backend/pruebas/verificar_d158_tablero_foto.js`.
