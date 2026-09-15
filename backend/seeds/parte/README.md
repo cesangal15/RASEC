@@ -25,11 +25,14 @@ BANDEJA/DATA; ID `1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM`). Son CSV con co
      completar a mano y el buscador del formulario la muestra).
    - `PARTE_ACTIVIDADES_frecuentes.csv` → hoja `PARTE_ACTIVIDADES` (solo sugerencias, por tipo).
    - **`PARTE_ITEMS_semilla.csv` → hoja `PARTE_ITEMS` (D174):** `tipo_equipo,item,actividad,veces,activo`.
-     La tabla actividad → ítem por tipo de equipo: la «máscara» que ve el operador (elige «Terraplén»
-     y el CC sale solo: ítem + proyecto por PR). Sembrada del histórico de BASE MAQUINARIA (UF1-UF2,
-     16-mar → 10-sep-2026, ítems con ≥3 partes). Las `actividad` en blanco las rellena el backend con
-     la descripción del ítem de la BASE; **dueño: Jeisson** — corrige nombres, quita lo que no aplique
-     y añade una fila cuando aparezca un ítem nuevo (o `activo=NO` para esconderla).
+     La tabla actividad → ítem por tipo de equipo: la «máscara» que ve el operador. `actividad` es **la
+     frase con que ellos la escriben** en DESCRIPCIÓN DEL TRABAJO del parte («Compactando terraplen»,
+     «Cargue de volquetas», «Cereo sub base»), minada de BASE MAQUINARIA (UF1-UF2, 16-mar → 10-sep-2026,
+     hasta 3 frases por tipo e ítem, ≥3 usos); el operador la elige y el CC sale solo (ítem + proyecto
+     por PR), con el nombre de catálogo del ítem debajo. Donde no había frase clara va el nombre del
+     catálogo (hojas UF1/UF2 del Excel; 65 de 194 filas). **Dueño: Jeisson** — corrige frases, quita lo
+     que no aplique (`activo=NO`) y añade una fila cuando aparezca un ítem o una forma de decirlo nueva.
+   - `PARTE_CC_semilla.csv` trae ahora `descripcion_cc` llena desde las hojas UF0–UF3 del Excel (antes vacía).
 3. Volver a ejecutar **`setupParte()`**: repone las columnas que el CSV no trae (`activo`,
    `ultimo_final_manual`) y agrega los pseudo-CC `Taller` · `Disponible` · `Domingo/Festivo` a
    `PARTE_CC` (el código los ofrece aunque falten; en la hoja quedan para que se vean).

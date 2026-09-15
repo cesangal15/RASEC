@@ -1,27 +1,27 @@
 centro_coste,proyecto,descripcion_cc,usos_ult_4_meses
-3700.06.01,3700,,5
-3700.06.02,3700,,5
-3700.06.05,3700,,2
-3700.11.09,3700,,1
-3701.01.02,3701,,4
-3701.02.01,3701,,2
-3701.02.03,3701,,16
-3701.02.05,3701,,243
-3701.02.06,3701,,40
-3701.02.07,3701,,504
-3701.02.08,3701,,82
-3701.02.09,3701,,34
-3701.02.10,3701,,132
-3701.02.11,3701,,457
-3701.03.01,3701,,316
-3701.03.02,3701,,51
-3701.03.03,3701,,172
-3701.03.04,3701,,55
-3701.04.01,3701,,2
-3701.04.03,3701,,1
-3701.05.02,3701,,1
-3701.05.04,3701,,376
-3701.05.05,3701,,6
+3700.06.01,3700,"Concreto f'c= 28 MPA (Columnas, viga cabezal, riostras, new jersey, losa de aproximación)",5
+3700.06.02,3700,Acero de refuerzo Fy=420 Mpa.,5
+3700.06.05,3700,"Concreto clase 14 MPA (solados, estructuras)",2
+3700.11.09,3700,Reparacion de MDC tipo III (Calidad),1
+3701.01.02,3701,Demolición de Estructuras,4
+3701.02.01,3701,Desmonte y limpieza en bosque,2
+3701.02.03,3701,Desmonte y limpieza en zonas no boscosas,16
+3701.02.05,3701,Excavaciones en material común de la Explanación y Canales,243
+3701.02.06,3701,Excavación en material común de préstamos,40
+3701.02.07,3701,Terraplenes (solo conformación),504
+3701.02.08,3701,Conformación y disposición de sobrantes (incluye obras de adecuación),82
+3701.02.09,3701,Caminos y accesos,34
+3701.02.10,3701,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (100 - 1.000 m",132
+3701.02.11,3701,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (>1.000 m)",457
+3701.03.01,3701,Subbase Granular,316
+3701.03.02,3701,Transporte de subbase granular,51
+3701.03.03,3701,Base granular estabilizada con cemento (No incluye cemento),172
+3701.03.04,3701,Transporte de base granular,55
+3701.04.01,3701,Riego de imprimación con emulsión asfáltica,2
+3701.04.03,3701,Mezcla densa en caliente tipo MDC-25 Base Asfáltica,1
+3701.05.02,3701,"Geodren planar h=0,5 m",1
+3701.05.04,3701,Relleno para muros de tierra,376
+3701.05.05,3701,Material granular drenante,6
 3701.06.01,3701,Excavaciones varias sin clasicar,32
 3701.06.02,3701,Rellenos con material seleccionado,34
 3701.06.04,3701,Acero de refuerzo Fy=420 Mpa.,30
@@ -38,25 +38,25 @@ centro_coste,proyecto,descripcion_cc,usos_ult_4_meses
 3701.07.07,3701,Concreto clase 14 MPA (Cunetas de terraza y coronación),3
 3701.07.08,3701,Acero de refuerzo Fy=420 Mpa.,1
 3701.07.10,3701,Tubería de Concreto Reforzado de 600 mm de diámetro interior,3
-3701.09.02,3701,,4
-3701.11.01,3701,,5
-3701.11.03,3701,,1
-3701.I0408,3701,,88
-3701.I0504,3701,,1
-3701.I0513,3701,,1
+3701.09.02,3701,Protección de taludes con productos enrollados para control de erosión con biomanto,4
+3701.11.01,3701,PLAN DE MANEJO DE TRÁFICO (PMT'S),5
+3701.11.03,3701,Transporte de materiales granulares para planta de concreto de UI (medido suelto),1
+3701.I0408,3701,TRANSPORTE DE PERSONAL A OBRA,88
+3701.I0504,3701,MOBILIARIO CASETAS / EQUIPAMIENTO DE INSTALACIONES,1
+3701.I0513,3701,MONTAJE / DESMONTAJE CAMPAMENTOS,1
 3702.01.11,3702,,2
-3702.02.02,3702,,1
-3702.02.03,3702,,16
-3702.02.05,3702,,37
-3702.02.07,3702,,417
-3702.02.08,3702,,43
-3702.02.09,3702,,6
-3702.02.10,3702,,51
-3702.02.11,3702,,460
-3702.03.01,3702,,157
-3702.03.02,3702,,46
-3702.03.03,3702,,41
-3702.03.04,3702,,35
+3702.02.02,3702,Aprovechamiento forestal,1
+3702.02.03,3702,Desmonte y limpieza en zonas no boscosas,16
+3702.02.05,3702,Excavaciones en material común de la Explanación y Canales,37
+3702.02.07,3702,Terraplenes (solo conformación),417
+3702.02.08,3702,Conformación y disposición de sobrantes (incluye obras de adecuación),43
+3702.02.09,3702,Caminos y accesos,6
+3702.02.10,3702,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (100 - 1.000 m",51
+3702.02.11,3702,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (>1.000 m)",460
+3702.03.01,3702,Subbase Granular,157
+3702.03.02,3702,Transporte de subbase granular,46
+3702.03.03,3702,Base granular estabilizada con cemento,41
+3702.03.04,3702,Transporte de base granular,35
 3702.06.01,3702,Excavaciones varias sin clasicar,27
 3702.06.02,3702,Rellenos con material seleccionado,47
 3702.06.04,3702,Acero de refuerzo Fy=420 Mpa.,13
@@ -64,16 +64,16 @@ centro_coste,proyecto,descripcion_cc,usos_ult_4_meses
 3702.06.07,3702,"Concreto clase 14 MPA (solados, estructuras)",1
 3702.06.09,3702,"Concreto clase  28 MPA (encoles, descoles, box, sumideros)",10
 3702.06.69,3702,"Concreto clase 21 MPA (atraques, cabezales)",1
-3702.07.01,3702,,6
-3702.07.02,3702,,3
-3702.07.03,3702,,5
-3702.07.08,3702,,1
-3702.07.10,3702,,3
-3702.11.01,3702,,11
-3702.11.04,3702,,14
-3702.I0408,3702,,117
-3702.I0504,3702,,1
-3702.I0513,3702,,1
+3702.07.01,3702,Excavaciones varias sin clasicar,6
+3702.07.02,3702,Material granular drenante,3
+3702.07.03,3702,Rellenos con material seleccionado,5
+3702.07.08,3702,Acero de refuerzo Fy=420 Mpa.,1
+3702.07.10,3702,Tubería de Concreto Reforzado de 600 mm de diámetro interior,3
+3702.11.01,3702,Plan manejo de Tráfico (PMT´S),11
+3702.11.04,3702,Imprevistos (bloqueos - Paros),14
+3702.I0408,3702,TRANSPORTE DE PERSONAL A OBRA,117
+3702.I0504,3702,MOBILIARIO CASETAS / EQUIPAMIENTO DE INSTALACIONES,1
+3702.I0513,3702,MONTAJE / DESMONTAJE CAMPAMENTOS,1
 3703.01.02,3703,Demolición de Estructuras,5
 3703.01.06,3703,Remoción de señales existentes,2
 3703.011.01,3703,,1

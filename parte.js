@@ -50,7 +50,7 @@ const DEMO_DATOS = {
   }
 };
 DEMO_DATOS.actividades={
-  'VOLQUETAS DOBLETROQUE': { habituales:[{item:'02.11',actividad:'Transporte de material para terraplén',veces:40,propio:true},{item:'02.10',actividad:'Transporte de préstamo',veces:9,propio:true},{item:'03.04',actividad:'Transporte de BTC',veces:6,propio:false}], proyecto_habitual:'3702' },
+  'VOLQUETAS DOBLETROQUE': { habituales:[{item:'02.11',actividad:'Cargue terraplen',nombre:'Transporte de material para terraplén',veces:40,propio:true},{item:'02.10',actividad:'Viaje de préstamo',nombre:'Transporte de préstamo',veces:9,propio:true},{item:'03.04',actividad:'Cargue btc',nombre:'Transporte de base granular',veces:6,propio:false}], proyecto_habitual:'3702' },
   'EXCAVADORAS': { habituales:[{item:'02.05',actividad:'Excavación (cargue de volquetas)',veces:22,propio:true},{item:'02.06',actividad:'Excavación de préstamo',veces:5,propio:false},{item:'02.03',actividad:'Descapote',veces:4,propio:false}], proyecto_habitual:'3701' },
   'MOTONIVELADORAS': { habituales:[{item:'02.07',actividad:'Terraplén',veces:18,propio:true},{item:'03.01',actividad:'Subbase granular',veces:7,propio:true}], proyecto_habitual:'3702' },
   'VIBROCOMPACTADOR': { habituales:[{item:'02.07',actividad:'Terraplén',veces:12,propio:true},{item:'05.04',actividad:'Terraplén en MSR',veces:9,propio:true},{item:'03.01',actividad:'Subbase granular',veces:3,propio:false}], proyecto_habitual:'3701' },
@@ -98,7 +98,7 @@ function ccDeItem(item, pr){ return item ? proyectoDe(pr)+'.'+item : ''; }
 function actLabel(item){ const a=(ACTS.habituales||[]).concat(ACTS.todas||[]).find(x=>x.item===item); return a ? a.actividad : item; }
 function actLabelHTML(r){
   if(r.libre) return '<b>Sin centro de coste</b><small>lo pone revisión con lo que escribas abajo</small>';
-  if(r.item) return '<b>'+esc(actLabel(r.item))+'</b><small>CC '+esc(r.cc||'')+(r.cc?' · UF'+ufDe(r.cc):'')+'</small>';
+  if(r.item){ const a=(ACTS.habituales||[]).concat(ACTS.todas||[]).find(x=>x.item===r.item); return '<b>'+esc(r.act||actLabel(r.item))+'</b><small>CC '+esc(r.cc||'')+(r.cc?' · UF'+ufDe(r.cc):'')+(a&&a.nombre?' · '+esc(a.nombre):'')+'</small>'; }
   return ccLabelHTML(r.cc);
 }
 let HOY = hoyBogota();
@@ -257,12 +257,11 @@ function actsHTML(t){
     +'<button type="button" class="sug mas" data-on-click="abrirPicker(\'act\',\''+t.id+'\',0)">Otra actividad…</button>'
     +'</div>';
 }
-function usarAct(id, j, item){
+function usarAct(id, j, item, frase){
   const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return;
-  const r=t.reparto[j], prev=r.item?actLabel(r.item):'';
-  r.item=item; r.libre=false; r.cc=ccDeItem(item, r.pr||t.pr);
-  const etq=actLabel(item);
-  if(!String(t.desc||'').trim() || t.desc===prev) t.desc=etq;   // la descripción arranca con la actividad; el operador la afina
+  const r=t.reparto[j], prev=r.act||'';
+  r.item=item; r.libre=false; r.cc=ccDeItem(item, r.pr||t.pr); r.act=frase||actLabel(item);
+  if(!String(t.desc||'').trim() || t.desc===prev) t.desc=r.act;   // la descripción arranca con la frase elegida; el operador la afina
   render();
 }
 function elegirLibre(){
@@ -378,7 +377,7 @@ function pintarPicker(){
       const hab=(ACTS.habituales||[]).filter(a=>!q || norm(a.actividad+' '+a.item).indexOf(q)>=0);
       const habI={}; hab.forEach(a=>habI[a.item]=1);
       const todas=(ACTS.todas||[]).filter(a=>!habI[a.item] && (!q || norm(a.actividad+' '+a.item).indexOf(q)>=0));
-      const itemA=a=>'<button type="button" class="picker-item'+(rr.item===a.item?' sel':'')+'" data-on-click="usarActPicker('+esc(JSON.stringify(a.item))+')"><b>'+esc(a.actividad)+'</b><small>CC '+esc(ccDeItem(a.item, rr.pr||(t?t.pr:'')))+(a.propio?' · esta máquina lo usó hace poco':'')+'</small></button>';
+      const itemA=a=>'<button type="button" class="picker-item'+(rr.item===a.item?' sel':'')+'" data-on-click="usarActPicker('+esc(JSON.stringify(a.item))+','+esc(JSON.stringify(a.actividad))+')"><b>'+esc(a.actividad)+'</b><small>CC '+esc(ccDeItem(a.item, rr.pr||(t?t.pr:'')))+(a.nombre?' · '+esc(a.nombre):'')+(a.propio?' · esta máquina lo usó hace poco':'')+'</small></button>';
       if(hab.length) html+='<div class="picker-grp">Habituales de '+esc(EQ.codigo)+'</div>'+hab.map(itemA).join('');
       if(todas.length) html+='<div class="picker-grp">'+(q?'Otras actividades':'Todas las actividades')+'</div>'+todas.map(itemA).join('');
     }
@@ -394,10 +393,10 @@ function pintarPicker(){
   }
   list.innerHTML=html||'<div class="picker-vacio">Sin resultados</div>';
 }
-function usarActPicker(item){
+function usarActPicker(item, frase){
   if(!pickerCtx) return;
   const id=pickerCtx.tramoId, j=pickerCtx.repIdx===null?0:pickerCtx.repIdx;
-  cerrarPicker(); usarAct(id, j, item);
+  cerrarPicker(); usarAct(id, j, item, frase);
 }
 function elegir(v){
   if(!pickerCtx) return;
@@ -469,7 +468,7 @@ function pintarResumen(){
   tramos.forEach((t,i)=>{
     const tot=totalDe(t);
     const rep=t.reparto||[], varios=rep.length>1;
-    let cc = rep.length ? rep.map(r=>(r.cc?(r.item?esc(actLabel(r.item))+' · ':'')+esc(ccTexto(r.cc)):(r.libre?'<span data-estilo="color:var(--accent-txt)">sin centro de coste · lo pone revisión</span>':'<span data-estilo="color:var(--error-txt)">sin centro de coste</span>'))+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)+')':''):'')).join('<br>')
+    let cc = rep.length ? rep.map(r=>(r.cc?(r.item?esc(r.act||actLabel(r.item))+' · ':'')+esc(ccTexto(r.cc)):(r.libre?'<span data-estilo="color:var(--accent-txt)">sin centro de coste · lo pone revisión</span>':'<span data-estilo="color:var(--error-txt)">sin centro de coste</span>'))+(r.pr?' · PR '+esc(r.pr):'')+(varios?' <b>'+fmt(num(r.pct)||0)+' %</b>'+(tot!==null&&tope?' ('+fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)+')':''):'')).join('<br>')
                         : '<span data-estilo="color:var(--error-txt)">sin centro de coste</span>';
     html+='<div class="r-row">'
       +'<b>'+esc(EQ.codigo)+'</b>'+((t.hora_de||t.hora_a)?' · '+esc(t.hora_de||'?')+'–'+esc(t.hora_a||'?'):'')

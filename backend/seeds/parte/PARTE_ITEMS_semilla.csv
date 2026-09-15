@@ -1,130 +1,195 @@
 tipo_equipo,item,actividad,veces,activo
-BULLDOZER,02.07,Terraplén,168,SI
-BULLDOZER,02.08,Botadero / ZODME,157,SI
-BULLDOZER,02.03,Descapote,5,SI
-BULLDOZER,11.04,,4,SI
-CAMABAJA,02.07,Terraplén,69,SI
-CAMABAJA,05.04,Terraplén en MSR,20,SI
-CAMABAJA,02.05,Excavación (cargue de volquetas),13,SI
-CAMABAJA,02.08,Botadero / ZODME,4,SI
-CAMABAJA,06.01,Excavación para drenajes (ODT),3,SI
-CAMION CISTERNA,03.01,Subbase granular,23,SI
-CAMION CISTERNA,03.03,Base granular / BTC,14,SI
-CAMIONES,03.01,Subbase granular,114,SI
-CAMIONES,02.07,Terraplén,92,SI
-CAMIONES,06.05,Tubería de concreto (ODT),89,SI
-CAMIONES,03.03,Base granular / BTC,83,SI
-CAMIONES,06.04,,68,SI
-CAMIONES,06.09,,52,SI
-CAMIONES,02.09,,30,SI
-CAMIONES,07.02,,15,SI
-CAMIONES,07.10,,11,SI
-CAMIONES,I0408,Paisajismo / zonas verdes,10,SI
-CAMIONES,05.04,Terraplén en MSR,8,SI
-CAMIONES,I0513,,7,SI
-CAMIONES,11.04,,6,SI
-CAMIONES,11.01,Señalización / PMT,6,SI
-CAMIONES,06.02,Relleno de drenajes (ODT),5,SI
-CAMIONES,09.02,,5,SI
-CAMIONES,02.06,Excavación de préstamo,4,SI
-CAMIONES,02.05,Excavación (cargue de volquetas),4,SI
-CAMIONES,07.07,,4,SI
-CARROTANQUE,03.01,Subbase granular,82,SI
-CARROTANQUE,03.03,Base granular / BTC,34,SI
-CARROTANQUE,02.07,Terraplén,17,SI
-CARROTANQUE,11.04,,3,SI
-COMPACTADORES,02.07,Terraplén,263,SI
-COMPACTADORES,03.01,Subbase granular,130,SI
-COMPACTADORES,03.03,Base granular / BTC,80,SI
-COMPACTADORES,11.04,,14,SI
-COMPACTADORES,I0408,Paisajismo / zonas verdes,4,SI
-EXCAVADORA,02.05,Excavación (cargue de volquetas),38,SI
-EXCAVADORA,02.12,Muro en tierra (MSR),12,SI
-EXCAVADORA,06.01,Excavación para drenajes (ODT),12,SI
-EXCAVADORA,02.03,Descapote,7,SI
-EXCAVADORA,06.02,Relleno de drenajes (ODT),6,SI
-EXCAVADORA SOBRE LLANTAS,06.02,Relleno de drenajes (ODT),4,SI
-EXCAVADORA SOBRE LLANTAS,06.01,Excavación para drenajes (ODT),3,SI
-EXCAVADORAS,02.05,Excavación (cargue de volquetas),311,SI
-EXCAVADORAS,02.06,Excavación de préstamo,67,SI
-EXCAVADORAS,02.03,Descapote,59,SI
-EXCAVADORAS,05.04,Terraplén en MSR,17,SI
-EXCAVADORAS,02.07,Terraplén,11,SI
-EXCAVADORAS,02.08,Botadero / ZODME,11,SI
-EXCAVADORAS,06.02,Relleno de drenajes (ODT),9,SI
-EXCAVADORAS,06.01,Excavación para drenajes (ODT),8,SI
-EXCAVADORAS,02.01,Desmonte y limpieza,3,SI
-EXCAVADORAS,I0408,Paisajismo / zonas verdes,3,SI
-EXTENDEDORAS,03.03,Base granular / BTC,61,SI
-LUMINARIA,02.07,Terraplén,32,SI
-LUMINARIA,05.04,Terraplén en MSR,31,SI
-LUMINARIA,11.01,Señalización / PMT,15,SI
-LUMINARIA,02.05,Excavación (cargue de volquetas),9,SI
-MINICARGADOR,05.04,Terraplén en MSR,56,SI
-MOTONIVELADORA,02.07,Terraplén,47,SI
-MOTONIVELADORA,03.01,Subbase granular,7,SI
-MOTONIVELADORAS,02.07,Terraplén,246,SI
-MOTONIVELADORAS,03.01,Subbase granular,165,SI
-MOTONIVELADORAS,03.03,Base granular / BTC,27,SI
-MOTONIVELADORAS,11.04,,8,SI
-MOTONIVELADORAS,I0408,Paisajismo / zonas verdes,3,SI
-RETRO DE LLANTAS,06.02,Relleno de drenajes (ODT),65,SI
-RETRO DE LLANTAS,06.01,Excavación para drenajes (ODT),60,SI
-RETRO DE LLANTAS,06.05,Tubería de concreto (ODT),19,SI
-RETRO DE LLANTAS,02.09,,17,SI
-RETRO DE LLANTAS,02.05,Excavación (cargue de volquetas),15,SI
-RETRO DE LLANTAS,02.03,Descapote,6,SI
-RETROCARGADOR,05.04,Terraplén en MSR,79,SI
-RETROCARGADOR,06.02,Relleno de drenajes (ODT),32,SI
-RETROCARGADOR,02.12,Muro en tierra (MSR),26,SI
-RETROCARGADOR,06.01,Excavación para drenajes (ODT),25,SI
-RETROCARGADOR,07.01,Cunetas en concreto,21,SI
-RETROCARGADOR,02.09,,17,SI
-RETROCARGADOR,02.07,Terraplén,16,SI
-RETROCARGADOR,07.03,,12,SI
-RETROCARGADOR,02.05,Excavación (cargue de volquetas),10,SI
-RETROCARGADOR,02.08,Botadero / ZODME,10,SI
-RETROCARGADOR,06.05,Tubería de concreto (ODT),8,SI
-RETROCARGADOR,02.06,Excavación de préstamo,4,SI
-RETROCARGADOR,11.04,,4,SI
-RETROCARGADOR,06.07,,3,SI
-RETROCARGADOR,05.05,,3,SI
-TORRES DE ILUMINACIÓN,02.05,Excavación (cargue de volquetas),34,SI
-TORRES DE ILUMINACIÓN,02.07,Terraplén,32,SI
-TRACTOCAMIONES,02.07,Terraplén,132,SI
-TRACTOCAMIONES,03.02,,42,SI
-TRACTOCAMIONES,11.01,Señalización / PMT,25,SI
-TRACTOCAMIONES,02.05,Excavación (cargue de volquetas),16,SI
-TRACTOCAMIONES,03.03,Base granular / BTC,13,SI
-TRACTOCAMIONES,06.04,,11,SI
-TRACTOCAMIONES,02.03,Descapote,11,SI
-TRACTOCAMIONES,02.10,Transporte de préstamo,8,SI
-TRACTOCAMIONES,06.01,Excavación para drenajes (ODT),6,SI
-TRACTOCAMIONES,I0408,Paisajismo / zonas verdes,6,SI
-TRACTOCAMIONES,04.03,,4,SI
-TRACTOCAMIONES,11.04,,4,SI
-TRACTOCAMIONES,07.01,Cunetas en concreto,4,SI
-TRACTOCAMIONES,02.12,Muro en tierra (MSR),3,SI
-TRACTOCAMIONES,05.04,Terraplén en MSR,3,SI
-TRACTOCAMIONES,06.02,Relleno de drenajes (ODT),3,SI
-TURBO,I0408,Paisajismo / zonas verdes,105,SI
-TURBO,11.01,Señalización / PMT,4,SI
-TURBO,I0513,,3,SI
-TURBO DE ESTACAS,I0408,Paisajismo / zonas verdes,117,SI
-VIBROCOMPACTADOR,02.07,Terraplén,259,SI
-VIBROCOMPACTADOR,05.04,Terraplén en MSR,160,SI
-VIBROCOMPACTADOR,03.01,Subbase granular,85,SI
-VIBROCOMPACTADOR,02.12,Muro en tierra (MSR),30,SI
-VIBROCOMPACTADOR,11.04,,9,SI
-VIBROCOMPACTADOR,02.08,Botadero / ZODME,5,SI
-VIBROCOMPACTADOR,I0408,Paisajismo / zonas verdes,3,SI
-VIBROCOMPACTADOR RENTAL 900,02.07,Terraplén,82,SI
-VIBROCOMPACTADOR RENTAL 900,03.01,Subbase granular,9,SI
-VOLQUETAS DOBLETROQUE,02.11,Transporte de material para terraplén,1236,SI
-VOLQUETAS DOBLETROQUE,02.10,Transporte de préstamo,251,SI
-VOLQUETAS DOBLETROQUE,03.04,,189,SI
-VOLQUETAS DOBLETROQUE,03.02,,97,SI
-VOLQUETAS DOBLETROQUE,11.04,,45,SI
-VOLQUETAS DOBLETROQUE,03.03,Base granular / BTC,13,SI
-VOLQUETAS DOBLETROQUE,06.03,,3,SI
-VOLQUETAS DOBLETROQUE,01.11,,3,SI
+BULLDOZER,02.07,Conformacion de terraplen,80,SI
+BULLDOZER,02.07,Conformacion terraplen,35,SI
+BULLDOZER,02.07,Conformacion de material,14,SI
+BULLDOZER,02.08,Conformacion de botadero,31,SI
+BULLDOZER,02.08,Conformacion de material zodme,25,SI
+BULLDOZER,02.08,Conformando rcd,18,SI
+BULLDOZER,02.03,Desmonte y limpieza en zonas no boscosas,5,SI
+BULLDOZER,11.04,Imprevistos (bloqueos - Paros),4,SI
+CAMABAJA,02.07,Vibrocompactador,9,SI
+CAMABAJA,02.07,Motoniveladora,6,SI
+CAMABAJA,02.07,Bulldozer,6,SI
+CAMABAJA,05.04,Relleno para muros de tierra,20,SI
+CAMABAJA,02.05,Excavaciones en material común de la Explanación y Canales,13,SI
+CAMABAJA,02.08,Conformación y disposición de sobrantes (incluye obras de adecuación),4,SI
+CAMABAJA,06.01,Excavaciones varias sin clasicar,3,SI
+CAMION CISTERNA,03.01,Humectacion,5,SI
+CAMION CISTERNA,03.03,Base granular estabilizada con cemento (No incluye cemento),14,SI
+CAMIONES,03.01,Humectacion de sub base,19,SI
+CAMIONES,03.01,Humectacion de btc,13,SI
+CAMIONES,02.07,Humectacion de sub base,14,SI
+CAMIONES,02.07,Humectacion,10,SI
+CAMIONES,02.07,Humectacion terraplen,8,SI
+CAMIONES,06.05,Cargue,10,SI
+CAMIONES,03.03,Humectacion de btc,16,SI
+CAMIONES,03.03,Sub base,11,SI
+CAMIONES,03.03,Humectacion de sub base,10,SI
+CAMIONES,06.04,Cargue de acero,12,SI
+CAMIONES,06.04,Cargue,7,SI
+CAMIONES,06.09,Cargue,8,SI
+CAMIONES,02.09,Riego de agua,3,SI
+CAMIONES,02.09,Humectacion de sub base,3,SI
+CAMIONES,02.09,Humectacion de btc,3,SI
+CAMIONES,07.02,Terraplen,4,SI
+CAMIONES,07.02,Humectacion terraplen,3,SI
+CAMIONES,07.02,Humectacion sub base,3,SI
+CAMIONES,07.10,Tubería de Concreto Reforzado de 600 mm de diámetro interior,11,SI
+CAMIONES,I0408,Humectacion terraplen llenado de fresadora,4,SI
+CAMIONES,I0408,Humectacion terraplen,4,SI
+CAMIONES,I0408,Humectacion humectacion terraplen,4,SI
+CAMIONES,05.04,Relleno para muros de tierra,8,SI
+CAMIONES,I0513,MONTAJE / DESMONTAJE CAMPAMENTOS,7,SI
+CAMIONES,11.04,Imprevistos (bloqueos - Paros),6,SI
+CAMIONES,11.01,Salida del cargue de geomenbrana,3,SI
+CAMIONES,06.02,Rellenos con material seleccionado,5,SI
+CAMIONES,09.02,Protección de taludes con productos enrollados para control de erosión con biomanto,5,SI
+CAMIONES,02.06,Excavación en material común de préstamos,4,SI
+CAMIONES,02.05,Excavaciones en material común de la Explanación y Canales,4,SI
+CAMIONES,07.07,Concreto clase 14 MPA (Cunetas de terraza y coronación),4,SI
+CARROTANQUE,03.01,Humectacion,9,SI
+CARROTANQUE,03.01,Humectacion sub base,7,SI
+CARROTANQUE,03.03,Sub base,5,SI
+CARROTANQUE,03.03,Humectacion btc,5,SI
+CARROTANQUE,02.07,Terraplenes (solo conformación),17,SI
+CARROTANQUE,11.04,Imprevistos (bloqueos - Paros),3,SI
+COMPACTADORES,02.07,Compactando terraplen,99,SI
+COMPACTADORES,02.07,Compactacion terraplen,39,SI
+COMPACTADORES,03.01,Compactando cereo de sub base,43,SI
+COMPACTADORES,03.01,Compactando sub base,29,SI
+COMPACTADORES,03.03,Compactacion btc,19,SI
+COMPACTADORES,03.03,Compactando btc,15,SI
+COMPACTADORES,03.03,Compactacion base estabilizada btc,14,SI
+COMPACTADORES,11.04,Imprevistos (bloqueos - Paros),14,SI
+COMPACTADORES,I0408,TRANSPORTE DE PERSONAL A OBRA,4,SI
+EXCAVADORA,02.05,Cargue de volquetas,10,SI
+EXCAVADORA,02.05,Corte,4,SI
+EXCAVADORA,06.01,Excavando,3,SI
+EXCAVADORA,06.01,Exacuando agua en el box culvert,3,SI
+EXCAVADORA,02.03,Descapote,4,SI
+EXCAVADORA,02.03,Limpieza,3,SI
+EXCAVADORA,06.02,Rellenos con material seleccionado,6,SI
+EXCAVADORA SOBRE LLANTAS,06.02,Rellenos con material seleccionado,4,SI
+EXCAVADORA SOBRE LLANTAS,06.01,Excavaciones varias sin clasicar,3,SI
+EXCAVADORAS,02.05,Cargue de volquetas,60,SI
+EXCAVADORAS,02.05,Cargue de material,44,SI
+EXCAVADORAS,02.05,Cargue,32,SI
+EXCAVADORAS,02.06,Cargue de material,26,SI
+EXCAVADORAS,02.06,Corte,24,SI
+EXCAVADORAS,02.06,Cargue terraplen,8,SI
+EXCAVADORAS,02.03,Descapote,20,SI
+EXCAVADORAS,02.03,Descapotando,7,SI
+EXCAVADORAS,02.03,Desbroce,6,SI
+EXCAVADORAS,05.04,Cortando talud,9,SI
+EXCAVADORAS,05.04,Cargue terraplen,6,SI
+EXCAVADORAS,05.04,Cargando terraplen,3,SI
+EXCAVADORAS,02.07,Terraplenes (solo conformación),11,SI
+EXCAVADORAS,02.08,Traspaleando escapote,3,SI
+EXCAVADORAS,06.02,Apoyo odt,5,SI
+EXCAVADORAS,06.02,Cargue de volquetas,3,SI
+EXCAVADORAS,06.02,Apoyo a odt,3,SI
+EXCAVADORAS,06.01,Excavaciones varias sin clasicar,8,SI
+EXCAVADORAS,02.01,Desmonte y limpieza en bosque,3,SI
+EXCAVADORAS,I0408,TRANSPORTE DE PERSONAL A OBRA,3,SI
+EXTENDEDORAS,03.03,Colocacion btc,45,SI
+EXTENDEDORAS,03.03,Limpieza de equipo,32,SI
+EXTENDEDORAS,03.03,Limpieza equipo,5,SI
+LUMINARIA,02.07,Terraplenes (solo conformación),32,SI
+LUMINARIA,05.04,Relleno para muros de tierra,31,SI
+LUMINARIA,11.01,Terraplen,15,SI
+LUMINARIA,02.05,Excavaciones en material común de la Explanación y Canales,9,SI
+MINICARGADOR,05.04,Movimiento de material,14,SI
+MINICARGADOR,05.04,Conformando material emrs,8,SI
+MINICARGADOR,05.04,Movimiento de costales,7,SI
+MOTONIVELADORA,02.07,Conformacion terraplen,6,SI
+MOTONIVELADORA,02.07,Se extiende material de relleno,4,SI
+MOTONIVELADORA,03.01,Subbase Granular,7,SI
+MOTONIVELADORAS,02.07,Cereo terraplen,33,SI
+MOTONIVELADORAS,02.07,Conformando terraplen,23,SI
+MOTONIVELADORAS,03.01,Cereo sub base,29,SI
+MOTONIVELADORAS,03.01,Cereo de sub base,28,SI
+MOTONIVELADORAS,03.01,Cereo terraplen,15,SI
+MOTONIVELADORAS,03.03,Extendiendo btc,11,SI
+MOTONIVELADORAS,03.03,Extendido btc,8,SI
+MOTONIVELADORAS,11.04,Imprevistos (bloqueos - Paros),8,SI
+MOTONIVELADORAS,I0408,TRANSPORTE DE PERSONAL A OBRA,3,SI
+RETRO DE LLANTAS,06.02,Excavacion,21,SI
+RETRO DE LLANTAS,06.01,Excavacion,27,SI
+RETRO DE LLANTAS,06.01,Cargue de volquetas odt,6,SI
+RETRO DE LLANTAS,06.01,Cargue de volqueta,5,SI
+RETRO DE LLANTAS,06.05,Excavacion,5,SI
+RETRO DE LLANTAS,02.09,Excavacion,8,SI
+RETRO DE LLANTAS,02.05,Paisajeo,5,SI
+RETRO DE LLANTAS,02.05,Excavacion,4,SI
+RETRO DE LLANTAS,02.03,Paisajeo,3,SI
+RETROCARGADOR,05.04,Extendido de material,11,SI
+RETROCARGADOR,05.04,Cargue de sacos,8,SI
+RETROCARGADOR,05.04,Paisajeo,7,SI
+RETROCARGADOR,06.02,Paisajeo del mismo,4,SI
+RETROCARGADOR,02.12,Muro suelo reforzado,21,SI
+RETROCARGADOR,02.12,Muros en tierra armada,3,SI
+RETROCARGADOR,06.01,Manejo de aguas,4,SI
+RETROCARGADOR,06.01,Excavacion,4,SI
+RETROCARGADOR,06.01,Sacado de fallo en terraplen,3,SI
+RETROCARGADOR,07.01,Paisajeo,10,SI
+RETROCARGADOR,07.01,Excavacion de cuneta,4,SI
+RETROCARGADOR,07.01,Excavacion de cunetas,3,SI
+RETROCARGADOR,02.09,Caminos y accesos,17,SI
+RETROCARGADOR,02.07,Terraplenes (solo conformación),16,SI
+RETROCARGADOR,07.03,Paisajeo,5,SI
+RETROCARGADOR,02.05,Paisajeo,3,SI
+RETROCARGADOR,02.08,Conformación y disposición de sobrantes (incluye obras de adecuación),10,SI
+RETROCARGADOR,06.05,Tubería de Concreto Reforzado de 900mm de diámetro interior (Tipo III),8,SI
+RETROCARGADOR,02.06,Excavación en material común de préstamos,4,SI
+RETROCARGADOR,11.04,Imprevistos (bloqueos - Paros),4,SI
+RETROCARGADOR,06.07,"Concreto clase 14 MPA (solados, estructuras)",3,SI
+RETROCARGADOR,05.05,Material granular drenante,3,SI
+TORRES DE ILUMINACIÓN,02.05,Terraplen,14,SI
+TORRES DE ILUMINACIÓN,02.07,Terraplen,16,SI
+TRACTOCAMIONES,02.07,Compactador,14,SI
+TRACTOCAMIONES,03.02,Viaje de sub base de putana,5,SI
+TRACTOCAMIONES,03.02,Viaje sub base de la putana,4,SI
+TRACTOCAMIONES,03.02,Sub base de putana,4,SI
+TRACTOCAMIONES,11.01,PLAN DE MANEJO DE TRÁFICO (PMT'S),25,SI
+TRACTOCAMIONES,02.05,Excavaciones en material común de la Explanación y Canales,16,SI
+TRACTOCAMIONES,03.03,Base granular estabilizada con cemento (No incluye cemento),13,SI
+TRACTOCAMIONES,06.04,Cargue de hierro,3,SI
+TRACTOCAMIONES,02.03,Desmonte y limpieza en zonas no boscosas,11,SI
+TRACTOCAMIONES,02.10,"Transporte materiales provenientes de excavación de explanación, canales y préstamos (100 - 1.000 m",8,SI
+TRACTOCAMIONES,06.01,Excavaciones varias sin clasicar,6,SI
+TRACTOCAMIONES,I0408,TRANSPORTE DE PERSONAL A OBRA,6,SI
+TRACTOCAMIONES,04.03,Mezcla densa en caliente tipo MDC-25 Base Asfáltica,4,SI
+TRACTOCAMIONES,11.04,Imprevistos (bloqueos - Paros),4,SI
+TRACTOCAMIONES,07.01,Excavaciones varias sin clasicar,4,SI
+TRACTOCAMIONES,05.04,Relleno para muros de tierra,3,SI
+TRACTOCAMIONES,06.02,Rellenos con material seleccionado,3,SI
+TURBO,I0408,Personal para sabana de torres,9,SI
+TURBO,11.01,PLAN DE MANEJO DE TRÁFICO (PMT'S),4,SI
+TURBO,I0513,MONTAJE / DESMONTAJE CAMPAMENTOS,3,SI
+TURBO DE ESTACAS,I0408,Personal para sabana,24,SI
+TURBO DE ESTACAS,I0408,Entrada a planta,16,SI
+TURBO DE ESTACAS,I0408,Recorrido por los puntos de trabajo,14,SI
+VIBROCOMPACTADOR,02.07,Compactacion terraplen,90,SI
+VIBROCOMPACTADOR,02.07,Compactando terraplen,28,SI
+VIBROCOMPACTADOR,02.07,Conformacion terraplen,27,SI
+VIBROCOMPACTADOR,05.04,Compactando terraplen,85,SI
+VIBROCOMPACTADOR,05.04,Compactacion terraplen,29,SI
+VIBROCOMPACTADOR,03.01,Compactacion terraplen,14,SI
+VIBROCOMPACTADOR,03.01,Compactando sub base,13,SI
+VIBROCOMPACTADOR,03.01,Compactacion sub base,9,SI
+VIBROCOMPACTADOR,02.12,Compactando terraplen,10,SI
+VIBROCOMPACTADOR,11.04,Imprevistos (bloqueos - Paros),9,SI
+VIBROCOMPACTADOR,02.08,Conformación y disposición de sobrantes (incluye obras de adecuación),5,SI
+VIBROCOMPACTADOR,I0408,TRANSPORTE DE PERSONAL A OBRA,3,SI
+VIBROCOMPACTADOR RENTAL 900,02.07,Compactando terraplen,18,SI
+VIBROCOMPACTADOR RENTAL 900,02.07,Compactando corona,17,SI
+VIBROCOMPACTADOR RENTAL 900,03.01,Subbase Granular,9,SI
+VOLQUETAS DOBLETROQUE,02.11,Terraplen,156,SI
+VOLQUETAS DOBLETROQUE,02.10,Terraplen,29,SI
+VOLQUETAS DOBLETROQUE,03.04,Cargue de btc de la putana,21,SI
+VOLQUETAS DOBLETROQUE,03.04,Cargue btc,19,SI
+VOLQUETAS DOBLETROQUE,03.02,Transporte de subbase granular,97,SI
+VOLQUETAS DOBLETROQUE,11.04,Imprevistos (bloqueos - Paros),45,SI
+VOLQUETAS DOBLETROQUE,03.03,Cargue de btc de la putana,3,SI
+VOLQUETAS DOBLETROQUE,03.03,Cargue btc,3,SI
+VOLQUETAS DOBLETROQUE,06.03,Material granular drenante,3,SI

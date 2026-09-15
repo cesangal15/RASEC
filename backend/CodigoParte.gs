@@ -53,9 +53,11 @@ const PARTE_EQUIPOS_HEADERS     = ['codigo','tipo','placa','proveedor','medidor'
 const PARTE_OPERADORES_HEADERS  = ['operador','partes_ult_4_meses','activo'];
 const PARTE_CC_HEADERS          = ['centro_coste','proyecto','descripcion_cc','usos_ult_4_meses','activo'];
 const PARTE_ACTIVIDADES_HEADERS = ['tipo_equipo','descripcion_trabajo','veces'];
-// D174: tabla actividad → ítem por tipo de equipo (la «máscara» del operador). `actividad` en palabras
-// de obra; vacía → se completa con la descripción del ítem de la BASE. Dueño: Jeisson (quien asigna
-// los CC). Semilla: PARTE_ITEMS_semilla.csv (histórico de BASE MAQUINARIA UF1-UF2, 6 meses).
+// D174: tabla actividad → ítem por tipo de equipo (la «máscara» del operador). `actividad` = la frase
+// con que ELLOS la escriben en DESCRIPCIÓN DEL TRABAJO del parte («Compactando terraplen», «Cargue de
+// volquetas», «Cereo sub base»); puede haber varias frases para el mismo ítem. Vacía → se completa con
+// la descripción del ítem de la BASE (el «nombre científico», que además se muestra bajo la frase).
+// Dueño: Jeisson (quien asigna los CC). Semilla: PARTE_ITEMS_semilla.csv (BASE MAQUINARIA UF1-UF2, 6 meses).
 const PARTE_ITEMS_HEADERS = ['tipo_equipo','item','actividad','veces','activo'];
 // PARTE_BANDEJA: esquema FIJO del código (como BANDEJA). Nunca se borra una fila: el estado cambia.
 const PARTE_BANDEJA_HEADERS = ['id_registro','timestamp','estado','fecha','codigo','tipo','placa','medidor',
@@ -279,12 +281,18 @@ function parteItems_(){
   }catch(err){ /* hoja ausente: sin tabla, el formulario cae al CC directo */ }
   return out;
 }
-// Etiqueta de un ítem: la de la tabla; si no, la descripción del ítem en PARTE_CC/BASE; si no, el ítem.
-function parteEtiquetaItem_(item, tabla, ccs){
-  const conEtq=tabla.filter(function(x){ return x.item===item && x.actividad; }).sort(function(a,b){ return b.veces-a.veces; })[0];
-  if(conEtq) return conEtq.actividad;
+// Nombre de catálogo del ítem (PARTE_CC / BASE): se muestra bajo la frase del operador.
+function parteNombreItem_(item, ccs){
   const c=ccs.filter(function(x){ return !x.pseudo && parteItemDeCC_(x.centro_coste)===item && x.descripcion_cc; })[0];
-  return c ? c.descripcion_cc : item;
+  return c ? c.descripcion_cc : '';
+}
+// Frase del operador para un ítem: la más usada en las filas dadas (primero las del tipo, luego cualquiera);
+// si la tabla no la tiene, el nombre de catálogo; si no, el ítem.
+function parteEtiquetaItem_(item, filasTipo, tabla, ccs){
+  const pick=function(fs){ return fs.filter(function(x){ return x.item===item && x.actividad; }).sort(function(a,b){ return b.veces-a.veces; })[0]; };
+  const f=pick(filasTipo||[]) || pick(tabla);
+  if(f) return f.actividad;
+  return parteNombreItem_(item, ccs) || item;
 }
 /* Tres capas (backlog 4.06): habituales = ítems del EQUIPO en los últimos 30 días (PARTE_BANDEJA) +
  * los de su TIPO en la tabla; todas = la tabla entera sin repetir ítem. Nada se recorta: lo que no
@@ -302,17 +310,22 @@ function parteActividades_(q, hist){
   let delTipo=tabla.filter(function(x){ return normTexto(x.tipo)===exacto; });
   if(!delTipo.length) delTipo=tabla.filter(function(x){ return parteTipoBase_(x.tipo)===base; });
   if(!delTipo.length) delTipo=tabla.filter(function(x){ const b=parteTipoBase_(x.tipo); return b && base && (b.indexOf(base)===0 || base.indexOf(b)===0); });
+  // Habituales: UN chip por ítem, con la frase más usada por su tipo (o por el equipo si es propio).
   const vistos={}, habituales=[];
   Object.keys(propios).sort(function(a,b){ return propios[b]-propios[a]; }).forEach(function(item){
-    vistos[item]=1; habituales.push({ item:item, actividad:parteEtiquetaItem_(item, tabla, ccs), veces:propios[item], propio:true });
+    vistos[item]=1; habituales.push({ item:item, actividad:parteEtiquetaItem_(item, delTipo, tabla, ccs), nombre:parteNombreItem_(item, ccs), veces:propios[item], propio:true });
   });
   delTipo.sort(function(a,b){ return b.veces-a.veces; }).forEach(function(x){
     if(vistos[x.item]) return; vistos[x.item]=1;
-    habituales.push({ item:x.item, actividad:parteEtiquetaItem_(x.item, tabla, ccs), veces:x.veces, propio:false });
+    habituales.push({ item:x.item, actividad:parteEtiquetaItem_(x.item, delTipo, tabla, ccs), nombre:parteNombreItem_(x.item, ccs), veces:x.veces, propio:false });
   });
+  // Todas: cada FRASE de la tabla (varias por ítem si así la escriben), sin repetir frase, por orden alfabético.
   const todosV={}, todas=[];
-  tabla.forEach(function(x){ if(todosV[x.item]) return; todosV[x.item]=1; todas.push({ item:x.item, actividad:parteEtiquetaItem_(x.item, tabla, ccs) }); });
-  todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:1; });
+  tabla.forEach(function(x){
+    const k=normTexto(x.actividad)+'|'+x.item; if(!x.actividad || todosV[k]) return; todosV[k]=1;
+    todas.push({ item:x.item, actividad:x.actividad, nombre:parteNombreItem_(x.item, ccs) });
+  });
+  todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:normTexto(a.actividad)>normTexto(b.actividad)?1:(a.item<b.item?-1:1); });
   return { habituales:habituales.slice(0,8), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
 }
 // ¿Se espera este equipo en esa fecha? Devuelve la ficha (con `frente`) o null.
