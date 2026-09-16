@@ -191,6 +191,16 @@ Lo de §1. Sale un número por endpoint y una fecha proyectada por hoja. Si nada
   asistencia), `obra_id` desde el día uno aunque sea constante.
 - Script de **volcado Sheet → CSV** por hoja (Apps Script `getValues` → Drive), para el backfill de cada fase.
 
+**Estado (16-sep-2026): Fase 1 hecha, sin redeploy y sin tocar pantallas, `.gs` ni Worker.**
+
+| Entregable | Dónde | Cómo se usa |
+|---|---|---|
+| Pruebas de contrato (57 casos · 166 comprobaciones en `vm`) | `backend/pruebas/contrato/` (`arnes.js`, `semillas.js`, `casos_obra.js`, `casos_asistencias.js`, `casos_parte.js`, `correr.js`, `servidor_local.js`, README) | `node backend/pruebas/contrato/correr.js` (vm) · `--url=https://api.galca.app/prueba --usuario=… --clave=… [--escribir]` (URL). Las escrituras usan `FECHA_BANCO=2020-01-13` y se limpian solas donde el contrato lo permite |
+| Esquema SQL | `worker/sql/001_esquema.sql` + README (hoja → tabla, receta de `\copy`) | 33 tablas (una por hoja transaccional + catálogos importados), `obra_id` en todas, PK por `id_registro`/`app_id_registro`/`(fecha)`/`(fecha,cuadrilla)`, índices `(fecha)`, `(fecha,area)`, `(fecha,cuadrilla)`, `(codigo,fecha DESC,hora_a DESC)` para `parteUltimoFinal_`; vista `data_maestro` con los encabezados exactos A–T. Idempotente, probado en Postgres 16 |
+| Volcado Sheet → CSV | `backend/volcado/VolcadoCSV.gs` + README (proyecto de Apps Script aparte) | `volcarObra()` / `volcarAsistencias()` / `volcarTodo()` → `Galca_volcado/tm2sur/<fecha>_<módulo>/<HOJA>.csv` + `manifiesto.json`; opcional trigger diario 03:00 |
+
+Siguiente paso: Fase 2 (Parte Digital) — `worker/src/api/parte.js` + `worker/src/db.js`, con el arnés de contrato en verde contra `/prueba/parte`.
+
 ### Fase 2 — Piloto: Parte Digital (2–3 semanas)
 
 Por qué primero: hojas propias (`PARTE_*`), ruta propia en el Worker (`/parte`), endpoint público sin token, un solo
