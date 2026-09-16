@@ -1,4 +1,4 @@
-# INFORME 4.01 — Base de datos real: diagnóstico y plan (sin implementar)
+# INFORME 4.01 — Base de datos real: diagnóstico, decisión (D178) y plan
 
 Fecha: 16-sep-2026. Alcance: solo diagnóstico y plan del ítem **4.01** del backlog. No se cambia código, ni
 Sheets, ni el Worker. Fuente: lectura completa de `backend/Codigo.gs` (3.324 líneas), `backend/CodigoAsistencias.gs`
