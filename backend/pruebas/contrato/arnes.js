@@ -161,7 +161,10 @@ function clon(o){ return JSON.parse(JSON.stringify(o)); }   // la respuesta viaj
 function apiUrl(op){
   const base = String(op.base || '').replace(/\/+$/, '');
   const urls = { obra: op.obra || (base && base + '/obra'), asistencias: op.asistencias || (base && base + '/asistencias') };
-  urls.parte = op.parte || urls.obra;   // el Parte vive en el mismo proyecto que obra (mismo /exec); en el Worker /parte no exige token
+  // Con --url (base del Worker) el Parte va por /parte, que es la ruta que usan las pantallas (auth.js) y la que
+  // el Worker conmuta a la BD en la Fase 2 (BACKEND_PARTE); /obra exigiría token en las ops públicas del Parte.
+  // Con --obra=<…/exec> directo, el Parte vive en el mismo proyecto que obra (mismo /exec).
+  urls.parte = op.parte || (base ? base + '/parte' : urls.obra);
   if (!urls.obra || !urls.asistencias) throw new Error('Modo url: falta --url (base del Worker) o --obra/--asistencias (URLs /exec).');
   const tokens = {}, perfiles = op.perfiles || {};
   async function pedir(url, metodo, params, body){

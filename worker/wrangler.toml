@@ -9,14 +9,24 @@
 #   /asistencias    ASISTENCIAS_URL           token de D109 obligatorio
 #   /parte          PARTE_URL                 sin token (formulario público por QR, D165)
 #   /prueba/<x>     <X>_PRUEBA_URL            mismo filtro que su ruta; opcional (entorno de prueba, D168)
+#   /parte y /prueba/parte con BACKEND_PARTE[_PRUEBA]=db no reenvían: los atiende src/api/parte.js contra Postgres (4.01)
 #
 # Desplegar:   wrangler login · wrangler secret put OBRA_URL (×3) · wrangler deploy
 # Ruta:        el dominio personalizado de abajo crea solo el registro DNS de api.galca.app
 #              (la zona galca.app tiene que estar en la misma cuenta de Cloudflare).
 
+#
+# 4.01 · Fase 2 (D180): el backend del Parte Digital puede correr en el Worker contra Postgres (Supabase).
+#   Vars   BACKEND_PARTE / BACKEND_PARTE_PRUEBA = sheets | db      (conmutador por ruta, abajo en [vars])
+#   Secretos (wrangler secret put): DATABASE_URL (o el binding Hyperdrive de abajo), AUTH_SECRETO
+#            (= mostrarSecretoAuth() del Apps Script de obra) y, si prueba tiene los suyos,
+#            DATABASE_URL_PRUEBA / AUTH_SECRETO_PRUEBA. Ninguno va en este archivo ni en el repo.
+#   Backfill: worker/sql/backfill_parte.js (volcado CSV → tablas parte_* · maquinas · base_items).
+
 name = "galca-api"
 main = "src/index.js"
 compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]   # postgres.js (src/db.js) necesita net/tls de Node
 workers_dev = false
 
 # Dominio personalizado: Cloudflare crea el DNS y el certificado; no hace falta tocar la zona a mano.
@@ -31,6 +41,21 @@ ALLOWED_ORIGINS = "https://tm2.galca.app"
 # Límite por IP: peticiones por minuto. Debe coincidir con `simple.limit` del binding de abajo
 # (ese es el que manda cuando existe; esta var alimenta el respaldo en memoria).
 RATE_LIMIT_POR_MIN = "120"
+# 4.01 — Backend del Parte Digital por ruta: "sheets" (reenvío al Apps Script, como siempre) o "db"
+# (src/api/parte.js contra Postgres). Producción sigue en Sheets hasta el corte de la Fase 2; el
+# entorno de prueba (/prueba/parte, ?env=prueba) ya apunta a la BD. Vuelta atrás = "sheets" + deploy.
+BACKEND_PARTE = "db"
+BACKEND_PARTE_PRUEBA = "db"
+# Versión del token (D109): tiene que coincidir con la propiedad AUTH_V del Apps Script emisor.
+AUTH_V = "1"
+
+# Hyperdrive (pool de conexiones a Supabase). Crear UNA vez con la cadena de conexión del proyecto
+# galca-tm2sur (Supabase → Connect → Session pooler, puerto 5432, IPv4):
+#   npx wrangler hyperdrive create galca-tm2sur --connection-string="postgres://postgres.<ref>:<clave>@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+# y pegar aquí el id que devuelve. Mientras no exista, src/db.js usa el secreto DATABASE_URL.
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<id que devuelve wrangler hyperdrive create>"
 
 # Rate limit por IP (120/min). Binding nativo de Cloudflare: cuenta entre TODOS los nodos de la red.
 # `namespace_id` es un entero cualquiera, único dentro de la cuenta. `period` solo admite 10 o 60.

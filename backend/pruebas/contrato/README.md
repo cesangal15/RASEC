@@ -70,6 +70,8 @@ Los casos omitidos se listan pero **no cuentan como fallo**.
 ## Cuando llegue el backend nuevo (Fases 2–4)
 
 1. Levantar la nueva API en `/prueba/<ruta>` y correr `correr.js --url=https://api.galca.app/prueba --usuario=… --clave=… --escribir`.
+   Con `--url` el Parte va por `<base>/parte` (la ruta de las pantallas y la que conmuta `BACKEND_PARTE`); el login sigue en `<base>/obra`.
+   Sin red: `node worker/pruebas/contrato_local.js` (PGlite + backfill del volcado + el Worker real, solo parte).
 2. Todo lo que salga en rojo es una diferencia de contrato: se arregla en el Worker, **no** en el caso
    (salvo que el caso describa un comportamiento que D-xxx haya cambiado a propósito; entonces se
    actualiza el caso citando la decisión).

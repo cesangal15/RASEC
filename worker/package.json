@@ -7,9 +7,16 @@
     "secrets": "wrangler secret put OBRA_URL && wrangler secret put ASISTENCIAS_URL && wrangler secret put PARTE_URL",
     "deploy": "wrangler deploy",
     "check": "wrangler deploy --dry-run --outdir dist",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "backfill": "node sql/backfill_parte.js",
+    "contrato:local": "node pruebas/contrato_local.js"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "wrangler": "^4.131.1"
-  }
+  },
+  "dependencies": {
+    "postgres": "^3.4.9"
+  },
+  "type": "module"
 }

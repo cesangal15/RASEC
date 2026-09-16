@@ -30,16 +30,42 @@
  *
  * Lo que NO hace: no cachea nada (Cache-Control: no-store), no reenvía cookies ni cabeceras del
  * cliente, no toca el cuerpo, no guarda registros con datos de personas.
+ *
+ * 4.01 · Fase 2 (D180) — CONMUTADOR POR RUTA: el backend del Parte Digital puede vivir AQUÍ
+ * (src/api/parte.js contra Postgres, src/db.js) en vez de en el Apps Script. Lo decide una variable
+ * por ruta, sin tocar el frontend:
+ *   BACKEND_PARTE        = sheets | db   → /parte          (producción)
+ *   BACKEND_PARTE_PRUEBA = sheets | db   → /prueba/parte   (canario con ?env=prueba, D168)
+ * Con `db` la petición NO se reenvía a Google: pasa por el mismo filtro (CORS, rate limit, tamaño) y
+ * se despacha a parteDoGet_/parteDoPost_ con el MISMO contrato. Lo que necesita (`wrangler secret put`):
+ *   HYPERDRIVE (binding en wrangler.toml) o DATABASE_URL   → conexión a Postgres (db.js)
+ *   AUTH_SECRETO (+ AUTH_V, var, por defecto '1')           → verificar los tokens D109 que emite el
+ *                                                             login del Apps Script de obra (mismo secreto)
+ *   Para /prueba/parte: HYPERDRIVE_PRUEBA / DATABASE_URL_PRUEBA y AUTH_SECRETO_PRUEBA / AUTH_V_PRUEBA si
+ *   el entorno de prueba tiene su propia BD o su propio Apps Script (secreto distinto); si faltan, usa
+ *   los de producción (misma BD, mismo emisor de tokens).
+ * Vuelta atrás: la var a `sheets` (panel o wrangler.toml + `wrangler deploy`); las filas creadas en la
+ * BD entre tanto se pegan a mano al Sheet (informe §3, Fase 2, paso 6).
  */
 
+import { abrirDb } from './db.js';
+import { parteDoGet_, parteDoPost_ } from './api/parte.js';
+import { logIniciar_, logMarcar_, logEscribir_ } from './comun.js';
+
+// `mod=parte` sobre /obra (como lo llama revision-maquinaria.js y como lo despacha doGet/doPost de Codigo.gs)
+// es el Parte: se atiende con la ruta /parte correspondiente (mismo conmutador, sin filtro de token).
 const RUTAS = {
-  '/obra':               { secreto: 'OBRA_URL',               token: true  },
+  '/obra':               { secreto: 'OBRA_URL',               token: true, parte: '/parte' },
   '/asistencias':        { secreto: 'ASISTENCIAS_URL',        token: true  },
-  '/parte':              { secreto: 'PARTE_URL',              token: false },
-  '/prueba/obra':        { secreto: 'OBRA_PRUEBA_URL',        token: true  },
+  '/parte':              { secreto: 'PARTE_URL',              token: false, modulo: 'parte', backend: 'BACKEND_PARTE',
+                           db: ['HYPERDRIVE', 'DATABASE_URL'], auth: ['AUTH_SECRETO'], authV: ['AUTH_V'] },
+  '/prueba/obra':        { secreto: 'OBRA_PRUEBA_URL',        token: true, parte: '/prueba/parte' },
   '/prueba/asistencias': { secreto: 'ASISTENCIAS_PRUEBA_URL', token: true  },
-  '/prueba/parte':       { secreto: 'PARTE_PRUEBA_URL',       token: false }
+  '/prueba/parte':       { secreto: 'PARTE_PRUEBA_URL',       token: false, modulo: 'parte', backend: 'BACKEND_PARTE_PRUEBA',
+                           db: ['HYPERDRIVE_PRUEBA', 'DATABASE_URL_PRUEBA', 'HYPERDRIVE', 'DATABASE_URL'],
+                           auth: ['AUTH_SECRETO_PRUEBA', 'AUTH_SECRETO'], authV: ['AUTH_V_PRUEBA', 'AUTH_V'] }
 };
+const MODULOS = { parte: { get: parteDoGet_, post: parteDoPost_ } };
 
 // Acciones que pasan SIN token en las rutas con filtro (D108 login · D161 tablero público).
 const SIN_TOKEN = new Set(['login', 'tablero']);
@@ -133,6 +159,14 @@ function extraerTokenYAccion(method, url, bodyText) {
   };
 }
 
+// ¿La petición es del Parte (`mod=parte`)? GET → query; POST → JSON del cuerpo (como doGet/doPost de Codigo.gs).
+function esParte(method, url, bodyText) {
+  if (method === 'GET') return String(url.searchParams.get('mod') || '').toLowerCase() === 'parte';
+  let b = null;
+  try { b = JSON.parse(bodyText); } catch (e) { b = null; }
+  return !!b && typeof b === 'object' && String(b.mod || '').toLowerCase() === 'parte';
+}
+
 /* ---------------- reenvío ---------------- */
 
 async function reenviar(method, destinoBase, url, bodyText, contentType) {
@@ -157,9 +191,45 @@ async function reenviar(method, destinoBase, url, bodyText, contentType) {
   return new Response(up.body, { status: up.status, headers: h });
 }
 
+/* ---------------- backend en el Worker (BACKEND_<ruta>=db, 4.01) ---------------- */
+
+function primero(env, nombres) { for (const n of (nombres || [])) { if (env[n]) return env[n]; } return ''; }
+function backendDb(ruta, env) { return !!ruta.backend && String(env[ruta.backend] || 'sheets').trim().toLowerCase() === 'db'; }
+
+// Misma secuencia que doGet/doPost de Codigo.gs: LOG por petición (tabla `log`), despacho por op, `_ms`.
+// Respuesta SIEMPRE 200 con el JSON del contrato (como Apps Script); 5xx solo si el Worker o la BD fallan.
+async function servirDb(ruta, env, ctx, url, method, bodyText) {
+  const t0 = Date.now();
+  const con = abrirDb(env, ruta.db);
+  if (!con) return json({ ok: false, error: 'no_configurado', ruta: url.pathname, detalle: 'falta HYPERDRIVE o DATABASE_URL' }, 503);
+  const c = { sql: con.sql, env, secreto: String(primero(env, ruta.auth) || ''), authV: String(primero(env, ruta.authV) || '1'), pet: { t0, log: null }, memo: {} };
+  const mod = MODULOS[ruta.modulo];
+  let out, status = 200;
+  try {
+    if (method === 'GET') {
+      const params = {}; url.searchParams.forEach((v, k) => { params[k] = v; });
+      logIniciar_(c, ruta.modulo + ':' + String(params.op || '').toLowerCase());
+      out = await mod.get(c, params);
+    } else {
+      logIniciar_(c, 'POST');
+      let body = null;
+      try { body = JSON.parse(bodyText); } catch (e) { body = null; }
+      if (!body || typeof body !== 'object') { logMarcar_(c, 'rechazado', 'JSON inválido'); out = { ok: false, error: 'payload', campo: 'json', detalle: 'El cuerpo no es JSON.' }; }
+      else { c.pet.log.action = ruta.modulo + ':' + String(body.op || '').toLowerCase(); out = await mod.post(c, body); }
+    }
+  } catch (e) {
+    logMarcar_(c, 'error', String(e && e.message || e));
+    out = { ok: false, error: 'worker', detalle: String(e && e.message || e).slice(0, 200) }; status = 500;
+  }
+  if (out && typeof out === 'object' && out._ms === undefined) out._ms = Date.now() - t0;
+  const cierre = logEscribir_(c, ruta.modulo).catch(() => {}).then(() => con.cerrar());
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(cierre); else await cierre;
+  return json(out, status);
+}
+
 /* ---------------- entrada ---------------- */
 
-async function manejar(request, env) {
+async function manejar(request, env, ctx) {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
   const origin = request.headers.get('Origin') || '';
@@ -173,7 +243,7 @@ async function manejar(request, env) {
   if (method === 'OPTIONS') return new Response(null, { status: 204, headers: cors || {} });
   if (method !== 'GET' && method !== 'POST') return conCors(json({ ok: false, error: 'metodo' }, 405, { 'Allow': 'GET, POST, OPTIONS' }), cors);
 
-  const ruta = RUTAS[url.pathname.replace(/\/+$/, '') || '/'];
+  let ruta = RUTAS[url.pathname.replace(/\/+$/, '') || '/'];
   if (!ruta) {
     if (url.pathname === '/' && method === 'GET') return conCors(json({ ok: true, api: 'galca-api', rutas: Object.keys(RUTAS).filter(r => r.indexOf('/prueba') !== 0) }), cors);
     return conCors(json({ ok: false, error: 'ruta' }, 404), cors);
@@ -194,6 +264,9 @@ async function manejar(request, env) {
     if (bodyText.length > MAX_BODY_BYTES) return conCors(json({ ok: false, error: 'payload', campo: 'tamano' }, 413), cors);
   }
 
+  // 2b. `mod=parte` sobre /obra → es el Parte Digital (revision-maquinaria.js lo llama así): misma ruta /parte
+  if (ruta.parte && esParte(method, url, bodyText)) ruta = RUTAS[ruta.parte];
+
   // 3. Filtro de token (presencia)
   if (ruta.token) {
     const { token, action } = extraerTokenYAccion(method, url, bodyText);
@@ -202,7 +275,10 @@ async function manejar(request, env) {
     }
   }
 
-  // 4. Reenvío al Apps Script (URL en secreto)
+  // 4a. Backend en el Worker (4.01): la ruta está conmutada a la base de datos
+  if (backendDb(ruta, env)) return conCors(await servirDb(ruta, env, ctx, url, method, bodyText), cors);
+
+  // 4b. Reenvío al Apps Script (URL en secreto)
   const destino = env[ruta.secreto];
   if (!destino) return conCors(json({ ok: false, error: 'no_configurado', ruta: url.pathname }, 503), cors);
 
@@ -211,11 +287,11 @@ async function manejar(request, env) {
 }
 
 export default {
-  async fetch(request, env) {
-    try { return await manejar(request, env); }
+  async fetch(request, env, ctx) {
+    try { return await manejar(request, env, ctx); }
     catch (e) { return json({ ok: false, error: 'worker', detalle: String(e && e.message || e).slice(0, 200) }, 500); }
   }
 };
 
 // Para el banco de pruebas en Node (no lo usa Cloudflare).
-export { manejar, extraerTokenYAccion, origenPermitido };
+export { manejar, extraerTokenYAccion, origenPermitido, RUTAS };

@@ -68,3 +68,26 @@ Lo que hay que resolver **antes** de cargar cada hoja (queda para la fase que la
 - **LOG**: no se migra (retención 30 días); se carga solo si se quiere conservar el histórico.
 
 `esquema_version` lleva el número del último archivo aplicado; el siguiente cambio de esquema es `002_….sql`.
+
+## Backfill del Parte con el script (Fase 2)
+
+La receta `\copy` de arriba sigue valiendo, pero para la Fase 2 hay un script que hace lo mismo sin `psql`,
+con las conversiones ya resueltas (timestamps de Bogotá, vacío → NULL, duplicados por clave) y en una
+transacción por tabla:
+
+```
+$env:DATABASE_URL = "postgres://…"                                              # solo en esta terminal, nunca en un archivo del repo
+node worker/sql/backfill_parte.js --volcado="C:\Galca\volcado\2026-09-15_2252_obra" --simular
+node worker/sql/backfill_parte.js --volcado="C:\Galca\volcado\2026-09-15_2252_obra"
+node worker/sql/backfill_parte.js --volcado=… --solo=maquinas,parte_cc          # solo esas tablas
+```
+
+| CSV | Tabla | Modo |
+|---|---|---|
+| PARTE_BANDEJA | `parte_bandeja` | anexar: `ON CONFLICT (obra_id, id_registro) DO NOTHING` (nunca pisa filas que el Worker ya creó) |
+| PARTE_EQUIPOS · PARTE_OPERADORES · PARTE_CC · PARTE_ITEMS · PARTE_ACTIVIDADES | `parte_*` | reescribir (DELETE por obra + INSERT), como hará el pull del ESPEJO. Valores crudos: «2.1» se guarda así y el Worker lo normaliza a «02.10» al leer (D178) |
+| MAQUINAS | `maquinas` | reescribir (la flota vigente que espera el Parte, D173) |
+| BASE | `base_items` | reescribir: solo la tabla de ítems A–H (CC → DESCRIPCIÓN), detectada como en `getBaseData`. Los elementos J/K/L son de la Fase 4 |
+
+Una fila con fecha/número/timestamp que no se entienda **no se carga** y sale como aviso (D106); el resto
+de la tabla sí. `worker/pruebas/contrato_local.js` usa este mismo módulo contra PGlite para el banco local.

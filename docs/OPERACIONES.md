@@ -253,3 +253,67 @@ siguen validando el token como siempre. Para volver al Worker se revierte la edi
 | Regenerar los QR | Exportar `MAQUINAS` y `PARTE_EQUIPOS`; `python3 tools/generar_qr.py --csv PARTE_EQUIPOS.csv --maquinas MAQUINAS.tsv --limpiar`. |
 
 **Personal — módulo Asistencias** (`resumen-asistencia.html` › gestión de personal; roles residente, admin, angie, duvan, residente_uf3, D84/D85/D119): alta con fecha de ingreso (retroactiva permitida), retiro con fecha = primer día no trabajado, mover entre cuadrillas. Un reingreso es un **alta nueva** con la fecha de reingreso, no «reactivar» (perdería el hueco). Personal eventual = `estado=eventual` (no se espera cada día, se marca desde «Completar faltantes»). Usuarios (logins) = fila en la hoja `USUARIOS` (D108).
+
+## 11. Backend del Parte Digital en el Worker (4.01 · Fase 2 · D180)
+
+Desde la Fase 2 el Worker puede atender `/parte` **él mismo**, contra Postgres (Supabase, proyecto
+`galca-tm2sur`), en vez de reenviar al Apps Script. Código: `worker/src/api/parte.js` (CodigoParte.gs
+portado, mismas funciones y mismo contrato), `worker/src/db.js` (postgres.js + Hyperdrive),
+`worker/src/comun.js` (token D109, validación D166, LOG). Nada cambia en las pantallas ni en `auth.js`.
+
+**Conmutador por ruta** (`[vars]` de `wrangler.toml`; también editable en el panel de Cloudflare):
+`BACKEND_PARTE` para `/parte` (producción) y `BACKEND_PARTE_PRUEBA` para `/prueba/parte` (`?env=prueba`),
+cada uno `sheets` (reenvío a Google, como siempre) o `db`. Hoy: producción `sheets`, prueba `db`.
+Vuelta atrás = poner `sheets` y `wrangler deploy` (o cambiar la var en el panel).
+
+**Secretos que necesita la ruta en `db`** (`cd worker && npx wrangler secret put <NOMBRE>`; nunca en archivos):
+
+| Nombre | Qué es | Dónde se saca |
+|---|---|---|
+| `DATABASE_URL` | Cadena de conexión a Postgres con contraseña | Supabase → *Connect* → Session pooler (puerto 5432, IPv4). Alternativa mejor: Hyperdrive (`wrangler hyperdrive create`, id en `wrangler.toml`; la cadena se queda en Cloudflare). |
+| `AUTH_SECRETO` | El secreto HMAC con que el Apps Script de obra firma los tokens (D109) | `mostrarSecretoAuth()` en el editor del proyecto de obra. La var `AUTH_V` (por defecto `"1"`) debe coincidir con la propiedad `AUTH_V` del mismo proyecto. |
+| `DATABASE_URL_PRUEBA`, `AUTH_SECRETO_PRUEBA`, `AUTH_V_PRUEBA` (opcionales) | Lo mismo para `/prueba/parte` cuando el entorno de prueba tenga su propia BD o su propia copia del Apps Script (§3: la copia tiene otro `AUTH_SECRETO`) | Si faltan, `/prueba/parte` usa los de producción: misma BD, tokens del login de producción. |
+
+**Backfill** (una vez por corte, desde el volcado CSV de `backend/volcado/`; ver `worker/sql/README.md`):
+
+```
+$env:DATABASE_URL = "postgres://…"                    # solo en esta terminal
+node worker/sql/backfill_parte.js --volcado="C:\Galca\volcado\<fecha>_obra" --simular   # cuenta, no escribe
+node worker/sql/backfill_parte.js --volcado="C:\Galca\volcado\<fecha>_obra"
+```
+
+Carga `parte_bandeja` (sin pisar lo que ya haya: `ON CONFLICT DO NOTHING`), los catálogos `parte_*`,
+`maquinas` y `base_items` (estos se reescriben). **Mientras no exista el trigger de pull del ESPEJO
+(informe §3.6), los catálogos y la flota de la BD son la foto del último backfill**: una alta en
+Maquinaria › Flota o un cambio en `PARTE_CC`/`PARTE_EQUIPOS` del Sheet hay que volcarlos y correr el
+backfill con `--solo=maquinas` (o la tabla que sea) para que `/prueba/parte` los vea.
+
+**Verificar** (criterio de salida de la fase: el arnés de contrato en verde):
+
+```
+node worker/pruebas/contrato_local.js                 # sin red: PGlite + esquema + backfill + Worker real + arnés
+node backend/pruebas/contrato/correr.js --url=https://api.galca.app/prueba --solo=parte --escribir --usuario=… --clave=…
+```
+
+La segunda hace el login en `/prueba/obra` (necesita `OBRA_PRUEBA_URL`, §4) y el Parte en `/prueba/parte`.
+Sin copia de prueba del Apps Script: `--obra=https://api.galca.app/obra --parte=https://api.galca.app/prueba/parte
+--asistencias=https://api.galca.app/asistencias` (login de producción, Parte contra la BD; el token vale porque
+el Worker verifica con el mismo `AUTH_SECRETO`). `--escribir` deja en la BD unas filas `descartado` con fecha
+2020-01-13 (README del arnés).
+
+**Canario con `?env=prueba`.** El Worker atiende como Parte también `mod=parte` sobre `/obra` y
+`/prueba/obra` (así lo llama `revision-maquinaria.js`, y así lo despacha `doGet` de Codigo.gs). Para que el
+LOGIN funcione en prueba sin copia del Apps Script, poner `OBRA_PRUEBA_URL` con la MISMA URL `/exec` que
+`OBRA_URL`: `/prueba/obra` pasa a ser la obra de producción (lectura de siempre) y el token que emite lo
+verifica `/prueba/parte` con `AUTH_SECRETO`. Luego:
+
+1. Teléfono de cabina: `https://tm2.galca.app/parte.html?eq=<CÓDIGO>&env=prueba` (chip rosa **PRUEBA**),
+   llenar y enviar un parte real. Va a la BD, no al Sheet.
+2. PC: `https://tm2.galca.app/index.html?env=prueba` → entrar → Revisión de maquinaria: la fila aparece en
+   pendientes; revisar, aprobar, repartir. Comprobar en Supabase → Table Editor → `parte_bandeja` y `log`.
+3. Volver a producción en ese navegador/teléfono: abrir cualquier pantalla con `?env=produccion`. No cambiar
+   de entorno con envíos pendientes en la cola offline (chip de señal en verde).
+
+**Corte a producción** (cuando el canario lleve dos semanas limpio, informe §3 Fase 2): volcado fresco →
+backfill → `BACKEND_PARTE = "db"` → `wrangler deploy`. La cola offline redirige sola (`offline.js` por `tipo`).
+`wrangler tail` muestra las peticiones; la tabla `log` de la BD guarda una fila por petición (D166).

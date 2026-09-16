@@ -201,6 +201,20 @@ Lo de §1. Sale un número por endpoint y una fecha proyectada por hoja. Si nada
 
 Siguiente paso: Fase 2 (Parte Digital) — `worker/src/api/parte.js` + `worker/src/db.js`, con el arnés de contrato en verde contra `/prueba/parte`.
 
+**Estado (16-sep-2026): Fase 2 EN PRODUCCIÓN.** El dueño descartó el entorno de prueba (no hay copia del Apps Script): secretos `DATABASE_URL` y `AUTH_SECRETO` cargados, backfill del volcado 2026-09-16_0027 hecho, `BACKEND_PARTE="db"` desplegado (versión a96744df). Arnés de contrato en verde contra `api.galca.app` (9 casos · 41 comprobaciones); `/parte` (QR) y `/obra?mod=parte` (revisión) responden desde Postgres, el login sigue en el Apps Script. Pendiente: dos semanas de `log` sin `error`, trigger de pull (§3.6) y Hyperdrive (hoy ~600 ms por conexión directa).
+
+| Entregable | Dónde | Cómo se usa |
+|---|---|---|
+| Capa de datos | `worker/src/db.js` (postgres.js; Hyperdrive si hay binding, si no el secreto `DATABASE_URL`; un cliente por petición; `date` como texto, `numeric` como número) | La abre `src/index.js` por petición |
+| Parte Digital portado | `worker/src/api/parte.js` (CodigoParte.gs función por función, mismos nombres; `parteCols_`/`parteUltimoFinal_` → consulta por código y `DISTINCT ON`; una transacción por escritura; `ON CONFLICT DO NOTHING` en `op=reporte`; `FOR UPDATE` en revisar/repartir) + `worker/src/comun.js` (token D109 con WebCrypto, validación D166, LOG en la tabla `log`, rate limit en memoria) | Mismo contrato `?mod=parte&op=…` |
+| Conmutador por ruta | `wrangler.toml` → `BACKEND_PARTE` (/parte, hoy `sheets`) y `BACKEND_PARTE_PRUEBA` (/prueba/parte, hoy `db`); secretos `DATABASE_URL`/Hyperdrive y `AUTH_SECRETO` (+ `*_PRUEBA` opcionales) | OPERACIONES.md §11 |
+| Backfill | `worker/sql/backfill_parte.js` (+ `csv.js`): PARTE_BANDEJA anexa sin pisar; catálogos PARTE_*, MAQUINAS y BASE (ítems) se reescriben | `--simular` primero; `--solo=` por tabla |
+| Banco local | `worker/pruebas/contrato_local.js` (PGlite = Postgres en WASM + esquema 001 + backfill del volcado + el Worker real + `correr.js --solo=parte --escribir`) | En verde: 9 casos · 41 comprobaciones (el 10.º es solo vm); el juego completo en vm sigue en 57 · 166 |
+
+Lo que falta para cerrar la fase (no depende de código): cargar los secretos en el Worker, correr el backfill
+contra Supabase, el arnés contra `api.galca.app/prueba` y el canario con `?env=prueba` desde una cabina; y el
+trigger de pull (§3.6) para que `maquinas` y los catálogos dejen de ser la foto del último backfill.
+
 ### Fase 2 — Piloto: Parte Digital (2–3 semanas)
 
 Por qué primero: hojas propias (`PARTE_*`), ruta propia en el Worker (`/parte`), endpoint público sin token, un solo
