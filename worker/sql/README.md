@@ -91,3 +91,64 @@ node worker/sql/backfill_parte.js --volcado=… --solo=maquinas,parte_cc        
 
 Una fila con fecha/número/timestamp que no se entienda **no se carga** y sale como aviso (D106); el resto
 de la tabla sí. `worker/pruebas/contrato_local.js` usa este mismo módulo contra PGlite para el banco local.
+
+## Fases 3 y 4 (D180): `002_fases_3_4.sql` y los tres backfills
+
+`002_fases_3_4.sql` ajusta el esquema para obra y asistencias (idempotente: comprueba `pg_index` /
+`information_schema` antes de cada `ALTER`; correrlo dos veces no cambia nada). Se aplica DESPUÉS de `001`
+y ANTES de cualquier backfill de obra/asistencias:
+
+| # | Qué cambia | Por qué |
+|---|---|---|
+| 1 | `volquetas`: PK surrogate `volqueta_id bigserial` + índice `(obra_id, id_registro)` | `id_registro` es el id de la LÍNEA y lo comparten sus placas (Codigo.gs L1183): 379 ids para 1962 filas. El Worker deduplica por línea con `SELECT EXISTS (id_registro, fecha)`, no con `ON CONFLICT` |
+| 2 | `base_elementos`: columna `uf` (col M) y PK `(obra_id, orden)` | 10 marcadores ODT repetidos; una fila = un elemento, como `getBaseData` L746 |
+| 3 | `base_items`: `capitulo`, `grupo`, `uf`, `proyecto`, `orden_hoja` | para editar el catálogo en el Table Editor de Supabase |
+| 6 | `COMMENT` en `data.area`: nunca vacía desde 4.01 | el backfill la deriva del CC (`deriveArea`, L2211) y `enviarData` borra por `(obra_id, fecha, area)` |
+| 7 | comentarios de `bandeja.estado`, `volquetas.cubicaje_origen`, `personal.estado` | alineados con los valores reales (`no_data`, `default`, `eventual`) |
+
+Los catálogos (`cubicaje`, `base_*`, `usuarios`, `cuadrillas`, `config`, `festivos`, `turnos`, `cat_*`, `*_usados`,
+`parte_*`) se editan desde 4.01 en Supabase (Table Editor), no en el Sheet: **no hay pull Sheet→BD**; el backfill es la
+carga inicial y `importado_ts` pasa a significar «última carga». El único espejo BD→Sheet es la vista `data_maestro`.
+
+### Los tres scripts
+
+Comparten `backfill_lib.js` (conversión por tipo, `ftime` para horas, uuid determinista cuando la clave viene vacía,
+carga por nombre o por POSICIÓN, `cargarTabla` con una transacción por tabla) y el mismo CLI:
+`--volcado=<carpeta>`, `--solo=tabla,tabla`, `--simular`, conexión por `DATABASE_URL` o `--conexion-archivo`.
+
+```
+$env:DATABASE_URL = "postgres://…"            # solo en esta terminal, nunca en un archivo del repo
+npm run backfill:parte        -- --volcado="C:\Galca\volcado\2026-09-16_0027_obra" --simular
+npm run backfill:obra         -- --volcado="C:\Galca\volcado\2026-09-16_0027_obra" --simular
+npm run backfill:asistencias  -- --volcado="C:\Galca\volcado\<sello>_asistencias"  --simular
+```
+
+| Script | CSV → tabla | Modo |
+|---|---|---|
+| `backfill_parte.js` (Fase 2, ya en producción) | PARTE_* → `parte_*` · MAQUINAS → `maquinas` · BASE → `base_items` (4 cols) | ver arriba |
+| `backfill_obra.js` (Fase 4) | BANDEJA → `bandeja` · DATA → `data` (por posición A–AC; `area` '' → `deriveArea(CC)`) · MAQUINARIA → `maquinaria` · OBSERVACIONES → `observaciones` | anexar `ON CONFLICT DO NOTHING`; id vacío → uuid determinista (archivo+línea+contenido) |
+| | VOLQUETAS → `volquetas` | anexar sin `ON CONFLICT` (PK surrogate); al relanzar salta las filas cuya `(id_registro, placa, origen, destino)` ya esté |
+| | TABLERO → `tablero` | une los trozos 1..n (sin el `~`), fila 0 = `meta`, `publicado_ts` = `meta.generado` (Bogotá); `ON CONFLICT (obra_id) DO UPDATE`; si falta un trozo no carga |
+| | USUARIOS → `usuarios` · CUBICAJE → `cubicaje` (por posición, `normPlaca`) · BASE → `base_elementos` (J–M, `tipo = baseTipo`, `orden` = fila) y `base_items` (9 cols) | reescribir por obra |
+| | LOG → `log` (`modulo='obra'`) | solo con `--solo=log` |
+| `backfill_asistencias.js` (Fase 3) | ASISTENCIA → `asistencia` (17 cols; `hora_*` con `ftime`; `presente` '' → 'Si'; fecha inválida → aviso) · EXTRAS_ADMIN → `extras_admin` (tipo fuera de diurna/nocturna/domfest → aviso) · NOTAS_ASISTENCIA → `notas_asistencia` | anexar `DO NOTHING` |
+| | PERSONAL → `personal` (`fila_sheet` = línea del CSV) | reescribir SOLO si la tabla está vacía; si no, anexar saltando las que ya estén |
+| | CUADRILLAS, CONFIG (`ftime` en valores hora), FESTIVOS, TURNOS (`ftime`), CAT_CC, CC_USADOS, CAT_MOTIVOS, MOTIVOS_USADOS (`orden` = fila), CAT_TRABAJADORES | reescribir por obra |
+| | LOG → `log` (`modulo='asistencias'`) | solo con `--solo=log` |
+
+`backfill_obra.js` NO carga MAQUINAS ni `parte_*` (ya los cargó `backfill_parte.js` y están vivos: una recarga pisaría
+ediciones hechas desde Flota o el Table Editor). El volcado de asistencias sale de `volcarAsistencias()`
+(`backend/volcado/VolcadoCSV.gs`); mientras no exista en disco, el script está probado con un CSV sintético.
+
+### Orden de carga para el corte
+
+1. `001_esquema.sql` y `002_fases_3_4.sql` (editor SQL de Supabase o `psql -f`), en ese orden.
+2. `backfill_parte.js` (si la BD es nueva; en la BD de producción ya está hecho y NO se repite).
+3. `backfill_obra.js` con el ÚLTIMO volcado `*_obra` (siempre `--simular` primero).
+4. `backfill_asistencias.js` con el ÚLTIMO volcado `*_asistencias`.
+5. Depurar duplicados históricos de `asistencia` por persona/día (criterio de `_duplicadosRango_`) antes de abrir el export.
+6. `BACKEND_OBRA` / `BACKEND_ASISTENCIAS` = `db` en `wrangler.toml` + `wrangler deploy`. Desde ese momento no se edita el Sheet.
+
+Una fila con fecha/número/timestamp que no se entienda **no se carga** y sale como aviso (D106); el resto de la tabla
+sí. `worker/pruebas/contrato_local.js` aplica los mismos `0*.sql`, los tres backfills y las semillas del arnés
+(`worker/pruebas/semillas_sql.js`) contra PGlite para el banco local.

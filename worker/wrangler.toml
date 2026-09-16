@@ -9,19 +9,24 @@
 #   /asistencias    ASISTENCIAS_URL           token de D109 obligatorio
 #   /parte          PARTE_URL                 sin token (formulario público por QR, D165)
 #   /prueba/<x>     <X>_PRUEBA_URL            mismo filtro que su ruta; opcional (entorno de prueba, D168)
-#   /parte y /prueba/parte con BACKEND_PARTE[_PRUEBA]=db no reenvían: los atiende src/api/parte.js contra Postgres (4.01)
+#   Cualquier ruta con BACKEND_<MODULO>[_PRUEBA]=db no reenvía: la atiende src/api/<modulo>.js contra Postgres (4.01)
 #
 # Desplegar:   wrangler login · wrangler secret put OBRA_URL (×3) · wrangler deploy
 # Ruta:        el dominio personalizado de abajo crea solo el registro DNS de api.galca.app
 #              (la zona galca.app tiene que estar en la misma cuenta de Cloudflare).
 
 #
-# 4.01 · Fase 2 (D180): el backend del Parte Digital puede correr en el Worker contra Postgres (Supabase).
-#   Vars   BACKEND_PARTE / BACKEND_PARTE_PRUEBA = sheets | db      (conmutador por ruta, abajo en [vars])
+# 4.01 (D180): cada módulo puede correr en el Worker contra Postgres (Supabase) en vez de en su Apps Script.
+#   Vars   BACKEND_PARTE / BACKEND_PARTE_PRUEBA               = sheets | db   (Fase 2, en producción)
+#          BACKEND_OBRA / BACKEND_OBRA_PRUEBA                 = sheets | db   (Fase 4)
+#          BACKEND_ASISTENCIAS / BACKEND_ASISTENCIAS_PRUEBA   = sheets | db   (Fase 3)
+#          (conmutadores por ruta, abajo en [vars]; producción sigue en Google hasta el corte de cada fase)
 #   Secretos (wrangler secret put): DATABASE_URL (o el binding Hyperdrive de abajo), AUTH_SECRETO
-#            (= mostrarSecretoAuth() del Apps Script de obra) y, si prueba tiene los suyos,
-#            DATABASE_URL_PRUEBA / AUTH_SECRETO_PRUEBA. Ninguno va en este archivo ni en el repo.
-#   Backfill: worker/sql/backfill_parte.js (volcado CSV → tablas parte_* · maquinas · base_items).
+#            (= mostrarSecretoAuth() del Apps Script de obra: el MISMO en los tres Apps Script y aquí, así los
+#            tokens D109 son intercambiables y, con obra en db, el Worker los EMITE en el login) y, si prueba
+#            tiene los suyos, DATABASE_URL_PRUEBA / AUTH_SECRETO_PRUEBA. Ninguno va en este archivo ni en el repo.
+#   Esquema:  worker/sql/001_esquema.sql + 002_fases_3_4.sql.  Backfill: worker/sql/backfill_parte.js,
+#             backfill_obra.js, backfill_asistencias.js (carga inicial; desde 4.01 los catálogos se editan en Supabase).
 
 name = "galca-api"
 main = "src/index.js"
@@ -46,7 +51,15 @@ RATE_LIMIT_POR_MIN = "120"
 # entorno de prueba (/prueba/parte, ?env=prueba) ya apunta a la BD. Vuelta atrás = "sheets" + deploy.
 BACKEND_PARTE = "db"
 BACKEND_PARTE_PRUEBA = "db"
-# Versión del token (D109): tiene que coincidir con la propiedad AUTH_V del Apps Script emisor.
+# 4.01 · Fases 3 y 4 — Obra y Asistencias por ruta, mismo conmutador (decisión 11): producción sigue en
+# Google ("sheets") hasta el corte de cada fase; el entorno de prueba (/prueba/obra, /prueba/asistencias,
+# ?env=prueba) ya apunta a la BD. Con obra en "db" el login lo hace el Worker (src/auth.js).
+BACKEND_OBRA = "sheets"
+BACKEND_OBRA_PRUEBA = "db"
+BACKEND_ASISTENCIAS = "sheets"
+BACKEND_ASISTENCIAS_PRUEBA = "db"
+# Versión del token (D109): la MISMA que la propiedad AUTH_V de los Apps Script (los tokens se verifican y,
+# con obra en db, se emiten aquí con el mismo par AUTH_SECRETO/AUTH_V; subirla saca a todos).
 AUTH_V = "1"
 
 # Hyperdrive (pool de conexiones a Supabase). Crear UNA vez con la cadena de conexión del proyecto

@@ -317,3 +317,58 @@ verifica `/prueba/parte` con `AUTH_SECRETO`. Luego:
 **Corte a producción** (cuando el canario lleve dos semanas limpio, informe §3 Fase 2): volcado fresco →
 backfill → `BACKEND_PARTE = "db"` → `wrangler deploy`. La cola offline redirige sola (`offline.js` por `tipo`).
 `wrangler tail` muestra las peticiones; la tabla `log` de la BD guarda una fila por petición (D166).
+
+## 12. Backend de Obra y Asistencias en el Worker (4.01 · Fases 3 y 4 · D180)
+
+Igual que el Parte (§11), Obra y Asistencias pueden atenderse desde el Worker contra Postgres en vez de
+reenviar a Google. Código: `worker/src/api/obra.js` + `worker/src/api/obra/*.js`, `worker/src/api/asistencias.js`
++ `worker/src/api/asistencias/*.js`, con el login y la emisión del token en `worker/src/auth.js` (tabla
+`usuarios`) y los catálogos compartidos en `worker/src/catalogos.js`. Contrato intacto: las pantallas y
+`auth.js`/`entorno.js`/`offline.js` no cambian.
+
+**Conmutadores** (`[vars]` de `wrangler.toml` o panel de Cloudflare): `BACKEND_OBRA` para `/obra`,
+`BACKEND_ASISTENCIAS` para `/asistencias`, cada uno `sheets` o `db`, más `BACKEND_OBRA_PRUEBA` /
+`BACKEND_ASISTENCIAS_PRUEBA` para `/prueba/*`. Hoy: producción `sheets`, prueba `db`.
+
+**Diferencia clave con el Parte: el login pasa al Worker.** Con `BACKEND_OBRA="db"`, `action=login` en `/obra`
+lo resuelve `worker/src/auth.js` leyendo la tabla `usuarios` y emite el token con `AUTH_SECRETO`/`AUTH_V`. Por
+eso esos deben ser los MISMOS que en los Apps Script (ya lo son): los tokens ya emitidos siguen valiendo y los
+reportes encolados en los teléfonos no se pierden. La tabla `usuarios` tiene que estar cargada (backfill de obra)
+antes de conmutar. Subir `AUTH_V` saca a todos (en el Worker y en los scripts que sigan en `sheets`).
+
+**Esquema y backfill** (una vez, antes del corte de cada módulo):
+
+```
+# 1) migración de esquema (idempotente): volquetas surrogate, base_elementos, base_items ampliada
+psql "$DATABASE_URL" -f worker/sql/002_fases_3_4.sql          # o pegar en el editor SQL de Supabase
+
+# 2) backfill de obra (BANDEJA, DATA, MAQUINARIA, VOLQUETAS, OBSERVACIONES, TABLERO, USUARIOS, CUBICAJE, BASE)
+$env:DATABASE_URL = "postgres://…"
+node worker/sql/backfill_obra.js --volcado="C:\Galca\volcado\<fecha>_obra" --simular
+node worker/sql/backfill_obra.js --volcado="C:\Galca\volcado\<fecha>_obra"
+
+# 3) backfill de asistencias (necesita volcarAsistencias() primero: hoy NO hay volcado de asistencias en disco)
+node worker/sql/backfill_asistencias.js --volcado="C:\Galca\volcado\<fecha>_asistencias" --simular
+node worker/sql/backfill_asistencias.js --volcado="C:\Galca\volcado\<fecha>_asistencias"
+```
+
+Las transaccionales se anexan con `ON CONFLICT DO NOTHING` (no pisan lo que el Worker ya creó); los catálogos
+se reescriben. Desde 4.01 los catálogos (BASE, CUBICAJE, MAQUINAS, USUARIOS, CUADRILLAS, CONFIG, TURNOS, CAT_*)
+se editan en Supabase (Table Editor), no en el Sheet: un backfill posterior de un catálogo lo pisa, así que
+tras el corte no se re-corren los catálogos salvo para recargarlos a propósito.
+
+**Verificar** (criterio de salida, sin red):
+
+```
+node worker/pruebas/contrato_local.js                         # PGlite + backfill del volcado real + los 3 módulos
+node backend/pruebas/contrato/correr.js                       # modo vm: los .gs reales, para confirmar que el contrato no cambió
+```
+
+Contra la API real (cuando el módulo esté en `db`): `node backend/pruebas/contrato/correr.js --url=https://api.galca.app --solo=asistencias --usuario=… --clave=…` (login en `/obra` de producción mientras obra siga en `sheets`; una vez obra esté en `db`, el login ya lo hace el Worker).
+
+**Corte por módulo** (informe §3, orden Asistencias → Obra): backfill fresco → `BACKEND_ASISTENCIAS="db"` (o
+`BACKEND_OBRA="db"`) → `wrangler deploy`. La cola offline redirige sola por `tipo`. Vuelta atrás: la var a
+`"sheets"` y `wrangler deploy`; las filas creadas en la BD entre tanto se pegan a mano al Sheet.
+
+**Lo que queda en el Sheet tras el corte:** solo el espejo BD→Sheet de la hoja DATA de obra (vista
+`data_maestro`, layout A–T verbatim) para el copy-paste A:S al Excel maestro. Todo lo demás vive en Supabase.

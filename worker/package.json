@@ -9,7 +9,10 @@
     "check": "wrangler deploy --dry-run --outdir dist",
     "tail": "wrangler tail",
     "backfill": "node sql/backfill_parte.js",
-    "contrato:local": "node pruebas/contrato_local.js"
+    "contrato:local": "node pruebas/contrato_local.js",
+    "backfill:parte": "node sql/backfill_parte.js",
+    "backfill:obra": "node sql/backfill_obra.js",
+    "backfill:asistencias": "node sql/backfill_asistencias.js"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
