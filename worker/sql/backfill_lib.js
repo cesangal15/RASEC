@@ -92,6 +92,7 @@ export function convertir(tipo, v){
   if (tipo === 'date') { if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error('fecha inválida «' + s + '» (se esperaba yyyy-MM-dd, D106)'); return s; }
   if (tipo === 'ts') {
     if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(s)) return s.replace(' ', 'T') + '-05:00';   // hora de Bogotá (sin DST)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + 'T00:00:00-05:00';   // fecha sola (celda Date sin hora): medianoche de Bogotá
     if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s;                                                       // ya trae zona
     throw new Error('timestamp inválido «' + s + '»');
   }
