@@ -29,7 +29,7 @@
  *
  * Contexto `c` = { sql, env, secreto, authV, pet:{t0, log}, memo }. Lo arma src/index.js por petición.
  */
-import { OBRA_ID, json, toDate, fdate, fdateValida_, normTexto, ccCorto } from '../../comun.js';
+import { OBRA_ID, json, toDate, fdate, fdateValida_, normTexto, ccCorto, textoArrayPg_ } from '../../comun.js';
 import { baseItems_, baseRows_, pkMeters, pkFmt, buildElemento, baseSetFor, BASE_TOL_M } from '../../catalogos.js';
 import { areaDeFila } from './areas.js';
 
@@ -410,7 +410,7 @@ export async function enviarData(c, body, ses){
     // 1) DATA: borrar el día SOLO en el área que envía (D69) MÁS las filas cuyo id_registro reescribimos
     // (una línea que cambió de área: su fila vieja de la otra área se va por el id). area SIEMPRE explícita.
     if(ids.length)
-      await sql`DELETE FROM data WHERE obra_id=${OBRA_ID} AND fecha=${fecha} AND (area=${area} OR id_registro = ANY(${ids}))`;
+      await sql`DELETE FROM data WHERE obra_id=${OBRA_ID} AND fecha=${fecha} AND (area=${area} OR id_registro = ANY(${textoArrayPg_(ids)}::text[]))`;
     else
       await sql`DELETE FROM data WHERE obra_id=${OBRA_ID} AND fecha=${fecha} AND area=${area}`;
     for(const r of rows) await insertarDataFila_(sql, r, fecha);
@@ -421,8 +421,8 @@ export async function enviarData(c, body, ses){
       if(areaDeFila(r.area||'', r.centro_costo||'')!==area) return;
       (inc[r.id_registro] ? idsInc : idsDesc).push(r.id_registro);
     });
-    if(idsInc.length)  await sql`UPDATE bandeja SET estado='incluido'   WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${idsInc})`;
-    if(idsDesc.length) await sql`UPDATE bandeja SET estado='descartado' WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${idsDesc})`;
+    if(idsInc.length)  await sql`UPDATE bandeja SET estado='incluido'   WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${textoArrayPg_(idsInc)}::text[])`;
+    if(idsDesc.length) await sql`UPDATE bandeja SET estado='descartado' WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${textoArrayPg_(idsDesc)}::text[])`;
   });
   return json(c, {ok:true, enviadas:rows.length, area:area});
 }

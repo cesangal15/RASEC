@@ -31,7 +31,7 @@
  * El router (api/asistencias.js) ya sembró body.usuario / body._rol / body.reporta desde el token y ya
  * validó el payload (VAL_ASIS_*, D166) antes de llegar aquí: estas funciones son la lógica de negocio.
  */
-import { OBRA_ID, json, fdate, fdateValida_, hoyBogota, norm } from '../../comun.js';
+import { OBRA_ID, json, fdate, fdateValida_, hoyBogota, norm, textoArrayPg_ } from '../../comun.js';
 import { unicasPorPersona_, emparejadorDePersonas_, clavePersona_, activaEnFecha, proyectoFromCC } from './personas.js';
 import { cuadrillaPermitidaPara, areasDeUsuario, cuadrillaEnAreas } from './areas.js';
 import { areaDeCuadrillaMap, responsableDeCuadrilla, getConfigMap } from './catalogos.js';
@@ -92,7 +92,7 @@ export async function guardarAsistencia(c, body){
     // D126: cuadrilla del bloque O cualquier persona entrante, esté en la cuadrilla que esté.
     const aBorrar=existentes.filter(function(o){ return String(o.cuadrilla)===cuadrilla || esDeLosEntrantes(o); })
       .map(function(o){ return o.id_registro; });
-    if(aBorrar.length) await sql`DELETE FROM asistencia WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${aBorrar})`;
+    if(aBorrar.length) await sql`DELETE FROM asistencia WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${textoArrayPg_(aBorrar)}::text[])`;
     for(const r of nuevas) await insertarAsistencia_(sql, r);
     // D74: nota libre del día por cuadrilla, en la MISMA transacción (pisa fecha+cuadrilla igual que las filas).
     await upsertNotaDia(c, fecha, cuadrilla, reporta, body.nota, ts, sql);
@@ -147,7 +147,7 @@ export async function guardarIndividual(c, body){
     const existentes=await sql`SELECT id_registro, cuadrilla, codigo, cedula, nombre FROM asistencia
       WHERE obra_id=${OBRA_ID} AND fecha=${fecha} FOR UPDATE`;
     aBorrar=existentes.filter(function(o){ return esDeLosEntrantes(o); }).map(function(o){ return o.id_registro; });
-    if(aBorrar.length) await sql`DELETE FROM asistencia WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${aBorrar})`;
+    if(aBorrar.length) await sql`DELETE FROM asistencia WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${textoArrayPg_(aBorrar)}::text[])`;
     for(const r of nuevas) await insertarAsistencia_(sql, r);
   });
   // D129: mismos contadores que el upsert quirúrgico de la hoja, calculados de los counts (DELETE+INSERT

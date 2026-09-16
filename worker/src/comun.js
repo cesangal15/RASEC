@@ -36,6 +36,20 @@ export function json(c, o){
   return o;
 }
 
+/* ---------- listas para `= ANY(...)` (4.01) ----------
+ * postgres.js corre con fetch_types:false (db.js), así que NO conoce el OID de array: al pasarle un array
+ * JS como parámetro lo serializa con `''+x` → «a,b» (sin llaves) y Postgres lo rechaza con
+ * "malformed array literal". El banco local (PGlite) SÍ lo tolera, por eso el arnés no lo veía. La forma
+ * segura contra el Worker real es armar aquí el LITERAL text[] («{"a","b"}») y pasarlo como TEXTO con un
+ * cast explícito en la consulta:  ... = ANY(${textoArrayPg_(ids)}::text[]).
+ * Se cita cada elemento y se escapan `\` y `"`; una lista vacía da '{}' (no casa con nada), pero las
+ * llamadas ya se guardan con `if(lista.length)`. */
+export function textoArrayPg_(arr){
+  return '{' + (arr || []).map(function(v){
+    return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  }).join(',') + '}';
+}
+
 /* ---------- fechas y texto (Codigo.gs L231–L255, L710) ---------- */
 export function hoyBogota(){ return new Date().toLocaleDateString('en-CA', { timeZone: ZONA_HORARIA }); }
 export function fdate(v){
