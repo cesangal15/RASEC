@@ -273,13 +273,16 @@ async function _conReintento(fn, avisos, etiqueta){
   throw ultimo;
 }
 // Un INSERT multi-fila (una sentencia, un viaje). Devuelve cuántas filas entraron de verdad (RETURNING).
-async function _insertarLote(ejecutor, nombre, colsSql, cols, lote, conflicto){
+// `casts` = {columna: 'jsonb'}: esas columnas van como `$n::text::jsonb`. Sin el cast, postgres.js detecta la
+// columna jsonb y vuelve a aplicar JSON.stringify al texto ya serializado (se guarda un string entre comillas).
+async function _insertarLote(ejecutor, nombre, colsSql, cols, lote, conflicto, casts){
   const ncol = cols.length + 1;   // +obra_id
+  const sufijo = [''].concat(cols.map(c => (casts && casts[c]) ? '::text::' + casts[c] : ''));
   const valores = [];
   const grupos = lote.map((f, i) => {
     const base = i * ncol;
     valores.push(OBRA_ID); cols.forEach(c => valores.push(f[c]));
-    return '(' + Array.from({ length: ncol }, (_, j) => '$' + (base + j + 1)).join(', ') + ')';
+    return '(' + Array.from({ length: ncol }, (_, j) => '$' + (base + j + 1) + sufijo[j]).join(', ') + ')';
   });
   const txt = 'INSERT INTO ' + q(nombre) + ' (' + colsSql + ') VALUES ' + grupos.join(', ') + conflicto + ' RETURNING 1';
   const r = await ejecutor.unsafe(txt, valores);
@@ -319,7 +322,7 @@ export async function cargarFilas(sql, def, filas, op, res){
       const b = await tx.unsafe('DELETE FROM ' + q(nombre) + ' WHERE obra_id = $1 RETURNING 1', [OBRA_ID]);
       res.borradas = b.length; res.insertadas = 0; res.saltadas = res.saltadas;   // reinicia el conteo si se reintenta la transacción entera
       let ins = 0;
-      for (const trozo of _trozos(unicas, lote)) ins += await _insertarLote(tx, nombre, colsSql, cols, trozo, conflicto);
+      for (const trozo of _trozos(unicas, lote)) ins += await _insertarLote(tx, nombre, colsSql, cols, trozo, conflicto, def.casts);
       res.insertadas = ins; res.saltadas += unicas.length - ins;
     }), res.avisos, nombre);
     return res;
@@ -335,7 +338,7 @@ export async function cargarFilas(sql, def, filas, op, res){
     porInsertar = unicas.filter(f => { const k = def.preexistentes.map(c => String(f[c] == null ? '' : f[c])).join('|'); if (yaEstan.has(k)) { res.saltadas++; return false; } yaEstan.add(k); return true; });
   }
   for (const trozo of _trozos(porInsertar, lote)) {
-    const ins = await _conReintento(() => _insertarLote(sql, nombre, colsSql, cols, trozo, conflicto), res.avisos, nombre);
+    const ins = await _conReintento(() => _insertarLote(sql, nombre, colsSql, cols, trozo, conflicto, def.casts), res.avisos, nombre);
     res.insertadas += ins; res.saltadas += trozo.length - ins;
   }
   return res;

@@ -103,7 +103,7 @@ export const TABLAS_OBRA = [
   { tabla:'volquetas',      csv:'VOLQUETAS.csv',     cols:VOLQUETAS_COLS, clave:null,                modo:'anexar', requiere:['fecha'], ajustar: idOUuid('id_registro', 'VOLQUETAS.csv'),
     preexistentes:['id_registro','placa','origen','destino'] },
   { tabla:'observaciones',  csv:'OBSERVACIONES.csv', cols:OBS_COLS,       clave:['id_registro'],     modo:'anexar', requiere:['fecha'], ajustar: idOUuid('id_registro', 'OBSERVACIONES.csv') },
-  { tabla:'tablero',        csv:'TABLERO.csv',       cols:['meta','foto','publicado_ts'], clave:[],  modo:'anexar', conflicto:'update', filas: filasTablero },
+  { tabla:'tablero',        csv:'TABLERO.csv',       cols:['meta','foto','publicado_ts'], clave:[],  modo:'anexar', conflicto:'update', casts:{ meta:'jsonb', foto:'jsonb' }, filas: filasTablero },
   { tabla:'usuarios',       csv:'USUARIOS.csv',      cols:USUARIOS_COLS,  clave:['usuario'],         modo:'reescribir', requiere:['usuario'],
     ajustar: (f) => { f.usuario = String(f.usuario).trim().toLowerCase(); } },
   { tabla:'cubicaje',       csv:'CUBICAJE.csv',      cols:['placa','cubicaje'], fijos:{ tipo:'' }, clave:['placa'], modo:'reescribir', requiere:['placa'], posicion:true,

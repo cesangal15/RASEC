@@ -328,7 +328,8 @@ reenviar a Google. Código: `worker/src/api/obra.js` + `worker/src/api/obra/*.js
 
 **Conmutadores** (`[vars]` de `wrangler.toml` o panel de Cloudflare): `BACKEND_OBRA` para `/obra`,
 `BACKEND_ASISTENCIAS` para `/asistencias`, cada uno `sheets` o `db`, más `BACKEND_OBRA_PRUEBA` /
-`BACKEND_ASISTENCIAS_PRUEBA` para `/prueba/*`. Hoy: producción `sheets`, prueba `db`.
+`BACKEND_ASISTENCIAS_PRUEBA` para `/prueba/*`. **Desde el 16-sep-2026 todo en `db`** (producción y prueba):
+los tres módulos (Parte, Obra, Asistencias) los atiende el Worker contra Supabase y el login lo emite el Worker.
 
 **Diferencia clave con el Parte: el login pasa al Worker.** Con `BACKEND_OBRA="db"`, `action=login` en `/obra`
 lo resuelve `worker/src/auth.js` leyendo la tabla `usuarios` y emite el token con `AUTH_SECRETO`/`AUTH_V`. Por
