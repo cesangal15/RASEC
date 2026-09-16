@@ -71,6 +71,14 @@
   .acts .sug{font-size:14px;padding:11px 14px;min-height:44px;}
   .acts .sug.sel{border-color:var(--accent);background:rgba(245,166,35,0.12);font-weight:600;}
   .picker-item.libre{border-style:dashed;color:var(--accent-txt);}
+  /* D178: la actividad elegida se muestra en una etiqueta (ya no abre buscador); los chips van debajo, por fila */
+  .rep-sel{min-height:52px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;padding:10px 14px;line-height:1.25;font-size:16px;}
+  .rep-sel.vacio{color:var(--muted);border-style:dashed;}
+  .rep-sel b{font-weight:600;}
+  .rep-sel small{display:block;font-size:12px;color:var(--muted);margin-top:2px;white-space:normal;}
+  .rep-row .acts{grid-column:1 / -1;margin:2px 0 4px;}
+  .rep-row .cc-libre{grid-column:1 / -1;}
+  .rep-row .cc-libre input{text-align:left;font-weight:400;min-height:48px;font-size:16px;padding:10px 12px;}
   details.opc{margin-bottom:14px;}
   details.opc summary{cursor:pointer;font-size:13px;color:var(--accent-txt);font-weight:600;padding:8px 0;list-style:none;}
   details.opc summary::before{content:'+ ';}

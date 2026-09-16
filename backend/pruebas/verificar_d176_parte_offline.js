@@ -55,6 +55,7 @@ function cargar(){
   hojas.PARTE_OPERADORES=hojaFalsa([['operador','partes_ult_4_meses'],['Nelson Rangel',323],['Luis Rincon',212]]);
   hojas.PARTE_CC=hojaFalsa([['centro_coste','proyecto','descripcion_cc','usos_ult_4_meses'],['3701.02.11','3701','',457],['3702.02.11','3702','',460]]);
   hojas.PARTE_ACTIVIDADES=hojaFalsa([['tipo_equipo','descripcion_trabajo','veces'],['VOLQUETAS DOBLETROQUE','Cargue terraplen',31]]);
+  hojas.PARTE_ITEMS=hojaFalsa([['tipo_equipo','item','actividad','veces','activo'],['VOLQUETAS DOBLETROQUE','02.11','Cargue terraplen (más de 1 km)',40,'SI']]);   // D174/D178: chips
   return ctx;
 }
 const ctx=cargar();
@@ -129,7 +130,7 @@ const server=http.createServer((req,res)=>{
     await $('#reporteNum').fill('0458');
     await $('#btnOperador').click(); await $('#pickerBuscar').fill('nels'); await $('.picker-item').first().click();
     await $('.tramo .medidor input').nth(1).fill('27250');
-    await $('.tramo .picker-btn').first().click(); await $('#pickerBuscar').fill('3701.02.11'); await $('.picker-item').first().click();
+    await $('.rep-row .acts .sug').first().click();   // D178: chip de actividad (CC derivado 3701.02.11)
     ok('resumen listo para enviar', (await $('#resumenBody').textContent()).includes('Todo listo'));
     await $('#btnSubmit').click();
     await pg.waitForSelector('#pantallaOk:not(.hidden)');
@@ -182,7 +183,7 @@ const server=http.createServer((req,res)=>{
     await pg.goto(BASE+'/parte.html?demo=1'); await pg.waitForSelector('#formMain:not(.hidden)');
     await $('#reporteNum').fill('0001'); await $('#btnOperador').click(); await $('.picker-item').first().click();
     await $('.tramo .medidor input').nth(1).fill('27200');
-    await $('.tramo .picker-btn').first().click(); await $('.picker-item').first().click();
+    await $('.rep-row .acts .sug').first().click();
     await $('#btnSubmit').click(); await pg.waitForSelector('#pantallaOk:not(.hidden)');
     ok('demo: confirmación verde y cola vacía', (await $('#okTit').textContent())==='Parte enviado' && (await cola()).length===0);
   }

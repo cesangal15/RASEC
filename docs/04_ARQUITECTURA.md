@@ -409,9 +409,17 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 │  GET  ?mod=parte&op=bandeja&fecha=  TOKEN+ROL → pendientes, revisadas, faltantes, listas   │
 │  POST {mod:'parte',op:'revisar',cambios:[{id_registro,estado?,campos?}]}  TOKEN+ROL →      │
 │        escritura QUIRÚRGICA por id_registro (lee esa fila, mezcla, reescribe esa fila)     │
+│  POST {mod:'parte',op:'repartir',id_registro,reparto:[{centro_coste,pct,pr?,descripcion_trabajo?}]}│
+│        TOKEN+ROL (D178) → original → descartado [Repartido en N filas]; N hijas pendiente  │
+│        encadenadas (motor de parteExpandirReparto_), ids <id>-r1…-rN                       │
 │  GET  ?mod=parte&op=base&desde=&hasta=[&estado=todos]  TOKEN+ROL → filas + excel.filas     │
 │        (B→AR, mapeo PARTE_EXCEL_MAPA) ; rango ≤ 186 días                                   │
-│  setupParte()  a mano: crea las 5 hojas, completa columnas, siembra pseudo-CC (idempotente)│
+│  setupParte()  a mano: crea las hojas, completa columnas, siembra pseudo-CC, formato texto │
+│                en PARTE_ITEMS.item / PARTE_CC.centro_coste (D178); idempotente             │
+│  depurarOperadoresParte(aplicar)  a mano (D178): aplica PARTE_OPERADORES_ALIAS en la hoja  │
+│  Revisan: roles admin·encargado·residente·parte_maquinaria + usuario jeisson (D178)        │
+│  D178: ítems/CC en número (2.1) → «02.10» en toda entrada y salida (parteNormItem_/CC_);   │
+│        op=equipo → actividades.habituales ≤ 5 (PARTE_MAX_HABITUALES)                       │
 └─────────────────────────────────────┬────────────────────────────────────────────────────┘
                                       ▼
 ┌──────────────── GOOGLE SHEETS (mismo archivo) ───────────────────────────────────────────┐

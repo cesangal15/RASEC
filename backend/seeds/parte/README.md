@@ -17,14 +17,23 @@ BANDEJA/DATA; ID `1OEAZCcj_kgVS6jWXxOSgyvm57sOsJ7fA1mRTJPU-icM`). Son CSV con co
      Los que traen `medidor=REVISAR` se guardan igual y salen con la alerta `SIN_MEDIDOR`: corregir
      la columna a `HOROMETRO` o `KM` cuando se sepa. Las 6 filas sin `tipo` (GQW139, SJQ401, SKY629,
      SRO556, TAR538, TTS230) vienen así del Excel: completar `tipo` para que tengan sugerencias.
-   - `PARTE_OPERADORES_semilla.csv`   → hoja `PARTE_OPERADORES` (nombres ya normalizados; **los
-     duplicados tipo `Aleyxer Rincon`/`Aleyxer Rincón`, `Wilmar Pahuana`/`Wilmar Pawana`/`Wilmer
-     Pahuana`, `Yerson Sandobal`/`Yerson Sandoval` los depura el usuario** — el código no los funde;
-     para retirar uno basta `activo=NO`).
+   - `PARTE_OPERADORES_semilla.csv`   → hoja `PARTE_OPERADORES` (**depurada en D178:** 88 nombres
+     canónicos con columna `activo`; las variantes de la misma persona —`Aleyxer Rincón`, `Wilmar
+     Pawana`/`Wilmer Pahuana`, `Yerson Sandoval`, `Eduard`/`Edwar Acevedo`, `Alex Guerrero`, `Nelson
+     Torres`/`Gabriel Torres`, `Jan Carlos`, `A. Gutierrez`, …— ya no van, y además el código las funde
+     al leer y al recibir (`PARTE_OPERADORES_ALIAS` en `CodigoParte.gs`). `Cesar` a secas queda `NO`.
+     Si la hoja ya está sembrada, NO hace falta reimportar: correr `depurarOperadoresParte(true)` desde
+     el editor deja la hoja igual de limpia y corrige el histórico de `PARTE_BANDEJA`. `Aleyxer Rincon`
+     / `Aleixer Lizarazo` NO se fundieron (apellidos distintos): lo decide el usuario. Para retirar uno
+     basta `activo=NO`).
    - `PARTE_CC_semilla.csv`           → hoja `PARTE_CC` (`descripcion_cc` viene vacía: se puede
      completar a mano y el buscador del formulario la muestra).
    - `PARTE_ACTIVIDADES_frecuentes.csv` → hoja `PARTE_ACTIVIDADES` (solo sugerencias, por tipo).
    - **`PARTE_ITEMS_semilla.csv` → hoja `PARTE_ITEMS` (D174):** `tipo_equipo,item,actividad,veces,activo`.
+     ⚠ **Al importar, Sheets convierte `02.10` en el número `2.1`** (y `03.03` en `3.03`). Desde D178 el
+     código lo corrige al leer (2.1 → «02.10») y `setupParte()` deja la columna `item` en formato texto,
+     pero si se importa con «Detectar automáticamente» es normal ver `2.1` en la hoja: no hay que
+     arreglarlo a mano. Lo mismo para `centro_coste` de `PARTE_CC`.
      La tabla actividad → ítem por tipo de equipo: la «máscara» que ve el operador. `actividad` es **la
      frase con que ellos la escriben** en DESCRIPCIÓN DEL TRABAJO del parte («Compactando terraplen»,
      «Cargue de volquetas», «Cereo sub base»), minada de BASE MAQUINARIA (UF1-UF2, 16-mar → 10-sep-2026,
