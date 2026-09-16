@@ -1,6 +1,6 @@
 -- =====================================================================================================
 -- TM2 Sur · 4.01 — Esquema Postgres (Supabase) · 001_esquema.sql
--- Fase 1 de la migración (D178, sep-2026): «una tabla por hoja transaccional, obra_id en todas, claves
+-- Fase 1 de la migración (D180, sep-2026): «una tabla por hoja transaccional, obra_id en todas, claves
 -- de negocio que hoy son implícitas, índices por (fecha), (fecha, area), (fecha, cuadrilla)».
 -- Fuente: docs/INFORME_4.01_base_de_datos.md §5 (modelo actual) y §7 (arquitectura objetivo).
 --
@@ -505,7 +505,7 @@ CREATE TABLE IF NOT EXISTS cat_trabajadores (
   obra_id text NOT NULL DEFAULT 'tm2sur' REFERENCES obra(obra_id), codigo text NOT NULL, string_navision text NOT NULL DEFAULT '',
   importado_ts timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (obra_id, codigo));
 
-INSERT INTO esquema_version (version, nota) VALUES (1, '001_esquema.sql · Fase 1 de 4.01 (D178): tablas por hoja, obra_id, claves e índices §5')
+INSERT INTO esquema_version (version, nota) VALUES (1, '001_esquema.sql · Fase 1 de 4.01 (D180): tablas por hoja, obra_id, claves e índices §5')
   ON CONFLICT (version) DO NOTHING;
 
 COMMIT;

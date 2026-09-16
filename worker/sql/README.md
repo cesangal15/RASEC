@@ -1,4 +1,4 @@
-# `worker/sql` — esquema Postgres de la migración 4.01 (D178)
+# `worker/sql` — esquema Postgres de la migración 4.01 (D180)
 
 `001_esquema.sql` crea, en Supabase (Postgres), **una tabla por hoja transaccional** de los dos Sheets,
 con `obra_id` en todas, las claves de negocio que hoy son implícitas y los índices de §5 del informe.
