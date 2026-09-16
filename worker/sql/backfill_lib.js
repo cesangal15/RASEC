@@ -250,6 +250,42 @@ export async function cargarTabla(sql, def, dir, op){
 }
 /* El tramo de escritura de cargarTabla, con las filas ya convertidas (también lo usa semillas_sql.js).
  * Dedupe por clave dentro del lote (se queda la primera) y UNA transacción por tabla. */
+// Filas por INSERT. Con ~40 columnas (maquinaria) y 500 filas son ~20 000 parámetros, bien por debajo
+// del tope de 65 535 de Postgres; y el multi-fila corta los viajes al pooler (miles → decenas), que es
+// lo que hacía que una transacción larga de asistencia (9 360 inserts) se cayera con CONNECTION_CLOSED.
+const LOTE_FILAS = 500;
+function _trozos(arr, n){ const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; }
+function _esErrorConexion(e){ const m = String(e && (e.message || e.code) || e); return /CONNECTION_CLOSED|ECONNRESET|ETIMEDOUT|EPIPE|connection|terminat|closed|socket/i.test(m); }
+async function _dormir(ms){ return new Promise(r => setTimeout(r, ms)); }
+// Reintenta una operación de BD ante caídas de conexión (postgres.js reconecta en la siguiente consulta).
+// PGlite (banco local) no lanza estos errores, así que allí corre una sola vez.
+async function _conReintento(fn, avisos, etiqueta){
+  let ultimo;
+  for (let intento = 1; intento <= 4; intento++){
+    try { return await fn(); }
+    catch (e) {
+      ultimo = e;
+      if (!_esErrorConexion(e) || intento === 4) throw e;
+      if (avisos) avisos.push('conexión caída en ' + etiqueta + ' (intento ' + intento + '): ' + String(e && e.message || e).slice(0, 80) + ' — reintentando');
+      await _dormir(1000 * intento);
+    }
+  }
+  throw ultimo;
+}
+// Un INSERT multi-fila (una sentencia, un viaje). Devuelve cuántas filas entraron de verdad (RETURNING).
+async function _insertarLote(ejecutor, nombre, colsSql, cols, lote, conflicto){
+  const ncol = cols.length + 1;   // +obra_id
+  const valores = [];
+  const grupos = lote.map((f, i) => {
+    const base = i * ncol;
+    valores.push(OBRA_ID); cols.forEach(c => valores.push(f[c]));
+    return '(' + Array.from({ length: ncol }, (_, j) => '$' + (base + j + 1)).join(', ') + ')';
+  });
+  const txt = 'INSERT INTO ' + q(nombre) + ' (' + colsSql + ') VALUES ' + grupos.join(', ') + conflicto + ' RETURNING 1';
+  const r = await ejecutor.unsafe(txt, valores);
+  return r.length;
+}
+
 export async function cargarFilas(sql, def, filas, op, res){
   const nombre = def.tabla, clave = def.clave === undefined ? null : def.clave;
   res = res || { tabla: nombre, archivo: def.csv || '', leidas: 0, insertadas: 0, saltadas: 0, borradas: 0, avisos: [] };
@@ -263,35 +299,45 @@ export async function cargarFilas(sql, def, filas, op, res){
     filas.forEach(f => { const k = clave.map(c => String(f[c])).join('|'); if (vistos.has(k)) { res.saltadas++; res.avisos.push('duplicado en el CSV (' + k + '): se queda la primera'); return; } vistos.add(k); unicas.push(f); });
   }
   if (op && op.simular) { res.insertadas = unicas.length; return res; }
+  const lote = Number(op && op.lote) || LOTE_FILAS;
   let modo = def.modo || 'reescribir';
   const colsSql = ['obra_id'].concat(cols).map(q).join(', ');
-  await sql.begin(async (tx) => {
-    if (modo === 'reescribir_si_vacia') {
-      const n = await tx.unsafe('SELECT count(*)::int AS n FROM ' + q(nombre) + ' WHERE obra_id = $1', [OBRA_ID]);
-      modo = n[0].n ? 'anexar' : 'reescribir';
-      if (modo === 'anexar') res.avisos.push('la tabla ya tenía ' + n[0].n + ' fila(s) de la obra: se ANEXA en vez de reescribir');
-    }
-    if (modo === 'reescribir') {
+  let conflicto = '';
+  const objetivo = ' ON CONFLICT (' + ['obra_id'].concat(clave || []).map(q).join(', ') + ')';
+  if (Array.isArray(clave) && def.conflicto === 'update') conflicto = objetivo + ' DO UPDATE SET ' + cols.map(c => q(c) + ' = EXCLUDED.' + q(c)).join(', ');
+  else if (clave && clave.length && def.conflicto !== null) conflicto = objetivo + ' DO NOTHING';
+
+  if (modo === 'reescribir_si_vacia') {
+    const n = await _conReintento(() => sql.unsafe('SELECT count(*)::int AS n FROM ' + q(nombre) + ' WHERE obra_id = $1', [OBRA_ID]), res.avisos, nombre + ' (conteo)');
+    modo = n[0].n ? 'anexar' : 'reescribir';
+    if (modo === 'anexar') res.avisos.push('la tabla ya tenía ' + n[0].n + ' fila(s) de la obra: se ANEXA en vez de reescribir');
+  }
+
+  if (modo === 'reescribir') {
+    // Atómico: DELETE + inserto por lotes en UNA transacción (los catálogos son chicos: ≤ ~1 000 filas).
+    await _conReintento(() => sql.begin(async (tx) => {
       const b = await tx.unsafe('DELETE FROM ' + q(nombre) + ' WHERE obra_id = $1 RETURNING 1', [OBRA_ID]);
-      res.borradas = b.length;
-    }
-    let yaEstan = null;
-    if (def.preexistentes && modo === 'anexar') {
-      const pre = await tx.unsafe('SELECT ' + def.preexistentes.map(q).join(', ') + ' FROM ' + q(nombre) + ' WHERE obra_id = $1', [OBRA_ID]);
-      yaEstan = new Set(pre.map(r => def.preexistentes.map(c => String(r[c] == null ? '' : r[c])).join('|')));
-    }
-    let conflicto = '';
-    const objetivo = ' ON CONFLICT (' + ['obra_id'].concat(clave || []).map(q).join(', ') + ')';
-    if (Array.isArray(clave) && def.conflicto === 'update') conflicto = objetivo + ' DO UPDATE SET ' + cols.map(c => q(c) + ' = EXCLUDED.' + q(c)).join(', ');
-    else if (clave && clave.length && def.conflicto !== null) conflicto = objetivo + ' DO NOTHING';
-    for (const f of unicas) {
-      if (yaEstan && yaEstan.has(def.preexistentes.map(c => String(f[c] == null ? '' : f[c])).join('|'))) { res.saltadas++; continue; }
-      const vals = [OBRA_ID].concat(cols.map(c => f[c]));
-      const marcas = vals.map((_, i) => '$' + (i + 1)).join(', ');
-      const r = await tx.unsafe('INSERT INTO ' + q(nombre) + ' (' + colsSql + ') VALUES (' + marcas + ')' + conflicto + ' RETURNING 1', vals);
-      if (r.length) res.insertadas++; else res.saltadas++;
-    }
-  });
+      res.borradas = b.length; res.insertadas = 0; res.saltadas = res.saltadas;   // reinicia el conteo si se reintenta la transacción entera
+      let ins = 0;
+      for (const trozo of _trozos(unicas, lote)) ins += await _insertarLote(tx, nombre, colsSql, cols, trozo, conflicto);
+      res.insertadas = ins; res.saltadas += unicas.length - ins;
+    }), res.avisos, nombre);
+    return res;
+  }
+
+  // anexar: filtro de preexistentes en JS (una consulta), luego lotes con AUTOCOMMIT y reintento por lote.
+  // Es resumible: si la conexión se cae, las filas ya escritas se saltan al re-correr (ON CONFLICT DO
+  // NOTHING, o el propio filtro de preexistentes para volquetas, que no tiene clave natural única).
+  let porInsertar = unicas;
+  if (def.preexistentes) {
+    const pre = await _conReintento(() => sql.unsafe('SELECT ' + def.preexistentes.map(q).join(', ') + ' FROM ' + q(nombre) + ' WHERE obra_id = $1', [OBRA_ID]), res.avisos, nombre + ' (preexistentes)');
+    const yaEstan = new Set(pre.map(r => def.preexistentes.map(c => String(r[c] == null ? '' : r[c])).join('|')));
+    porInsertar = unicas.filter(f => { const k = def.preexistentes.map(c => String(f[c] == null ? '' : f[c])).join('|'); if (yaEstan.has(k)) { res.saltadas++; return false; } yaEstan.add(k); return true; });
+  }
+  for (const trozo of _trozos(porInsertar, lote)) {
+    const ins = await _conReintento(() => _insertarLote(sql, nombre, colsSql, cols, trozo, conflicto), res.avisos, nombre);
+    res.insertadas += ins; res.saltadas += trozo.length - ins;
+  }
   return res;
 }
 
@@ -318,7 +364,9 @@ export function leerArgs(argv){
 // Mismos tipos que src/db.js: date como texto, numeric como Number.
 export async function abrirPostgres(cadena){
   const { default: postgres } = await import('postgres');
-  return postgres(cadena, { max: 1, prepare: false, onnotice: () => {},
+  // max:1 (carga secuencial); connect_timeout amplio y idle_timeout corto para el pooler de Supabase;
+  // el reintento por lote de cargarFilas recupera si el pooler corta la conexión a mitad.
+  return postgres(cadena, { max: 1, prepare: false, connect_timeout: 30, idle_timeout: 20, max_lifetime: 60 * 20, onnotice: () => {},
     types: { date: { to: 1082, from: [1082], serialize: v => v, parse: v => v }, numeric: { to: 1700, from: [1700], serialize: v => String(v), parse: v => Number(v) } } });
 }
 export function imprimirResultados(res){
