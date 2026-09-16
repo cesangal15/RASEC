@@ -7,7 +7,37 @@ arneses de `backend/pruebas/` y los documentos 01–06 + OPERACIONES.
 
 ---
 
-## 0. Resumen en diez líneas
+## 0-bis. Decisión del dueño (16-sep-2026) — el disparador ya se cumplió
+
+Tras leer el diagnóstico, el dueño descarta la Fase 0 de medición: **el disparador real no es el volumen sino la
+disponibilidad**. En campo el Apps Script «se cae» a diario: respuestas lentas, errores constantes y fricción, con
+picos cuando mucha gente pega a la vez a la misma URL. La arquitectura (Pages + Worker + pantallas + cola offline) está
+bien; lo que no aguanta es el backend de Apps Script + Sheets. **Se migra.** Antes, el dueño va a aplicar unos cambios
+al Parte Digital (`CodigoParte.gs` y sus pantallas); la migración arranca cuando esos cambios estén cerrados, y el Parte
+se porta en su versión final (no en la de hoy).
+
+Por qué el síntoma encaja con Apps Script y no con el código (y por qué medir no cambiaría la decisión):
+
+| Causa | Qué hace hoy | Efecto que se ve en campo |
+|---|---|---|
+| **Tope de ejecuciones simultáneas** de Apps Script (~30 por script, todas corren «como el dueño») | 300 personas reportando asistencia a la misma hora + capataces + chequeadoras contra 2 scripts | La petición 31 espera o falla; el Worker devuelve `502 upstream` cuando Google contesta con HTML de error |
+| **Coste fijo por petición** (~0,5 s por `getValues`, arranque en frío del script) | 3–11 lecturas por endpoint incluso con caché | 2–7 s por consulta aunque las hojas estén casi vacías (medido en D99: 5,2 s de servidor) |
+| **`LockService` global de 30 s** en TODO POST de asistencias | Serializa todas las escrituras del Sheet | En hora pico las escrituras hacen cola y las últimas expiran: «no se pudo guardar», reintento por la cola offline |
+| **Sin lock** en obra y parte | Append con `getLastRow()+1` concurrente | Filas pisadas o duplicadas en picos (los `diagnosticoDuplicados*` existen por esto) |
+| Cuotas diarias compartidas (tiempo total, `UrlFetch`, triggers) | Calentador cada 30 min + respaldo + LOG por petición | Un día malo agota cuota y el script deja de responder a todos |
+
+Ninguna de esas cinco causas se arregla con archivado (4.8) ni con más lectura acotada: son límites de la plataforma.
+Un Worker de Cloudflare escala por petición sin tope práctico de concurrencia y una consulta indexada en Postgres tarda
+milisegundos; el LOG y el rate limit se conservan; la cola offline sigue igual. **Lo único opcional que sí ayudaría al
+diseño, sin retrasar nada:** mirar en el panel de Observability del Worker (ya está activado en `wrangler.toml`) qué
+código devuelve en los picos (502 upstream, 429 rate limit o 401), porque eso decide si el rate limit por IP de 120/min
+también hay que subirlo cuando muchos teléfonos salen por la misma IP del campamento.
+
+**Consecuencias sobre el plan de §3:** la Fase 0 se elimina; la Fase 1 (congelar contrato) empieza en cuanto se cierren
+los cambios del Parte; el orden Parte → Asistencias → Obra se mantiene, pero Asistencias sube de prioridad porque es
+donde está el pico de concurrencia (300 personas a la misma hora). La arquitectura objetivo concreta está en §7.
+
+## 0. Resumen en diez líneas (diagnóstico previo a la decisión)
 
 1. **Hoy no hay evidencia de que se cumpla ningún disparador de 4.01.** Los tres (Sheet lento >~50k filas, Galca
    en otra obra, histórico multianual consultable) se pueden medir con lo que ya existe (`_ms`, `_celdas`, hoja
@@ -259,6 +289,64 @@ Tres formas posibles; se recomienda la primera.
 
 ---
 
+## 7. Arquitectura objetivo (propuesta cerrada para discutir, sep-2026)
+
+```
+GitHub Pages tm2.galca.app  ──fetch──▶  Cloudflare Worker api.galca.app (galca-api)
+ (21 pantallas, auth.js,                 ├── /obra        → src/api/obra.js        (Codigo.gs portado)
+  entorno.js, offline.js:                ├── /asistencias → src/api/asistencias.js (CodigoAsistencias.gs portado)
+  SIN CAMBIOS)                           ├── /parte       → src/api/parte.js       (CodigoParte.gs portado)
+                                         ├── /prueba/*    → mismas rutas contra la BD de prueba
+                                         ├── src/db.js    → Postgres (Hyperdrive + postgres.js) · una transacción por escritura
+                                         ├── src/auth.js  → mismo token HMAC (D109), UN secreto, AUTH_V como variable
+                                         └── cron         → LOG a 30 días · volcado CSV diario a Drive/R2 · ping keep-alive
+                                                   │
+                                                   ▼
+                                   Postgres gestionado (Supabase, región sa-east-1 o us-east-1)
+                                   esquema: obra_id en toda tabla · una tabla por hoja transaccional ·
+                                   catálogos importados desde el Sheet · índices por (fecha), (fecha,area), (fecha,cuadrilla)
+                                                   │ pull cada 5–15 min (UrlFetchApp, un .gs pequeño en el ESPEJO)
+                                                   ▼
+                                   Google Sheet ESPEJO (obra) + ESPEJO (asistencias)
+                                   · DATA en layout A–AC y strings verbatim → copy-paste A:S al maestro como hoy
+                                   · BASE / CUBICAJE / MAQUINAS / USUARIOS / CAT_* siguen editándose aquí y viajan a la BD
+                                   · LOG visible · respaldo diario a Drive como hasta ahora
+```
+
+Decisiones que este esquema fija (para discutir antes de la Fase 1):
+
+1. **La lógica vive en el Worker, no en funciones de la BD.** Mismo JavaScript que los `.gs`, mismos nombres de
+   función (`guardarReporte`, `enviarData`, `parteReporte`…) para que las decisiones D-xxx sigan siendo rastreables. La
+   capa `hojaFalsa` del arnés pasa a ser `src/db.js`; los 36 arneses se reusan como pruebas de contrato.
+2. **Postgres por SQL directo** (Hyperdrive + `postgres.js`), no por PostgREST: las escrituras de hoy son
+   «borra el día y anexa» y necesitan transacción; en SQL es un `BEGIN … COMMIT`, en PostgREST sería una función RPC
+   por cada una. PostgREST queda solo para el pull del ESPEJO (lectura filtrada por fecha, sin código).
+3. **Proveedor: Supabase Pro** (~25 USD/mes, sin pausa por inactividad, backups diarios, panel SQL para «abrir y mirar»)
+   + **Workers Paid** (~5 USD/mes, necesario por CPU y por Hyperdrive). Alternativa a coste 5 USD: Cloudflare D1, si se
+   acepta SQLite y el encierro en Cloudflare. Precios a verificar al contratar.
+4. **Contrato de API intacto**: mismas `action`/`op`, mismo POST en `text/plain`, mismo `{ok, auth}`, mismo `_ms`. Las
+   21 pantallas, `auth.js`, `entorno.js`, `offline.js` y el service worker **no cambian**. Cada corte es un
+   `wrangler secret put` (o, mejor, una variable `BACKEND_<ruta>=sheets|db` en el Worker para conmutar por ruta sin
+   redeploy).
+5. **Concurrencia**: sin lock global. Transacción por `(fecha, cuadrilla)` en asistencias, por `(fecha, area)` en
+   `enviarData`, `INSERT … ON CONFLICT (id_registro) DO NOTHING` para la idempotencia de la cola offline (D82). El rate
+   limit por usuario+action pasa a KV o a la tabla `log`; el de IP del Worker se revisa con Observability.
+6. **`obra_id` desde el primer día** en toda tabla (constante `tm2sur` hoy). Es lo que hace posible 4.03 (segunda obra)
+   sin copiar nada: un subdominio y un `obra_id`.
+7. **Catálogos a mano se quedan en el Sheet** (BASE, CUBICAJE, MAQUINAS, USUARIOS, CAT_*, PARTE_EQUIPOS/OPERADORES/CC/
+   ITEMS): el mismo trigger de pull los sube a la BD. Un CRUD en pantalla se hace solo cuando alguien lo pida.
+8. **Copy-paste protegido por prueba**: antes del corte de obra, 30 días de DATA del Sheet viejo y del ESPEJO comparados
+   celda a celda. El criterio de paridad es «el maestro no nota la diferencia».
+9. **Orden de migración**: Parte (cuando estén los cambios del dueño) → Asistencias (el pico de concurrencia) → Obra.
+   Cada módulo entra primero por `/prueba/*` con `?env=prueba` desde un teléfono real.
+10. **Estructura del repo**: `worker/src/api/{obra,asistencias,parte}.js`, `worker/src/db.js`, `worker/src/auth.js`,
+    `worker/sql/001_esquema.sql`, `worker/pruebas/` (los arneses movidos y apuntando a `db.js`), `backend/*.gs`
+    congelados como referencia hasta el retiro. `docs/OPERACIONES.md` gana un §10 «desplegar el backend en el Worker».
+
+Lo que sigue pendiente de decidir contigo: (a) Supabase vs D1; (b) si el ESPEJO de asistencias se necesita o basta
+con el export a Navision desde la pantalla; (c) cuántos días de histórico entran en el backfill inicial (todo vs último
+año, con el resto en el Sheet de archivo).
+
 ## 5. Anexo — Modelo de datos actual (resumen de los tres `.gs`)
 
 ### 5.1 Sheet de obra (`Codigo.gs` + `CodigoParte.gs`, mismo proyecto y misma URL `/exec`)
@@ -310,7 +398,7 @@ POST; `PropertiesService` solo verifica (`AUTH_EMISOR=false`); trigger diario de
 Reemplazar la fila actual de 4.01 por:
 
 ```
-| 4.01 | **Base de datos real (Supabase/Postgres) — diagnóstico hecho, NO implementar (informe `docs/INFORME_4.01_base_de_datos.md`, sep-2026).** Texto original: reescribir la lógica de los tres .gs como backend, apuntar el Worker api.galca.app al nuevo destino, y trigger que alimente el Sheet ESPEJO para conservar el copy-paste a los Excel maestros. Disparadores: Sheet lento (>~50k filas), Galca en otra obra, o historial multianual consultable. **Diagnóstico (sep-2026):** ningún disparador se cumple hoy con lo documentado; el primero en llegar será el de filas en `ASISTENCIA` (5.200–7.800/mes → 50k entre **feb y may-2027**), y para ese ya existe 4.8 a coste cero. Lo que se pondrá lento antes que el volumen son las 5 lecturas de hoja ENTERA que D102/D107 no pudieron acotar: `acumulado_drenajes` y `consolidadoRango` (DATA), `maquinariaProduccionGuardar` (MAQUINARIA), `parteUltimoFinal_` (PARTE_BANDEJA, una vez por equipo faltante) y los cruces históricos de `roster`/`export`. **Fase 0 (ahora, sin redeploy):** correr `diagnosticoCapacidad()` y `diagnosticoPeso()` en los dos Sheets hoy y a 14 días (filas/día por hoja, celdas de rejilla vs 10 M); tabla dinámica sobre la hoja `LOG` por `action` (p50/p95 de `ms`); repetir cada mes. **Se dispara si:** p95 de servidor > 5 s en `asistencia`/`export`/`acumulado_drenajes`/`consolidado` rango/`op=bandeja` y no baja con 4.8; o segunda obra con tablero consolidado; o el tope de 186 días de `persona`/`ausencias` estorba. **Si se dispara — opción recomendada:** lógica portada al Worker `galca-api` (mismo JS, mismo arnés `hojaFalsa` como frontera) + Postgres gestionado (Supabase Pro ~25 USD/mes o Free con ping diario; Workers Paid ~5 USD); alternativa D1 (~5 USD, encierro en Cloudflare). Esfuerzo 8–12 semanas por módulos: **Parte Digital → Asistencias → Obra**, cada corte = `wrangler secret put` con vuelta atrás de un comando, la cola offline se redirige sola por `tipo`. Sheet ESPEJO por **pull** desde un `.gs` con trigger cada 5–15 min (misma cuenta de Google, sin service account), con DATA en el mismo layout A–AC y strings verbatim para que el copy-paste A:S siga igual; catálogos a mano (BASE, CUBICAJE, MAQUINAS, USUARIOS, CAT_*) se quedan en el Sheet y viajan en sentido contrario por el mismo trigger. Riesgos principales: reescritura de 7.274 líneas con un solo mantenedor (mitigación: arnés de contrato en verde antes de cada corte), Supabase Free se pausa a los 7 días sin uso, tipos fecha/hora de Sheets, dos almacenes durante la transición (nunca doble escritura). | ⏸️ V3 — sep-2026 — **en Fase 0 (medir)**; próxima revisión con cifras en dic-2026 (alternativa de fondo a 4.8 / 4.11 / 3.6; el cambio de destino es `wrangler secret put`, D169) |
+| 4.01 | **Base de datos real (Supabase/Postgres) — diagnóstico hecho, NO implementar (informe `docs/INFORME_4.01_base_de_datos.md`, sep-2026).** Texto original: reescribir la lógica de los tres .gs como backend, apuntar el Worker api.galca.app al nuevo destino, y trigger que alimente el Sheet ESPEJO para conservar el copy-paste a los Excel maestros. Disparadores: Sheet lento (>~50k filas), Galca en otra obra, o historial multianual consultable. **Diagnóstico (sep-2026):** ningún disparador se cumple hoy con lo documentado; el primero en llegar será el de filas en `ASISTENCIA` (5.200–7.800/mes → 50k entre **feb y may-2027**), y para ese ya existe 4.8 a coste cero. Lo que se pondrá lento antes que el volumen son las 5 lecturas de hoja ENTERA que D102/D107 no pudieron acotar: `acumulado_drenajes` y `consolidadoRango` (DATA), `maquinariaProduccionGuardar` (MAQUINARIA), `parteUltimoFinal_` (PARTE_BANDEJA, una vez por equipo faltante) y los cruces históricos de `roster`/`export`. **Fase 0 (ahora, sin redeploy):** correr `diagnosticoCapacidad()` y `diagnosticoPeso()` en los dos Sheets hoy y a 14 días (filas/día por hoja, celdas de rejilla vs 10 M); tabla dinámica sobre la hoja `LOG` por `action` (p50/p95 de `ms`); repetir cada mes. **Se dispara si:** p95 de servidor > 5 s en `asistencia`/`export`/`acumulado_drenajes`/`consolidado` rango/`op=bandeja` y no baja con 4.8; o segunda obra con tablero consolidado; o el tope de 186 días de `persona`/`ausencias` estorba. **Si se dispara — opción recomendada:** lógica portada al Worker `galca-api` (mismo JS, mismo arnés `hojaFalsa` como frontera) + Postgres gestionado (Supabase Pro ~25 USD/mes o Free con ping diario; Workers Paid ~5 USD); alternativa D1 (~5 USD, encierro en Cloudflare). Esfuerzo 8–12 semanas por módulos: **Parte Digital → Asistencias → Obra**, cada corte = `wrangler secret put` con vuelta atrás de un comando, la cola offline se redirige sola por `tipo`. Sheet ESPEJO por **pull** desde un `.gs` con trigger cada 5–15 min (misma cuenta de Google, sin service account), con DATA en el mismo layout A–AC y strings verbatim para que el copy-paste A:S siga igual; catálogos a mano (BASE, CUBICAJE, MAQUINAS, USUARIOS, CAT_*) se quedan en el Sheet y viajan en sentido contrario por el mismo trigger. Riesgos principales: reescritura de 7.274 líneas con un solo mantenedor (mitigación: arnés de contrato en verde antes de cada corte), Supabase Free se pausa a los 7 días sin uso, tipos fecha/hora de Sheets, dos almacenes durante la transición (nunca doble escritura). | 🔲 **V3 — APROBADO por el dueño (16-sep-2026): se migra.** Disparador real = disponibilidad bajo carga (Apps Script se cae en picos: tope de ~30 ejecuciones simultáneas, 0,5 s por lectura, lock global de 30 s en asistencias), no el volumen; la Fase 0 de medición se elimina. Arquitectura objetivo en §7 del informe: lógica en el Worker `galca-api` (mismo JS, arneses reusados), Postgres (Supabase) por SQL directo con transacción por escritura, `obra_id` desde el día uno, ESPEJO por pull, catálogos a mano siguen en el Sheet. **Arranca cuando el dueño cierre sus cambios pendientes del Parte Digital**; orden Parte → Asistencias → Obra (alternativa de fondo a 4.8 / 4.11 / 3.6; el cambio de destino es `wrangler secret put`, D169) |
 ```
 
 Y añadir en 4.8 (archivado) una línea: «**Primera respuesta al disparador de filas de 4.01** (ASISTENCIA llega a 50k
