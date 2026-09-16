@@ -343,9 +343,30 @@ Decisiones que este esquema fija (para discutir antes de la Fase 1):
     `worker/sql/001_esquema.sql`, `worker/pruebas/` (los arneses movidos y apuntando a `db.js`), `backend/*.gs`
     congelados como referencia hasta el retiro. `docs/OPERACIONES.md` gana un §10 «desplegar el backend en el Worker».
 
-Lo que sigue pendiente de decidir contigo: (a) Supabase vs D1; (b) si el ESPEJO de asistencias se necesita o basta
-con el export a Navision desde la pantalla; (c) cuántos días de histórico entran en el backfill inicial (todo vs último
-año, con el resto en el Sheet de archivo).
+Decisiones tomadas por el dueño (16-sep-2026): **(b) sin ESPEJO de asistencias**: basta el export a Navision que ya
+sale de la pantalla con el generador; **(c) backfill de TODO el histórico** (2–3 meses de operación, miles de filas,
+minutos de carga). **(a) Supabase vs D1** queda para decidir con la comparación de §7.1; requisito del dueño: poder ver
+y editar los datos en una cuadrícula tipo Excel.
+
+### 7.1 Supabase Pro vs Cloudflare D1, más allá del precio
+
+| | Supabase Pro (~25 USD/mes + Workers Paid ~5) | Cloudflare D1 (Workers Paid ~5 USD/mes, D1 incluido) |
+|---|---|---|
+| Motor | **Postgres** completo: tipos `date`/`time`/`numeric`, vistas, funciones, JSON, RLS | **SQLite**: tipos laxos (fechas y horas como texto), sin funciones almacenadas, sin RLS |
+| Transacciones | `BEGIN … COMMIT` interactivo: leer, calcular, escribir en la misma transacción | Solo `batch()` atómico: hay que calcular todo en JS y mandar el lote; no se puede leer dentro de la transacción |
+| **Editar datos a mano** | **Table Editor tipo hoja de cálculo**: editar celdas, añadir/borrar filas, filtrar, ordenar, importar/exportar CSV | Panel con consola SQL y vista de tablas; **editar una fila es escribir un `UPDATE`** |
+| Conexión desde Excel / Power BI | **Sí, directa** (ODBC/Power Query contra Postgres): los Excel maestros podrían leer la BD en vivo en el futuro | No: solo por HTTP a través del Worker |
+| Acceso desde el Worker | Hyperdrive (pool) o REST; ~20–60 ms por consulta según región | **Binding nativo**, cero configuración, la latencia más baja |
+| API REST automática | PostgREST incluido: el pull del ESPEJO se hace sin escribir código de API | No: cualquier lectura externa pasa por código propio en el Worker |
+| Backups | Diarios automáticos en Pro (7 días); PITR opcional | **Time Travel**: restaurar a cualquier instante de los últimos 30 días, incluido en el plan |
+| Tamaño | 8 GB incluidos (sobra: ~1,6 M celdas/año ≈ decenas de MB) | 10 GB por base |
+| Cuentas y facturas | Dos proveedores (Cloudflare + Supabase) | Todo en la cuenta de Cloudflare que ya existe (D169) |
+| Portabilidad | Postgres estándar: `pg_dump` y se lleva a cualquier sitio | Exportable a SQL, pero solo accesible a través de Workers |
+| Curva para un solo mantenedor | Panel amigable (tablas, SQL, logs, usuarios) | `wrangler` + SQL; menos «ver y tocar» |
+| Consultas multianuales / analítica | Más fuerte (Postgres) | Suficiente para lo de hoy |
+
+**Lo que decide:** el requisito de editar en cuadrícula y la posibilidad de que Excel lea la base directamente inclinan
+a **Supabase Pro**. D1 gana solo si se prioriza una sola cuenta y el menor coste, aceptando editar por SQL.
 
 ## 5. Anexo — Modelo de datos actual (resumen de los tres `.gs`)
 
