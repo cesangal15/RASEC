@@ -373,7 +373,7 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 ┌──────────────── tm2.galca.app (GitHub Pages, repo `galca`) ──────────────────────────────┐
 │  parte.html?eq=<codigo>      PÚBLICO, sin login. La identidad es el EQUIPO (QR en cabina). │
 │      · cabecera fija: código · tipo · placa · medidor (HORÓMETRO | KM | sin medidor)       │
-│      · fecha (hoy/ayer) · nº parte físico · operador (buscador) · inicial PRECARGADO con   │
+│      · fecha (hasta 7 días atrás, D179) · nº parte físico · operador (buscador) · inicial PRECARGADO con   │
 │        el último final · final · total en vivo · hora de/a · CC (buscador: más usados,     │
 │        todos, «sin operación») · PR · UF derivada · descripción + sugerencias por tipo ·   │
 │        varada/lluvia (plegado) · observaciones                                             │

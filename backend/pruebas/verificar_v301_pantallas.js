@@ -108,6 +108,7 @@ const server=http.createServer((req,res)=>{
     ok('cabecera con el código y tipo/placa', (await $(pg,'#hCodigo').textContent()).includes('VOL048') && (await $(pg,'#hSub').textContent()).includes('NNM180'));
     ok('chip del medidor = KILÓMETROS', (await $(pg,'#hMedidor').textContent())==='KILÓMETROS');
     ok('fecha por defecto hoy (Bogotá)', await $(pg,'#fecha').inputValue()===HOY);
+    ok('D179: el campo fecha admite hasta 7 días atrás', await pg.evaluate(()=>{ const f=document.getElementById('fecha'), d=new Date(f.max+'T12:00:00'); d.setDate(d.getDate()-7); return f.min===d.toISOString().slice(0,10); }));
     const ini=$(pg,'.tramo .medidor input').first();
     ok('inicial precargado con el último final (27120)', await ini.inputValue()==='27120');
     await $(pg,'#reporteNum').fill('0457');

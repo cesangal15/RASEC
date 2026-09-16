@@ -122,7 +122,10 @@ let ultimoEnvio = null;   // para "Reportar otro tramo"
 let intento = false;      // ya intentó enviar: se marcan en rojo los campos que faltan
 
 function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
-function ayer(f){ const d=new Date(f+'T12:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+// D179: el parte se admite hasta 7 días atrás (antes hoy/ayer): un operador que pasó la semana sin señal o
+// sin teléfono transcribe los partes físicos atrasados él mismo. El backend solo rechaza fechas futuras.
+const DIAS_ATRAS = 7;
+function diasAntes(f, n){ const d=new Date(f+'T12:00:00'); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
 function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
 function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.indexOf('3702')===0?'2':s.indexOf('3703')===0?'3':''; }
@@ -200,7 +203,7 @@ async function cargar(){
   document.getElementById('hSub').textContent=EQ.tipo+(EQ.placa?' · '+EQ.placa:'')+(EQ.proveedor?' · '+EQ.proveedor:'');
   document.getElementById('hMedidor').textContent= EQ.medidor==='HOROMETRO' ? 'HORÓMETRO' : EQ.medidor==='KM' ? 'KILÓMETROS' : 'SIN MEDIDOR';
   document.title='Parte '+EQ.codigo;
-  const f=document.getElementById('fecha'); f.value=HOY; f.max=HOY; f.min=ayer(HOY);
+  const f=document.getElementById('fecha'); f.value=HOY; f.max=HOY; f.min=diasAntes(HOY, DIAS_ATRAS);
   operador = localStorage.getItem(keyOp()) || '';
   pintarOperador();
   const av=document.getElementById('avisoTop'); av.classList.add('hidden');
@@ -430,7 +433,7 @@ function validar(){
   const fecha=document.getElementById('fecha').value;
   if(!fecha) errs.push('Falta la fecha.');
   else if(fecha>HOY) errs.push('La fecha no puede ser futura.');
-  else if(fecha<ayer(HOY)) errs.push('Solo se admite hoy o ayer. Un parte más viejo lo captura maquinaria desde revisión.');
+  else if(fecha<diasAntes(HOY, DIAS_ATRAS)) errs.push('Solo se admiten partes de los últimos '+DIAS_ATRAS+' días. Uno más viejo lo captura maquinaria desde revisión.');
   if(!document.getElementById('reporteNum').value.trim()) errs.push('Falta el nº del parte físico.');
   if(!operador) errs.push('Falta el operador.');
   const tope=TOPES[EQ.medidor];
