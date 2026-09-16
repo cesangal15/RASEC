@@ -358,6 +358,21 @@ se reescriben. Desde 4.01 los catálogos (BASE, CUBICAJE, MAQUINAS, USUARIOS, CU
 se editan en Supabase (Table Editor), no en el Sheet: un backfill posterior de un catálogo lo pisa, así que
 tras el corte no se re-corren los catálogos salvo para recargarlos a propósito.
 
+**Tras el corte NO se repite el backfill** (ni de reportes). Anexar no borra nada, y en el Sheet un reenvío
+cambiaba los `id_registro`: ASISTENCIA (upsert por fecha+cuadrilla) y DATA (cada envío al maestro regenera ids).
+Recargar con un volcado más nuevo deja en Supabase la versión vieja **y** la nueva. Pasó el 16-sep-2026 con la
+asistencia del 15-sep (173 filas contra 114 del Sheet final; DATA quedó igual). Se limpia con:
+
+```
+$env:DATABASE_URL = "postgres://…"
+node worker/sql/depurar_asistencia.js --volcado="C:\Galca\volcado\<fecha>_asistencias" --desde=2026-09-15 --hasta=2026-09-15 --corte=2026-09-16T18:35:34Z
+node worker/sql/depurar_asistencia.js … --aplicar        # solo después de revisar la simulación
+```
+
+Borra de las fechas del rango las filas que ya no están en el Sheet final y son anteriores al corte (versiones
+viejas) y, si una persona queda dos veces el mismo día, deja la más reciente. Conserva lo que se haya escrito
+desde la app después del corte. `--corte` es la hora del deploy que pasó asistencias a `db` (en UTC).
+
 **Verificar** (criterio de salida, sin red):
 
 ```
