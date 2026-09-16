@@ -54,9 +54,9 @@ BACKEND_PARTE_PRUEBA = "db"
 # 4.01 · Fases 3 y 4 — Obra y Asistencias por ruta, mismo conmutador (decisión 11): producción sigue en
 # Google ("sheets") hasta el corte de cada fase; el entorno de prueba (/prueba/obra, /prueba/asistencias,
 # ?env=prueba) ya apunta a la BD. Con obra en "db" el login lo hace el Worker (src/auth.js).
-BACKEND_OBRA = "sheets"
+BACKEND_OBRA = "db"
 BACKEND_OBRA_PRUEBA = "db"
-BACKEND_ASISTENCIAS = "sheets"
+BACKEND_ASISTENCIAS = "db"
 BACKEND_ASISTENCIAS_PRUEBA = "db"
 # Versión del token (D109): la MISMA que la propiedad AUTH_V de los Apps Script (los tokens se verifican y,
 # con obra en db, se emiten aquí con el mismo par AUTH_SECRETO/AUTH_V; subirla saca a todos).
