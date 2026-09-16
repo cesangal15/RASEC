@@ -39,9 +39,13 @@ const TILES = {
   // los operadores de estas máquinas. NO mezcla los módulos — `produccion-maquinaria.html` habla con
   // el Apps Script de obra y el aislamiento de D69 (Sheet y script propios de asistencias) no se toca.
   // Solo ve la pestaña de Flota; la de producción del día es de admin/residente.
+  // D178: además, el PARTE DIGITAL — revisa la bandeja (es quien pone el CC a los partes en papel, D174) y
+  // puede capturar un parte desde el formulario del operador (selector de equipo sin QR).
   'jeisson':    [{href:'asistencia.html', ico:'👷', t:'Asistencia de mi grupo', p:'Reporta la asistencia de los operadores'},
                  {href:'resumen-asistencia.html', ico:'📋', t:'Resumen de asistencias', p:'Resumen del día y descarga del Excel Navision'},
-                 {href:'produccion-maquinaria.html', ico:'🚜', t:'Flota de maquinaria', p:'Alta, baja y reingreso de máquinas de la obra'}],
+                 {href:'produccion-maquinaria.html', ico:'🚜', t:'Flota de maquinaria', p:'Alta, baja y reingreso de máquinas de la obra'},
+                 {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Bandeja del día: aprobar, corregir el centro de coste, repartir y equipos sin parte'},
+                 {href:'parte.html', ico:'📱', t:'Parte digital (formulario)', p:'Captura un parte a mano eligiendo el equipo, como desde el QR de la cabina'}],
   // D88: duvan = el jeisson de DRENAJES (solo asistencias). Reporta CUALQUIER cuadrilla de ODT/ODL —
   // el formulario le muestra el selector de cuadrilla igual que al admin, porque el backend le entrega
   // las cuatro (cuadrillasDeUsuario acota por área) — y revisa el resumen combinado ODT+ODL.

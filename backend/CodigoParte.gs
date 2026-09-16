@@ -18,7 +18,13 @@
  *        (un tramo con `reparto:[{centro_coste,pct}]` se abre en una fila por CC, medidor y horas prorrateados)
  *   GET  ?mod=parte&op=bandeja&fecha=            TOKEN    → pendientes + revisadas + faltantes del día
  *   POST {mod:'parte', op:'revisar', cambios:[]} TOKEN    → cambia estado / edita campos (por id_registro)
+ *   POST {mod:'parte', op:'repartir', id_registro, reparto:[]} TOKEN → D178: abre una fila en N (una por CC),
+ *        la original queda `descartado` con la marca [Repartido en N filas]
  *   GET  ?mod=parte&op=base&desde=&hasta=        TOKEN    → aprobados del rango + filas en orden Excel
+ *
+ * D178 (sep-2026): ítems/CC que Sheets convirtió a número se normalizan («02.10», no 2.1); 5 actividades
+ *   habituales como máximo; alias de operadores (PARTE_OPERADORES_ALIAS) al leer y al recibir; `jeisson`
+ *   revisa (PARTE_USUARIOS_REVISAN); op=repartir; depurarOperadoresParte() para ordenar la hoja.
  *
  * Los dos públicos se despachan ANTES de la puerta de sesión de D109 (como `tablero`, D161): el
  * operador no tiene usuario. Lo público solo puede CREAR filas `pendiente` (nunca edita, borra ni
@@ -78,6 +84,32 @@ const PARTE_CC_PSEUDO = [
 // `parte_maquinaria` para la persona dedicada al parte (alta = fila en USUARIOS con
 // redirige=revision-maquinaria.html, D108; cero código). El jefe NO: solo lectura en obra.
 const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria'];
+// D178: `jeisson` (rol `asistencia_plus`, quien pone el CC a los partes en papel, D174) también revisa,
+// por USUARIO y no por rol —mismo patrón que FLOTA_USUARIOS_ESCRIBEN (D139)—: no se amplía el rol de
+// asistencias, se le abre la puerta a él.
+const PARTE_USUARIOS_REVISAN = ['jeisson'];
+// D178: chips de actividades habituales que ve el operador (pedido del residente: las 5 más usadas y,
+// si no está, texto libre que corrige revisión). El backend recorta aquí; el formulario no muestra más.
+const PARTE_MAX_HABITUALES = 5;
+// D178: alias de operadores — variantes de escritura que son la MISMA persona (depurado de
+// PARTE_OPERADORES_semilla.csv, sep-2026). Se aplican al LEER la lista (la variante no se ofrece) y al
+// RECIBIR un parte (se guarda el nombre canónico). `depurarOperadoresParte(true)` los aplica además a la
+// hoja. Dueño: el usuario; una variante nueva = una línea aquí (o `activo=NO` en la hoja).
+const PARTE_OPERADORES_ALIAS = {
+  'ALEYXER RINCON':'Aleyxer Rincon',            // Aleyxer Rincón (tilde)
+  'EDUARD ACEVEDO':'Eduar Acevedo', 'EDWAR ACEVEDO':'Eduar Acevedo',
+  'EDWIN FERNENDEZ':'Edwin Fernandez',
+  'WILMAR PAWANA':'Wilmar Pahuana', 'WILMER PAHUANA':'Wilmar Pahuana',
+  'YERSON SANDOVAL':'Yerson Sandobal',          // 91 usos Sandobal vs 16 Sandoval: manda el más usado
+  'ALEX GUERRERO':'Jhon Alex Guerrero',
+  'MIGUEL GOMEZ':'Miguel Angel Gomez',
+  'NELSON TORRES':'Nelson Gabriel Torres', 'GABRIEL TORRES':'Nelson Gabriel Torres',
+  'JUAN DAVID DE ANGEL BARRIOS':'Juan David De Angel',
+  'SERGIO ANDRES ARENAS':'Sergio Arenas',
+  'A. GUTIERREZ':'Alizon Gutierrez',
+  'JAN CARLOS':'Jean Carlos Muñoz'
+};
+function parteOperadorCanon_(n){ const s=parteTexto_(n); if(!s) return ''; const c=PARTE_OPERADORES_ALIAS[normTexto(s)]; return c || s; }
 // D173: frentes cuyos equipos espera ESTE parte. Hoy solo UF1-UF2 (el proyecto que atiende el
 // sistema); cuando la UF3 entre al ecosistema (backlog) basta añadir 'UF3' aquí — sus estancias ya
 // caben en la hoja MAQUINAS con `frente=UF3`.
@@ -100,9 +132,10 @@ const PARTE_VAL_TRAMO = {
   horas_varada:['n',0,VAL_MAX_HORAS], horas_lluvia:['n',0,VAL_MAX_HORAS], observaciones:['t',1000],
   inicial_modificado:['t',10], id_registro:['t',100], reparto:['a',10]
 };
-const PARTE_VAL_REPARTO = { centro_coste:['t',100], pct:['n',0,100], pr:['n',0,1000000], uf:['t',5] };
+const PARTE_VAL_REPARTO = { centro_coste:['t',100], pct:['n',0,100], pr:['n',0,1000000], uf:['t',5], descripcion_trabajo:['t',500] };
 const PARTE_VAL_REPORTE = { codigo:['t',50], origen:['t',20], tramos:['a',50] };
 const PARTE_VAL_CAMBIO  = { id_registro:['t',100], estado:['l',PARTE_ESTADOS] };
+const PARTE_VAL_REPARTIR = { id_registro:['t',100], reparto:['a',10] };   // D178: repartir una fila desde revisión
 const PARTE_VAL_CAMPOS  = {
   fecha:['f',0], reporte_num:['t',30], inicial:['n',0,PARTE_VAL_MAX_MEDIDOR], final:['n',0,PARTE_VAL_MAX_MEDIDOR],
   horas_varada:['n',0,VAL_MAX_HORAS], horas_lluvia:['n',0,VAL_MAX_HORAS], hora_de:['h'], hora_a:['h'],
@@ -115,6 +148,11 @@ function parteValidarReporte_(body){
   if(!f && Array.isArray(body.tramos)){
     for(let i=0;i<body.tramos.length && !f;i++){ const t=body.tramos[i]; if(t) f=valListaDe_(t.reparto, PARTE_VAL_REPARTO, 'tramos['+i+'].reparto', 10); }
   }
+  return f ? rechazoPayload_(f.campo, f.motivo) : null;
+}
+function parteValidarRepartir_(body){
+  let f=valEsquema_(body, PARTE_VAL_REPARTIR, '');
+  if(!f) f=valListaDe_(body.reparto, PARTE_VAL_REPARTO, 'reparto', 10);
   return f ? rechazoPayload_(f.campo, f.motivo) : null;
 }
 function parteValidarRevisar_(body){
@@ -186,6 +224,42 @@ function parteHoraStr_(v){
   return String(v).trim();
 }
 function parteHoraMin_(h){ const m=parteHoraStr_(h).match(/^(\d{2}):(\d{2})$/); return m ? Number(m[1])*60+Number(m[2]) : -1; }
+/* D178 — Ítems y CC que Google Sheets convirtió a NÚMERO. Al importar el CSV (o al teclear en la
+ * hoja) «02.10» se vuelve 2.1 y «03.03» 3.03: el chip mostraba «2.1», el CC salía «3701.2.1», llegaba
+ * CC_DESCONOCIDO y en revisión no casaba con PARTE_CC. Se normaliza en TODA entrada y salida:
+ *   ítem   2.1 → «02.10» · 3.03 → «03.03» · 11.04 → «11.04» · «I0408» se respeta
+ *   CC     3701.2.1 → «3701.02.10» · «Taller» se respeta
+ * El cero final es el único que se pierde al convertir (2.10 → 2.1; 2.01 sigue 2.01), así que rellenar
+ * a dos dígitos por la derecha la parte decimal recupera el original sin ambigüedad. */
+function partePad2_(s){ s=String(s==null?'':s); return s.length>=2 ? s : ('0'+s).slice(-2); }
+function partePadDec_(s){ s=String(s==null?'':s); return s.length>=2 ? s.slice(0,2) : (s+'00').slice(0,2); }
+function parteNormItem_(v){
+  const s=parteTexto_(v);
+  if(typeof v==='number' || /^\d{1,2}(\.\d{1,2})?$/.test(s)){
+    const p=String(typeof v==='number' ? v : s).split('.');
+    return partePad2_(p[0])+'.'+partePadDec_(p[1]||'');
+  }
+  return s;
+}
+// Para el CC hay una ambigüedad que el ítem no tiene: «3702.2.7» puede venir de un ítem convertido a
+// número (2.7 = «02.70», no existe) o de una persona que abrevió «02.07». Se decide con la hoja PARTE_CC:
+// si la lectura numérica no existe en el catálogo y la abreviada sí, manda la abreviada.
+var _parteCCConocidos=null;
+function parteCCConocidos_(){
+  if(_parteCCConocidos) return _parteCCConocidos;
+  const set={};
+  try{ readSheet('PARTE_CC').forEach(function(r){ const s=parteTexto_(r.centro_coste); if(/^37\d\d\.\d\d\.\d\d$/.test(s)) set[s]=1; }); }catch(err){}
+  return (_parteCCConocidos=set);
+}
+function parteNormCC_(v){
+  const s=parteTexto_(v);
+  const m=/^(37\d\d)\.(\d{1,2})\.(\d{1,2})$/.exec(s);
+  if(!m) return s;
+  const numerica=m[1]+'.'+partePad2_(m[2])+'.'+partePadDec_(m[3]);
+  if(m[3].length===2) return numerica;
+  const abreviada=m[1]+'.'+partePad2_(m[2])+'.'+partePad2_(m[3]), con=parteCCConocidos_();
+  return (!con[numerica] && con[abreviada]) ? abreviada : numerica;
+}
 function parteUF_(cc){
   const s=String(cc==null?'':cc).trim();
   if(s.indexOf('3701')===0) return '1';
@@ -204,6 +278,7 @@ function parteFilaSalida_(r){
   o.hora_de=parteHoraStr_(o.hora_de); o.hora_a=parteHoraStr_(o.hora_a);
   ['reporte_num','codigo','estado','origen','uf','centro_coste','operador','descripcion_trabajo','observaciones','alertas','revisado_por','inicial_modificado']
     .forEach(function(k){ o[k]=parteTexto_(o[k]); });
+  o.centro_coste=parteNormCC_(o.centro_coste);   // D178: una fila vieja con «3701.2.1» sale ya corregida
   ['inicial','final','total','horas_varada','horas_lluvia','pr'].forEach(function(k){ const n=parteNum_(o[k]); o[k]= n===null ? '' : n; });
   if(o.timestamp && typeof o.timestamp==='object' && typeof o.timestamp.getFullYear==='function') o.timestamp=o.timestamp.toISOString();
   if(o.revisado_ts && typeof o.revisado_ts==='object' && typeof o.revisado_ts.getFullYear==='function') o.revisado_ts=o.revisado_ts.toISOString();
@@ -275,7 +350,7 @@ function parteItems_(){
   const out=[];
   try{
     readSheet('PARTE_ITEMS').forEach(function(r){
-      const item=parteTexto_(r.item); if(!item || !parteSiNo_(r.activo, true)) return;
+      const item=parteNormItem_(r.item); if(!item || !parteSiNo_(r.activo, true)) return;   // D178: 2.1 → «02.10»
       out.push({ tipo:parteTexto_(r.tipo_equipo), item:item, actividad:parteTexto_(r.actividad), veces:parteNum_(r.veces)||0 });
     });
   }catch(err){ /* hoja ausente: sin tabla, el formulario cae al CC directo */ }
@@ -326,7 +401,8 @@ function parteActividades_(q, hist){
     todas.push({ item:x.item, actividad:x.actividad, nombre:parteNombreItem_(x.item, ccs) });
   });
   todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:normTexto(a.actividad)>normTexto(b.actividad)?1:(a.item<b.item?-1:1); });
-  return { habituales:habituales.slice(0,8), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
+  // D178: solo las PARTE_MAX_HABITUALES (5) más usadas; lo demás va por texto libre (SIN_CC → revisión).
+  return { habituales:habituales.slice(0,PARTE_MAX_HABITUALES), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
 }
 // ¿Se espera este equipo en esa fecha? Devuelve la ficha (con `frente`) o null.
 function parteEquipoVigente_(cod, fecha){
@@ -336,7 +412,7 @@ function parteEquipoVigente_(cod, fecha){
 function parteOperadores_(){
   const vistos={}, out=[];
   readSheet('PARTE_OPERADORES').forEach(function(r){
-    const n=parteTexto_(r.operador); if(!n || !parteSiNo_(r.activo, true)) return;
+    const n=parteOperadorCanon_(r.operador); if(!n || !parteSiNo_(r.activo, true)) return;   // D178: la variante se funde en el canónico
     const k=normTexto(n); if(vistos[k]) return; vistos[k]=1; out.push(n);
   });
   return out.sort(function(a,b){ return normTexto(a)<normTexto(b)?-1:1; });
@@ -344,7 +420,7 @@ function parteOperadores_(){
 function parteCC_(){
   const vistos={}, out=[];
   readSheet('PARTE_CC').forEach(function(r){
-    const cc=parteTexto_(r.centro_coste); if(!cc || !parteSiNo_(r.activo, true)) return;
+    const cc=parteNormCC_(r.centro_coste); if(!cc || !parteSiNo_(r.activo, true)) return;   // D178
     const k=normTexto(cc); if(vistos[k]) return; vistos[k]=1;
     const esPseudo=PARTE_CC_PSEUDO.some(function(p){ return normTexto(p.centro_coste)===k; });
     out.push({ centro_coste:cc, proyecto:parteTexto_(r.proyecto), descripcion_cc:parteTexto_(r.descripcion_cc) || parteDescBase_(cc),
@@ -489,7 +565,8 @@ function parteExpandirReparto_(tramos){
     let suma=0;
     for(let j=0;j<rep.length;j++){
       const pct=parteNum_(rep[j].pct);
-      if(!parteTexto_(rep[j].centro_coste)) return { error:'Tramo '+n+': el reparto tiene un centro de coste vacío. No se guardó nada.' };
+      rep[j].centro_coste=parteNormCC_(rep[j].centro_coste);   // D178
+      if(!rep[j].centro_coste) return { error:'Tramo '+n+': el reparto tiene un centro de coste vacío. No se guardó nada.' };
       if(pct===null || pct<=0) return { error:'Tramo '+n+': cada centro de coste del reparto necesita un porcentaje mayor que 0. No se guardó nada.' };
       suma+=pct;
     }
@@ -507,6 +584,7 @@ function parteExpandirReparto_(tramos){
       const sub=Object.assign({}, t, {
         inicial: iniAct===null?'':iniAct, final: finAct, hora_de:hDe, hora_a:hA,
         centro_coste:parteTexto_(r.centro_coste), pr: (r.pr!==undefined && r.pr!=='' && r.pr!==null) ? r.pr : t.pr, uf: parteTexto_(r.uf),
+        descripcion_trabajo: parteTexto_(r.descripcion_trabajo) || t.descripcion_trabajo,   // D178: reparto desde revisión puede dar una descripción por fila
         observaciones: (parteTexto_(t.observaciones) ? parteTexto_(t.observaciones)+' · ' : '') + marca,
         id_registro: parteTexto_(t.id_registro) ? parteTexto_(t.id_registro)+'-r'+(j+1) : '',
         inicial_modificado: j===0 ? t.inicial_modificado : 'NO' });
@@ -583,7 +661,7 @@ function parteReporte(body, ses){
     const fecha=fdateValida_(t.fecha);
     if(!fecha) return rechazo('Tramo '+n+': la fecha llegó vacía o no se entiende. No se guardó nada.');
     if(fecha>hoy) return rechazo('Tramo '+n+': la fecha no puede ser futura. No se guardó nada.');
-    const reporte=parteTexto_(t.reporte_num), operador=parteTexto_(t.operador), cc=parteTexto_(t.centro_coste);
+    const reporte=parteTexto_(t.reporte_num), operador=parteOperadorCanon_(t.operador), cc=parteNormCC_(t.centro_coste);   // D178: alias y CC normalizados
     // Sin nº de parte físico solo en filas manuales de un día sin operación (pseudo-CC): domingos, festivos,
     // lluvia o taller los cierra quien revisa desde «Equipos sin parte» y ese día no hubo parte en papel.
     if(!reporte && !(origen==='manual' && parteEsPseudoCC_(cc))) return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
@@ -651,9 +729,10 @@ function parteFormatoTexto_(sh, desde, n){
 function parteAutoriza_(ses){
   if(!ses || !ses.ok) return false;
   if(ses.tolerado) return true;    // AUTH_ESTRICTO=false (D109)
+  if(PARTE_USUARIOS_REVISAN.indexOf(String(ses.usuario||'').trim().toLowerCase())>=0) return true;   // D178: jeisson
   return PARTE_ROLES_REVISAN.indexOf(String(ses.rol||'').trim().toLowerCase())>=0;
 }
-function parteSinPermiso_(){ logMarcar_('rechazado','rol sin permiso de revisión'); return json({ ok:false, error:'Tu usuario no revisa partes de maquinaria (roles: '+PARTE_ROLES_REVISAN.join(', ')+').' }); }
+function parteSinPermiso_(){ logMarcar_('rechazado','rol sin permiso de revisión'); return json({ ok:false, error:'Tu usuario no revisa partes de maquinaria (roles: '+PARTE_ROLES_REVISAN.join(', ')+'; usuarios: '+PARTE_USUARIOS_REVISAN.join(', ')+').' }); }
 
 // ?mod=parte&op=bandeja&fecha= → {pendientes, revisadas, faltantes, listas}
 function parteBandeja(e){
@@ -706,6 +785,8 @@ function parteRevisar(body, ses){
       if(k==='fecha'){ val=fdateValida_(val); if(!val){ malo='fecha inválida'; return; } }
       else if(k==='hora_de'||k==='hora_a') val=parteHoraStr_(val);
       else if(k==='inicial'||k==='final'||k==='horas_varada'||k==='horas_lluvia'||k==='pr'){ const n=parteNum_(val); val= n===null ? '' : n; }
+      else if(k==='centro_coste') val=parteNormCC_(val);          // D178
+      else if(k==='operador') val=parteOperadorCanon_(val);      // D178
       else val=parteTexto_(val);
       obj[k]=val; tocado=true;
     });
@@ -732,6 +813,68 @@ function parteRevisar(body, ses){
   });
   if(hechos.length) invalidarHoja_('PARTE_BANDEJA');
   return json({ ok:true, cambiadas:hechos.length, filas:hechos, errores:errores });
+}
+
+/* ============ D178 — repartir una fila desde revisión (TOKEN) ============
+ * POST {mod:'parte', op:'repartir', id_registro, reparto:[{centro_coste, pct, pr?, uf?, descripcion_trabajo?}]}
+ * Quien revisa ve que un parte fue a DOS o más centros de coste (o a dos actividades) y el operador lo
+ * mandó con uno solo. La fila original NO se borra (regla de PARTE_BANDEJA): pasa a `descartado` con la
+ * marca «[Repartido en N filas]» en observaciones, y se crean N filas `pendiente` encadenadas con el
+ * MISMO motor que el reparto por % del formulario (`parteExpandirReparto_`): medidor y horas
+ * prorrateados, la última cierra exacto en el final, `[Reparto 50 % · 1/2]` en observaciones. Las
+ * nuevas heredan fecha, nº de parte, operador, medidor, horas varada/lluvia y `origen`; las alertas se
+ * recalculan solo en lo que el reparto cambia (SIN_CC / CC_DESCONOCIDO); las demás se copian porque
+ * son el registro de lo que llegó. ids = <id original>-r1 … -rN (si ya existen, se les añade un sufijo). */
+function parteRepartir(body, ses){
+  if(!parteAutoriza_(ses)) return parteSinPermiso_();
+  const vp=parteValidarRepartir_(body); if(vp) return vp;
+  const id=parteTexto_(body.id_registro);
+  const rep=(Array.isArray(body.reparto)?body.reparto:[]).filter(function(r){ return r && (parteTexto_(r.centro_coste) || parteNum_(r.pct)!==null || parteTexto_(r.descripcion_trabajo)); });
+  if(rep.length<2) return json({ ok:false, error:'Un reparto necesita al menos dos centros de coste.' });
+  const sh=getSheet('PARTE_BANDEJA', PARTE_BANDEJA_HEADERS), nCols=PARTE_BANDEJA_HEADERS.length;
+  const ids=parteCols_('PARTE_BANDEJA', ['id_registro']), idsEx={}; let row=0;
+  ids.forEach(function(r){ const x=parteTexto_(r.id_registro); if(!x) return; idsEx[x]=1; if(x===id) row=r._row; });
+  if(!row) return json({ ok:false, error:'La fila «'+id+'» no existe.' });
+  const v=leerRango_(sh,row,1,1,nCols)[0], obj={};
+  PARTE_BANDEJA_HEADERS.forEach(function(k,i){ obj[k]=v[i]; });
+  if(parteTexto_(obj.id_registro)!==id) return json({ ok:false, error:'La fila se movió; recarga.' });
+  if(parteEstadoDe_(obj)==='descartado') return json({ ok:false, error:'La fila ya está descartada; reábrela antes de repartirla.' });
+  // tramo virtual = la fila tal cual, con el reparto pedido encima
+  const t={ id_registro:id, fecha:fdate(obj.fecha), reporte_num:parteTexto_(obj.reporte_num), operador:parteTexto_(obj.operador),
+    inicial:parteNum_(obj.inicial), final:parteNum_(obj.final), hora_de:parteHoraStr_(obj.hora_de), hora_a:parteHoraStr_(obj.hora_a),
+    centro_coste:parteNormCC_(obj.centro_coste), pr:parteNum_(obj.pr), uf:parteTexto_(obj.uf), descripcion_trabajo:parteTexto_(obj.descripcion_trabajo),
+    horas_varada:parteNum_(obj.horas_varada), horas_lluvia:parteNum_(obj.horas_lluvia), observaciones:parteTexto_(obj.observaciones),
+    inicial_modificado:parteTexto_(obj.inicial_modificado)||'NO',
+    reparto:rep.map(function(r){ return { centro_coste:r.centro_coste, pct:r.pct, pr:r.pr, uf:r.uf, descripcion_trabajo:r.descripcion_trabajo }; }) };
+  if(t.inicial===null) t.inicial=''; if(t.final===null) t.final='';
+  const exp=parteExpandirReparto_([t]);
+  if(exp.error) return json({ ok:false, error:exp.error.replace(/^Tramo 1: /,'') });
+  const ccValidos={}; parteCC_().forEach(function(c){ ccValidos[normTexto(c.centro_coste)]=1; });
+  const alertasBase=String(obj.alertas||'').split(';').map(function(s){ return s.trim(); }).filter(function(a){ return a && a!=='SIN_CC' && a!=='CC_DESCONOCIDO'; });
+  const quien=String((ses&&ses.usuario)||''), ts=new Date(), filas=[], salida=[];
+  exp.tramos.forEach(function(s,j){
+    let nid=s.id_registro||(id+'-r'+(j+1)); let k=2; while(idsEx[nid]){ nid=id+'-r'+(j+1)+'-'+(k++); } idsEx[nid]=1;
+    const cc=parteNormCC_(s.centro_coste), al=alertasBase.slice();
+    if(!cc) al.push('SIN_CC'); else if(!ccValidos[normTexto(cc)] && !parteEsPseudoCC_(cc)) al.push('CC_DESCONOCIDO');
+    const ini=parteNum_(s.inicial), fin=parteNum_(s.final), total=(ini!==null&&fin!==null)?parteRedondea_(fin-ini):'';
+    const uf=parteTexto_(s.uf)||parteUF_(cc);
+    filas.push([ nid, ts, 'pendiente', t.fecha, parteTexto_(obj.codigo), parteTexto_(obj.tipo), parteTexto_(obj.placa), parteTexto_(obj.medidor),
+      t.reporte_num, ini===null?'':ini, fin===null?'':fin, total, j===0?t.inicial_modificado:'NO',
+      t.horas_varada===null?'':t.horas_varada, t.horas_lluvia===null?'':t.horas_lluvia,
+      parteHoraStr_(s.hora_de), parteHoraStr_(s.hora_a), parteTexto_(s.descripcion_trabajo), cc, parteNum_(s.pr)===null?'':parteNum_(s.pr), uf, t.operador,
+      parteTexto_(s.observaciones), al.join(';'), quien, ts, parteTexto_(obj.origen)||'manual' ]);
+  });
+  // 1) la original queda descartada con la marca; 2) las nuevas al final
+  obj.estado='descartado'; obj.observaciones=(parteTexto_(obj.observaciones)?parteTexto_(obj.observaciones)+' · ':'')+'[Repartido en '+filas.length+' filas]';
+  obj.revisado_por=quien; obj.revisado_ts=ts;
+  sh.getRange(row,1,1,nCols).setValues([PARTE_BANDEJA_HEADERS.map(function(k){ return obj[k]===undefined?'':obj[k]; })]);
+  ensureRows_(sh, filas.length);
+  const desde=sh.getLastRow()+1;
+  parteFormatoTexto_(sh, desde, filas.length);
+  sh.getRange(desde,1,filas.length,nCols).setValues(filas);
+  invalidarHoja_('PARTE_BANDEJA');
+  filas.forEach(function(f){ const o={}; PARTE_BANDEJA_HEADERS.forEach(function(k,i){ o[k]=f[i]; }); salida.push(parteFilaSalida_(o)); });
+  return json({ ok:true, original:parteFilaSalida_(obj), filas:salida, cambiadas:1+salida.length });
 }
 
 /* ============ Base (TOKEN) ============ */
@@ -787,7 +930,8 @@ function parteDoPost_(e, body){
   if(!p.ok) return p.respuesta;
   const ses=p.ses;
   if(ses.usuario) body.usuario=ses.usuario;
-  if(op==='revisar') return parteRevisar(body, ses);
+  if(op==='revisar')  return parteRevisar(body, ses);
+  if(op==='repartir') return parteRepartir(body, ses);   // D178
   return json({ ok:false, error:'op desconocida: '+op });
 }
 
@@ -816,7 +960,10 @@ function setupParte(){
   asegura('PARTE_OPERADORES', PARTE_OPERADORES_HEADERS);
   const cc=asegura('PARTE_CC', PARTE_CC_HEADERS);
   asegura('PARTE_ACTIVIDADES', PARTE_ACTIVIDADES_HEADERS);
-  asegura('PARTE_ITEMS', PARTE_ITEMS_HEADERS);   // D174
+  const items=asegura('PARTE_ITEMS', PARTE_ITEMS_HEADERS);   // D174
+  // D178: `item` de PARTE_ITEMS y `centro_coste` de PARTE_CC en formato TEXTO para que un «02.10» tecleado
+  // o importado no se vuelva 2.1 (lo ya convertido lo repara parteNormItem_/parteNormCC_ al leer).
+  parteColumnaTexto_(items, 'item'); parteColumnaTexto_(cc, 'centro_coste');
   const ban=getSheet('PARTE_BANDEJA', PARTE_BANDEJA_HEADERS);   // esquema fijo: auto-sana el encabezado
   parteFormatoTexto_(ban, 2, Math.max(ban.getMaxRows()-1, 1));    // texto en nº de parte / horas / código
   // pseudo-CC en la hoja (el código los ofrece igual; aquí es para que se VEAN y se puedan describir)
@@ -829,4 +976,57 @@ function setupParte(){
   Logger.log('setupParte: hojas PARTE_EQUIPOS · PARTE_OPERADORES · PARTE_CC (+'+nuevas.length+' pseudo-CC) · PARTE_ACTIVIDADES · PARTE_ITEMS · PARTE_BANDEJA listas. '
     + 'Ahora importa los CSV de backend/seeds/parte/ (Reemplazar hoja actual) y vuelve a correr setupParte().');
   return 'ok';
+}
+// Formato de texto (@) en toda una columna, localizada por su nombre de encabezado. Sin la columna no hace nada.
+function parteColumnaTexto_(sh, nombre){
+  try{
+    const nCols=Math.max(sh.getLastColumn(),1);
+    const h=leerRango_(sh,1,1,1,nCols)[0].map(function(k){ return String(k==null?'':k).trim(); });
+    const j=h.indexOf(nombre); if(j<0) return;
+    sh.getRange(2, j+1, Math.max(sh.getMaxRows()-1,1), 1).setNumberFormat('@');
+  }catch(err){ /* sin formato no se rompe nada */ }
+}
+
+/* ============ D178 — depuración de operadores (se ejecuta A MANO desde el editor) ============
+ * depurarOperadoresParte(false) → solo INFORMA (Logger) qué haría. depurarOperadoresParte(true) → aplica:
+ *   1) PARTE_OPERADORES: cada variante de PARTE_OPERADORES_ALIAS queda `activo=NO` (no se borra) y, si el
+ *      canónico no existe, se añade activo con la suma de `partes_ult_4_meses`.
+ *   2) PARTE_BANDEJA: la columna `operador` de las filas con una variante pasa al canónico (histórico
+ *      coherente; el Excel ya recibió lo suyo, esto solo afecta lo que se copie de aquí en adelante).
+ * El código ya aplica los alias al leer y al recibir (parteOperadorCanon_), así que esto es orden en la
+ * hoja, no una condición para que funcione. Idempotente. */
+function depurarOperadoresParte(aplicar){
+  const ss=ss_(), log=[];
+  const sh=ss.getSheetByName('PARTE_OPERADORES'); if(!sh || sh.getLastRow()<2) return 'PARTE_OPERADORES vacía';
+  const nCols=sh.getLastColumn(), n=sh.getLastRow()-1;
+  let h=leerRango_(sh,1,1,1,nCols)[0].map(function(k){ return String(k==null?'':k).trim(); });
+  if(h.indexOf('activo')<0){ if(aplicar){ ensureCols_(sh, nCols+1); sh.getRange(1,nCols+1).setValue('activo'); } h=h.concat(['activo']); }
+  const cOp=h.indexOf('operador')+1, cAct=h.indexOf('activo')+1, cN=h.indexOf('partes_ult_4_meses')+1;
+  const datos=leerRango_(sh,2,1,n,Math.max(nCols,h.length));
+  const canon={}; datos.forEach(function(r,i){ const nm=parteTexto_(r[cOp-1]); if(nm && !PARTE_OPERADORES_ALIAS[normTexto(nm)]) canon[normTexto(nm)]=i+2; });
+  const faltan={};
+  datos.forEach(function(r,i){
+    const nm=parteTexto_(r[cOp-1]), c=PARTE_OPERADORES_ALIAS[normTexto(nm)]; if(!nm || !c) return;
+    log.push('variante «'+nm+'» → «'+c+'» (activo=NO)');
+    if(aplicar && cAct) sh.getRange(i+2, cAct).setValue('NO');
+    if(!canon[normTexto(c)]){ faltan[normTexto(c)]=faltan[normTexto(c)]||{ nombre:c, usos:0 }; faltan[normTexto(c)].usos+=parteNum_(r[cN-1])||0; }
+  });
+  Object.keys(faltan).forEach(function(k){
+    log.push('canónico «'+faltan[k].nombre+'» no existía: se añade activo');
+    if(aplicar){ const fila=h.map(function(col){ return col==='operador'?faltan[k].nombre : col==='partes_ult_4_meses'?faltan[k].usos : col==='activo'?'SI' : ''; }); ensureRows_(sh,1); sh.getRange(sh.getLastRow()+1,1,1,fila.length).setValues([fila]); }
+  });
+  // histórico de PARTE_BANDEJA
+  const ban=ss.getSheetByName('PARTE_BANDEJA');
+  if(ban && ban.getLastRow()>=2){
+    const hb=leerRango_(ban,1,1,1,ban.getLastColumn())[0].map(function(k){ return String(k==null?'':k).trim(); });
+    const cB=hb.indexOf('operador')+1;
+    if(cB){
+      const col=leerRango_(ban,2,cB,ban.getLastRow()-1,1); let cambios=0;
+      col.forEach(function(r,i){ const nm=parteTexto_(r[0]), c=PARTE_OPERADORES_ALIAS[normTexto(nm)]; if(!nm || !c) return; cambios++; if(aplicar) ban.getRange(i+2,cB).setValue(c); });
+      log.push('PARTE_BANDEJA: '+cambios+' fila(s) con variante → canónico');
+    }
+  }
+  if(aplicar){ invalidarHoja_('PARTE_OPERADORES'); invalidarHoja_('PARTE_BANDEJA'); }
+  const txt=(aplicar?'APLICADO':'SIMULACIÓN (llama depurarOperadoresParte(true) para aplicar)')+'\n'+log.join('\n');
+  Logger.log(txt); return txt;
 }

@@ -63,6 +63,13 @@ ahí, ese teléfono puede reportar ese equipo sin señal. Sin copia guardada la 
   mientras haya pendientes.
 - Al volver la señal, la cola sube sola (también cada 60 s y al abrir cualquier pantalla). Cuando
   termina aparece el aviso verde "✓ N reportes subidos al servidor".
+- **Cerrar el navegador NO pierde lo pendiente** (la cola vive en el almacenamiento del teléfono, no
+  en la pestaña). Lo que sí hace falta es **tener abierta una pantalla de la app para que suba**: en
+  primer plano o en segundo plano (pantalla apagada o cambiando de app sin cerrar el navegador) sube
+  sola al recobrar señal o en el siguiente minuto; con el navegador cerrado no sube nada hasta volver a
+  abrir cualquier pantalla de la app (ahí sube de inmediato). Si el teléfono "congela" pestañas en
+  segundo plano, basta con volver a abrir la app con señal. Para el parte del operador (QR): abrirlo
+  una vez con señal el primer día; desde ahí, sin señal, llenar y ENVIAR; con señal, abrir la app.
 - En la lista de pendientes cada envío tiene **"Copiar texto"** (respaldo manual: pega el contenido
   en WhatsApp si un envío nunca logra subir) y **"Descartar"** (borra el envío para siempre; pide
   doble confirmación — usarlo solo con instrucción del residente/admin).

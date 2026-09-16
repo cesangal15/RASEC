@@ -3,12 +3,17 @@ if(window.TM2Estilos) TM2Estilos.aplicar();
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 const API = APPS_SCRIPT_URL + '?mod=parte';
 const ROLES = ['admin','encargado','residente','parte_maquinaria'];
+// D178: `jeisson` entra por USUARIO (mismo patrón que la Flota, D139): es quien pone el CC a los partes.
+const USUARIOS_OK = ['jeisson'];
+// A dónde vuelve «← Menú» según quién entró (el admin a su menú; el residente a su panel; jeisson a sus tiles).
+const VOLVER = { admin:'menu.html', residente:'residente.html' };
 
 /* ---------- sesión (D82/D109) ---------- */
-const rol=localStorage.getItem('rol')||'', usuario=localStorage.getItem('usuario')||'';
-if(!rol || ROLES.indexOf(rol)<0 || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }
+const rol=localStorage.getItem('rol')||'', usuario=(localStorage.getItem('usuario')||'').trim().toLowerCase();
+if(!rol || (ROLES.indexOf(rol)<0 && USUARIOS_OK.indexOf(usuario)<0) || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }
 document.getElementById('userDisplay').textContent=usuario+' · '+rol;
-if(rol==='admin') document.getElementById('btnMenu').style.display='inline-block';
+const VOLVER_A = VOLVER[rol] || (USUARIOS_OK.indexOf(usuario)>=0 ? 'seleccion-reporte.html' : '');
+if(VOLVER_A){ const bm=document.getElementById('btnMenu'); bm.style.display='inline-block'; bm.setAttribute('data-on-click', "irA('"+VOLVER_A+"')"); }
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); location.href='index.html'; }
 function caducada(d){ if(window.TM2Auth && TM2Auth.caducada(d)){ alert('La sesión ya no vale. Vuelve a entrar.'); logout(); return true; } return false; }
 
@@ -116,7 +121,9 @@ function filaHTML(r, soloLectura){
     +'<span class="acciones">'
     +(soloLectura
       ? '<button class="btn mini" data-on-click="revisar(\''+idJs+'\',\'pendiente\')">↩ Reabrir</button>'
+        +(r.estado==='aprobado'?'<button class="btn mini" data-on-click="abrirRepartir(\''+idJs+'\')" title="Abrir esta fila en varias (una por centro de coste o actividad)">⑂ Repartir</button>':'')
       : '<button class="btn mini ok" data-on-click="revisar(\''+idJs+'\',\'aprobado\')">✓ Aprobar</button><button class="btn mini mal" data-on-click="revisar(\''+idJs+'\',\'descartado\')">✕ Descartar</button>'
+        +'<button class="btn mini" data-on-click="abrirRepartir(\''+idJs+'\')" title="Abrir esta fila en varias (una por centro de coste o actividad)">⑂ Repartir</button>'
         +'<button class="btn mini btn-guardar'+(Object.keys(d).length?'':' hidden')+'" data-on-click="revisar(\''+idJs+'\',\'\')">💾 Guardar</button>')
     +'</span></div>'
     +'<div class="campos">'
@@ -304,6 +311,62 @@ async function guardarSinOp(){
   cerrarSinOp(); toast(creadas.length+' fila(s) creada(s)'+(aprobadas?' y aprobada(s)':' como pendientes')); cargarBandeja();
 }
 
+/* ---------- D178: repartir una fila en varias (dos o más CC / actividades) ----------
+ * Lo que el operador manda con UN centro de coste a veces fue a dos (o a dos actividades). Aquí se abre
+ * la fila en N con el mismo motor del reparto por % del formulario: medidor y horas prorrateados, la
+ * original queda `descartado` con la marca [Repartido en N filas] y las nuevas nacen `pendiente`. */
+let repFila=null, repFilas=[];
+function filaPorId(id){ return (BAND.pendientes||[]).concat(BAND.revisadas||[]).find(r=>r.id_registro===id) || (BASE&&BASE.filas||[]).find(r=>r.id_registro===id) || null; }
+function abrirRepartir(id){
+  const r=filaPorId(id); if(!r) return;
+  if(dirty[id] && Object.keys(dirty[id]).length){ toast('Guarda primero los cambios de esta fila (💾) y luego repártela', true); return; }
+  repFila=r;
+  repFilas=[ { cc:r.centro_coste||'', pct:50, pr:r.pr, desc:r.descripcion_trabajo||'' }, { cc:'', pct:50, pr:r.pr, desc:'' } ];
+  const tot=(num(r.inicial)!==null&&num(r.final)!==null)?Math.round((num(r.final)-num(r.inicial))*100)/100:null, tope=TOPES[r.medidor];
+  document.getElementById('rpTitulo').textContent='Repartir · '+r.codigo+' · '+r.fecha+' · parte nº '+(r.reporte_num||'—');
+  document.getElementById('rpInfo').innerHTML='Medidor <b>'+esc(r.inicial)+' → '+esc(r.final)+'</b> = <b>'+(tot===null?'—':fmt(tot))+' '+(tope?esc(tope.unidad):'')+'</b>'+((r.hora_de||r.hora_a)?' · '+esc(r.hora_de||'?')+'–'+esc(r.hora_a||'?'):'')+' · CC actual <b>'+esc(r.centro_coste||'(sin CC)')+'</b>. Cada fila nueva recibe su porcentaje del medidor y de las horas; la última cierra exacto en el final.';
+  pintarRepartir();
+  document.getElementById('modalRep').classList.remove('hidden');
+}
+function cerrarRepartir(){ document.getElementById('modalRep').classList.add('hidden'); repFila=null; repFilas=[]; }
+function cerrarRepartirFondo(ev, el){ if(ev.target===el) cerrarRepartir(); }
+function pintarRepartir(){
+  const r=repFila; if(!r) return;
+  const tot=(num(r.inicial)!==null&&num(r.final)!==null)?Math.round((num(r.final)-num(r.inicial))*100)/100:null, tope=TOPES[r.medidor];
+  const suma=repFilas.reduce((a,f)=>a+(num(f.pct)||0),0);
+  document.getElementById('rpFilas').innerHTML='<div class="rp-cab"><span>Centro de coste</span><span>%</span><span>PR</span><span>Descripción</span><span></span></div>'
+    +repFilas.map((f,j)=>'<div class="rp-fila">'
+      +'<select data-on-change="setRepartir('+j+',\'cc\',this.value)">'+ccSelect(f.cc)+'</select>'
+      +'<input type="number" min="0" max="100" step="1" value="'+esc(f.pct)+'" aria-label="porcentaje '+(j+1)+'" data-on-input="setRepartir('+j+',\'pct\',this.value)">'
+      +'<input type="number" value="'+esc(f.pr===null||f.pr===undefined?'':f.pr)+'" placeholder="PR" data-on-input="setRepartir('+j+',\'pr\',this.value)">'
+      +'<input type="text" value="'+esc(f.desc)+'" placeholder="(la de la fila original)" data-on-input="setRepartir('+j+',\'desc\',this.value)">'
+      +'<button type="button" class="btn mini" data-on-click="quitarRepartir('+j+')" title="Quitar"'+(repFilas.length<=2?' disabled':'')+'>✕</button>'
+      +'<span class="rp-res">'+(tot!==null&&tope&&num(f.pct)?fmt(tot*num(f.pct)/100)+' '+esc(tope.unidad):'')+'</span>'
+      +'</div>').join('');
+  const s=document.getElementById('rpSuma'); s.textContent=fmt(suma)+' %'; s.classList.toggle('mal', Math.abs(suma-100)>0.5);
+  document.getElementById('rpGuardar').disabled = Math.abs(suma-100)>0.5 || repFilas.some(f=>!f.cc) || !repFilas.every(f=>num(f.pct)>0);
+}
+function setRepartir(j,k,v){ if(!repFilas[j]) return; repFilas[j][k]=v; if(k==='pct'||k==='cc') pintarRepartir(); }
+function quitarRepartir(j){ if(repFilas.length<=2) return; repFilas.splice(j,1); repartirIguales(); }
+function addRepartir(){ repFilas.push({ cc:'', pct:'', pr:repFila?repFila.pr:'', desc:'' }); repartirIguales(); }
+function repartirIguales(){ const n=repFilas.length, base=Math.floor(100/n*100)/100; repFilas.forEach((f,j)=>{ f.pct = j===n-1 ? Math.round((100-base*(n-1))*100)/100 : base; }); pintarRepartir(); }
+function repartirRapido(a,b){ while(repFilas.length<2) repFilas.push({cc:'',pct:'',pr:'',desc:''}); repFilas=repFilas.slice(0,2); repFilas[0].pct=a; repFilas[1].pct=b; pintarRepartir(); }
+async function guardarRepartir(){
+  if(!repFila) return;
+  const reparto=repFilas.map(f=>({ centro_coste:f.cc, pct:num(f.pct), pr:num(f.pr)===null?'':num(f.pr), uf:ufDe(f.cc), descripcion_trabajo:String(f.desc||'').trim() }));
+  if(reparto.some(x=>!x.centro_coste)){ toast('Cada fila necesita su centro de coste', true); return; }
+  if(Math.abs(reparto.reduce((a,x)=>a+(x.pct||0),0)-100)>0.5){ toast('Los porcentajes deben sumar 100 %', true); return; }
+  const b=document.getElementById('rpGuardar'); b.disabled=true;
+  let d; try{ d=await api(null, { mod:'parte', op:'repartir', id_registro:repFila.id_registro, reparto:reparto }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+  b.disabled=false;
+  if(caducada(d)) return;
+  if(!d.ok){ toast(d.error||'No se guardó', true); return; }
+  const id=repFila.id_registro; cerrarRepartir();
+  if(BASE && BASE.filas.some(x=>x.id_registro===id)){ BASE=null; if(!document.getElementById('vistaBase').classList.contains('hidden')) cargarBase(); }
+  aplicarCambios([d.original].concat(d.filas||[]));
+  toast('Repartida en '+(d.filas||[]).length+' filas (pendientes); la original quedó descartada');
+}
+
 /* ================= BASE ================= */
 async function cargarBase(){
   const desde=document.getElementById('desde').value, hasta=document.getElementById('hasta').value;
@@ -334,7 +397,8 @@ function pintarBase(){
 }
 function filaBaseHTML(r){
   const al=alertasDe(r);
-  return '<tr'+(r.estado!=='aprobado'?' data-estilo="opacity:.6"':'')+'><td><button class="btn mini" data-on-click="editarBase(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\')">✎</button></td>'
+  const idJs=esc(String(r.id_registro).replace(/'/g,"\\'"));
+  return '<tr'+(r.estado!=='aprobado'?' data-estilo="opacity:.6"':'')+'><td class="acc"><button class="btn mini" data-on-click="editarBase(\''+idJs+'\')">✎</button>'+(r.estado!=='descartado'?' <button class="btn mini" data-on-click="abrirRepartir(\''+idJs+'\')" title="Repartir en varias filas">⑂</button>':'')+'</td>'
     +'<td>'+esc(r.fecha)+(r.estado!=='aprobado'?'<br><span class="badge estado-'+esc(r.estado)+'">'+esc(r.estado)+'</span>':'')+'</td><td>'+esc(r.reporte_num)+'</td><td><b>'+esc(r.codigo)+'</b><br><span data-estilo="color:var(--muted)">'+esc(r.tipo)+'</span></td><td>'+esc(r.medidor)+'</td>'
     +'<td class="num">'+fmt(r.inicial)+'</td><td class="num">'+fmt(r.final)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td><td class="num">'+fmt(r.horas_varada)+'</td><td class="num">'+fmt(r.horas_lluvia)+'</td>'
     +'<td>'+esc(r.hora_de)+'</td><td>'+esc(r.hora_a)+'</td><td class="desc">'+esc(r.descripcion_trabajo)+'</td><td>'+esc(r.centro_coste)+'</td><td class="num">'+esc(r.pr)+'</td><td>'+esc(r.uf)+'</td><td>'+esc(r.operador)+'</td><td class="desc">'+esc(r.observaciones)+'</td>'

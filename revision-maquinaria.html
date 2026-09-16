@@ -133,6 +133,28 @@
   </div>
 </div>
 
+<!-- modal: repartir una fila en varias (D178) -->
+<div class="modal hidden" id="modalRep" data-on-click="cerrarRepartirFondo(event,this)">
+  <div class="modal-box">
+    <h3 id="rpTitulo">Repartir</h3>
+    <p id="rpInfo"></p>
+    <div class="rep-quick">
+      <button type="button" class="btn mini" data-on-click="repartirRapido(50,50)">50 / 50</button>
+      <button type="button" class="btn mini" data-on-click="repartirRapido(70,30)">70 / 30</button>
+      <button type="button" class="btn mini" data-on-click="repartirRapido(30,70)">30 / 70</button>
+      <button type="button" class="btn mini" data-on-click="repartirIguales()">partes iguales</button>
+      <button type="button" class="btn mini" data-on-click="addRepartir()">+ Otro centro de coste</button>
+      <span class="rp-suma">Suma: <b id="rpSuma">100 %</b></span>
+    </div>
+    <div class="rp-lista" id="rpFilas"></div>
+    <p class="u-mt10">La fila original queda <b>descartada</b> con la marca <code>[Repartido en N filas]</code>; las nuevas nacen <b>pendientes</b> con <code>[Reparto X % · i/N]</code> en observaciones, listas para aprobar.</p>
+    <div class="modal-acciones">
+      <button class="btn" data-on-click="cerrarRepartir()">Cancelar</button>
+      <button class="btn primario" id="rpGuardar" data-on-click="guardarRepartir()">Repartir</button>
+    </div>
+  </div>
+</div>
+
 <script src="revision-maquinaria.js"></script>
 </body>
 </html>

@@ -61,6 +61,10 @@ function cargar(){
   hojas.PARTE_OPERADORES=hojaFalsa([['operador','partes_ult_4_meses'],['Nelson Rangel',323],['Luis Rincon',212],['Alexander Garcia',211]]);
   hojas.PARTE_CC=hojaFalsa([['centro_coste','proyecto','descripcion_cc','usos_ult_4_meses'],['3701.02.11','3701','',457],['3702.02.11','3702','',460],['3701.02.07','3701','Terraplen',504],['3703.03.06','3703','',560]]);
   hojas.PARTE_ACTIVIDADES=hojaFalsa([['tipo_equipo','descripcion_trabajo','veces'],['VOLQUETAS DOBLETROQUE','Domingo',70],['VOLQUETAS DOBLETROQUE','Cargue terraplen',31],['VIBROCOMPACTADOR','Compactacion terraplen',70]]);
+  // D174/D178: tabla actividad → ítem (el ítem 2.11 va como NÚMERO, como lo deja Sheets al importar)
+  hojas.PARTE_ITEMS=hojaFalsa([['tipo_equipo','item','actividad','veces','activo'],
+    ['VOLQUETAS DOBLETROQUE',2.11,'Cargue terraplen (más de 1 km)',40,'SI'],['VOLQUETAS DOBLETROQUE','02.07','Terraplen',5,'SI'],
+    ['VIBROCOMPACTADOR','02.11','Compactando terraplen',30,'SI'],['EXCAVADORAS','02.11','Cargue de volquetas',30,'SI'],['MOTONIVELADORAS','02.11','Cereo terraplen',20,'SI']]);
   return ctx;
 }
 const HOY=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
@@ -113,17 +117,19 @@ const server=http.createServer((req,res)=>{
     await $(pg,'.tramo .medidor input').nth(1).fill('27250');
     ok('total en vivo = 130 km', (await $(pg,'.total-box .t-val').first().textContent()).startsWith('130'));
     await $(pg,'.tramo input[type=time]').nth(0).fill('07:00'); await $(pg,'.tramo input[type=time]').nth(1).fill('12:00');
-    await $(pg,'.tramo .picker-btn').first().click(); await $(pg,'#pickerBuscar').fill('3701.02.11'); await $(pg,'.picker-item').first().click();
-    ok('CC elegido (código + descripción de la BASE)', (await $(pg,'.tramo .picker-btn').first().textContent()).includes('3701.02.11'));
+    ok('D178: como máximo 5 chips de actividad + «Otra…», sin buscador de CC', (await $(pg,'.rep-row .acts .sug').count())<=6 && (await $(pg,'.rep-row .acts .sug.mas').count())===1 && (await $(pg,'.tramo .picker-btn').count())===0);
     await $(pg,'.rep-row .pr input').first().fill('14400');
+    await $(pg,'.rep-row .acts .sug').first().click();
+    ok('actividad elegida → frase del operador + CC derivado 3701.02.11 (ítem 2.11 numérico normalizado, D178) · UF1', (await $(pg,'.rep-sel').first().textContent()).includes('3701.02.11') && (await $(pg,'.rep-sel').first().textContent()).includes('Cargue terraplen') && (await $(pg,'.rep-sel').first().textContent()).includes('UF1'));
     await $(pg,'.tramo .sug').first().click();
     ok('sugerencia de actividad al textarea', (await $(pg,'.tramo textarea').first().inputValue())!=='');
     await pg.screenshot({ path:path.join(OUT,'parte_390_tramo1.png'), fullPage:true });
     // fue a otro CC también: aparece el % y la fila nueva
     await pg.click('.rep button:has-text("otro centro de coste")'); await pg.waitForSelector('.rep-row:nth-of-type(3)');
-    ok('«Fue a otro centro de coste también» abre el reparto a 50/50 conservando el primero', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50' && (await $(pg,'.rep-row .picker-btn').first().textContent()).includes('3701.02.11'));
-    await $(pg,'.rep-row .picker-btn').nth(1).click(); await $(pg,'#pickerBuscar').fill('3702.02.11'); await $(pg,'.picker-item').first().click();
-    await $(pg,'.rep-row .pr input').nth(1).fill('35200');
+    ok('«Fue a otro centro de coste también» abre el reparto a 50/50 conservando el primero', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50' && (await $(pg,'.rep-sel').first().textContent()).includes('3701.02.11'));
+    await $(pg,'.rep-row').nth(1).locator('.acts .sug').first().click();
+    await $(pg,'.rep-row .pr input').nth(1).fill('35.2');   // D178: PR en km
+    ok('el PR en km (35.2) manda el proyecto a 3702', (await $(pg,'.rep-sel').nth(1).textContent()).includes('3702.02.11'));
     await $(pg,'.tramo input[type=time]').nth(1).fill('17:00');
     await $(pg,'.tramo .medidor input').nth(1).fill('27400');
     await $(pg,'#btnSubmit').click(); await pg.waitForSelector('#pantallaOk:not(.hidden)');
@@ -131,7 +137,7 @@ const server=http.createServer((req,res)=>{
     await pg.screenshot({ path:path.join(OUT,'parte_390_ok.png'), fullPage:true });
     const h=ctx._hojas.PARTE_BANDEJA;
     ok('2 filas pendiente en PARTE_BANDEJA: 27120→27260 y 27260→27400 (140 + 140)', h._f.length===3 && col(h._f[1],'total')===140 && col(h._f[2],'total')===140 && col(h._f[2],'final')===27400 && col(h._f[1],'estado')==='pendiente');
-    ok('UF 1 y 2, PR propio de cada CC, mismo nº de parte, origen qr', col(h._f[1],'uf')==='1' && col(h._f[2],'uf')==='2' && col(h._f[1],'pr')===14400 && col(h._f[2],'pr')===35200 && col(h._f[2],'reporte_num')==='0457' && col(h._f[2],'origen')==='qr');
+    ok('UF 1 y 2, PR propio de cada CC (35.2 km → 35200 m), mismo nº de parte, origen qr', col(h._f[1],'uf')==='1' && col(h._f[2],'uf')==='2' && col(h._f[1],'pr')===14400 && col(h._f[2],'pr')===35200 && col(h._f[2],'reporte_num')==='0457' && col(h._f[2],'origen')==='qr');
     ok('sin alertas', col(h._f[1],'alertas')==='' && col(h._f[2],'alertas')==='');
     // «Reportar otro tramo»: arranca en 27400
     await pg.click('text=AGREGAR OTRO REGISTRO'); await pg.waitForSelector('#formMain:not(.hidden)');
@@ -148,7 +154,7 @@ const server=http.createServer((req,res)=>{
     await $(pg,'#reporteNum').fill('0458'); await $(pg,'#btnOperador').click(); await $(pg,'.picker-item').first().click();
     await $(pg,'.tramo .medidor input').nth(1).fill('1690');
     ok('el total sale en rojo', await $(pg,'.total-box').first().evaluate(e=>e.classList.contains('mal')));
-    await $(pg,'.tramo .picker-btn').first().click(); await $(pg,'.picker-item').first().click();
+    await $(pg,'.rep-row .acts .sug').first().click();
     const antes=ctx._hojas.PARTE_BANDEJA._f.length;
     await $(pg,'#btnSubmit').click(); await pg.waitForTimeout(300);
     ok('el envío se bloquea con el mensaje de final < inicial', /menor que el inicial/.test(dialogo), dialogo);
@@ -173,7 +179,7 @@ const server=http.createServer((req,res)=>{
     ok('abre el parte del equipo elegido', (await $(pg,'#hCodigo').textContent()).includes('EXC015'));
     await $(pg,'#reporteNum').fill('0459');
     await pg.click('text=Día sin operación'); await pg.click('.motivo:has-text("Domingo")');
-    ok('un tramo con inicial = final y CC Domingo/Festivo', await $(pg,'.tramo .medidor input').first().inputValue()==='2711.6' && await $(pg,'.tramo .medidor input').nth(1).inputValue()==='2711.6' && (await $(pg,'.tramo .picker-btn').first().textContent()).includes('Domingo/Festivo'));
+    ok('un tramo con inicial = final y CC Domingo/Festivo', await $(pg,'.tramo .medidor input').first().inputValue()==='2711.6' && await $(pg,'.tramo .medidor input').nth(1).inputValue()==='2711.6' && (await $(pg,'.rep-sel').first().textContent()).includes('Domingo/Festivo'));
     await $(pg,'#btnOperador').click(); await $(pg,'.picker-item').first().click();
     await $(pg,'#btnSubmit').click(); await pg.waitForSelector('#pantallaOk:not(.hidden)');
     const f=ctx._hojas.PARTE_BANDEJA._f[ctx._hojas.PARTE_BANDEJA._f.length-1];
@@ -190,11 +196,11 @@ const server=http.createServer((req,res)=>{
     await $(pg,'.tramo input[type=time]').nth(0).fill('07:00'); await $(pg,'.tramo input[type=time]').nth(1).fill('15:00');
     await pg.click('.rep button:has-text("otro centro de coste")'); await pg.waitForSelector('.rep-quick');
     ok('«Fue a otro centro de coste también» abre dos renglones a 50/50', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50');
-    await $(pg,'.rep-row .picker-btn').nth(0).click(); await $(pg,'#pickerBuscar').fill('3701.02.11'); await $(pg,'.picker-item').first().click();
-    await $(pg,'.rep-row .picker-btn').nth(1).click(); await $(pg,'#pickerBuscar').fill('3702.02.11'); await $(pg,'.picker-item').first().click();
+    await $(pg,'.rep-row').nth(0).locator('.acts .sug').first().click();
+    await $(pg,'.rep-row').nth(1).locator('.acts .sug').first().click(); await $(pg,'.rep-row .pr input').nth(1).fill('35200');
     ok('el resumen muestra 4 h + 4 h', /4 h/.test(await $(pg,'.rep-sum').textContent()) && (await $(pg,'.rep-sum b').textContent())==='100 %');
     await pg.click('.rep-quick button:has-text("70 / 30")'); await pg.waitForSelector('.rep');
-    ok('«70 / 30» ajusta los porcentajes y conserva los CC', await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='70' && (await $(pg,'.rep-row .picker-btn').nth(1).textContent()).includes('3702.02.11'));
+    ok('«70 / 30» ajusta los porcentajes y conserva los CC', await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='70' && (await $(pg,'.rep-sel').nth(1).textContent()).includes('3702.02.11'));
     await $(pg,'.rep-row input[aria-label=porcentaje]').nth(1).fill('40');
     ok('si no suma 100 se avisa en rojo', await $(pg,'.rep-sum').evaluate(e=>e.classList.contains('mal')) && /110/.test(await $(pg,'#resumenBody .falta').textContent()));
     await $(pg,'.rep-row input[aria-label=porcentaje]').nth(1).fill('30');
@@ -213,9 +219,12 @@ const server=http.createServer((req,res)=>{
     ok('demo: carga sin servidor con VOL048 y la barra «MODO DE PRUEBA»', (await $(pd,'#hCodigo').textContent()).includes('VOL048') && !(await $(pd,'#demoBar').evaluate(e=>e.classList.contains('hidden'))));
     await $(pd,'#demoEq').selectOption('CR026'); await pd.waitForFunction(()=>document.getElementById('hCodigo').textContent.includes('CR026'));
     ok('demo: cambia de equipo desde la barra', (await $(pd,'#hMedidor').textContent())==='HORÓMETRO' && await $(pd,'.tramo .medidor input').first().inputValue()==='1698');
-    await $(pd,'.tramo .picker-btn').first().click();
-    ok('demo: el buscador de CC muestra la descripción', (await $(pd,'.picker-item small').first().textContent()).length>3);
-    await $(pd,'.picker-item').first().click();
+    ok('demo: 5 chips de actividad + «Otra…»', (await $(pd,'.rep-row .acts .sug').count())===4 || (await $(pd,'.rep-row .acts .sug').count())===6);
+    await $(pd,'.rep-row .acts .sug.mas').click();
+    ok('demo: «Otra…» abre el CC opcional y la etiqueta lo dice', (await $(pd,'.rep-row .cc-libre input').count())===1 && /escrita a mano/.test(await $(pd,'.rep-sel').first().textContent()));
+    await $(pd,'.rep-row .cc-libre input').fill('3701.2.7');
+    ok('demo: «3701.2.7» escrito a mano se normaliza a 3701.02.07 (existe en la lista)', (await $(pd,'.rep-sel').first().textContent()).includes('3701.02.07'));
+    await $(pd,'.rep-row .acts .sug').first().click();
     await $(pd,'#reporteNum').fill('1'); await $(pd,'#btnOperador').click(); await $(pd,'.picker-item').first().click(); await $(pd,'.tramo .medidor input').nth(1).fill('1704');
     await $(pd,'#btnSubmit').click(); await pd.waitForSelector('#pantallaOk:not(.hidden)');
     ok('demo: «envía» y avisa que no se guardó nada', /no se guardó nada/.test(await $(pd,'#okMsg').textContent()));
@@ -278,19 +287,35 @@ const server=http.createServer((req,res)=>{
     ok('«Equipos sin parte» queda vacío y la KPI en 0', (await $(pg,'#kFalt').textContent())==='0' && (await $(pg,'#faltantes').textContent()).includes('Todos los equipos activos tienen parte'));
     ok('el backend sigue exigiendo nº de parte a un envío QR', /parte físico/.test((post(ctx,{ mod:'parte', op:'reporte', codigo:'MO004', tramos:[{ fecha:HOY, reporte_num:'', operador:'Sin operador', inicial:2337, final:2337, centro_coste:'Domingo/Festivo', descripcion_trabajo:'Domingo' }] })).error||''));
     ok('y a una fila manual con CC real', /parte físico/.test((post(ctx,{ mod:'parte', op:'reporte', origen:'manual', codigo:'MO004', tramos:[{ fecha:HOY, reporte_num:'', operador:'Nelson Rangel', inicial:2337, final:2340, centro_coste:'3701.02.11', descripcion_trabajo:'Cargue' }] }, tokenDe('admin','admin'))).error||''));
-    // aprobar todo lo sin alertas (2: VOL048 12:00 y EXC015 domingo)
+    // D178: «⑂ Repartir» la de VOL048 12:00 (27260→27400) en 3701.02.11 70 % / 3702.02.07 30 %
+    const filaR=$(pg,'#pendientes .fila').filter({ has: pg.locator('input[data-k=hora_de][value="12:00"]') }).filter({ hasText:'VOL048' }).first();
+    await filaR.locator('button:has-text("Repartir")').click(); await pg.waitForSelector('#modalRep:not(.hidden)');
+    ok('el modal precarga dos filas 50/50 con el CC actual en la primera', (await $(pg,'#rpFilas .rp-fila').count())===2 && await $(pg,'#rpFilas .rp-fila select').first().inputValue()==='3702.02.11' && (await $(pg,'#rpSuma').textContent())==='100 %');
+    ok('sin CC en la segunda, el botón está deshabilitado', await $(pg,'#rpGuardar').isDisabled());
+    await pg.click('#modalRep .rep-quick button:has-text("70 / 30")');
+    await $(pg,'#rpFilas .rp-fila select').nth(1).selectOption('3701.02.07'); await $(pg,'#rpFilas .rp-fila input[type=text]').nth(1).fill('Terraplen');
+    await pg.screenshot({ path:path.join(OUT,'revision_1440_repartir.png'), fullPage:false });
+    const antesR=h._f.length;
+    await $(pg,'#rpGuardar').click(); await pg.waitForFunction(()=>document.getElementById('modalRep').classList.contains('hidden'));
+    await pg.waitForFunction(n=>document.querySelectorAll('#pendientes .fila').length===n, 6);   // 5 − la original + 2 hijas
+    const hijas=h._f.slice(antesR), orig=h._f.find(r=>col(r,'codigo')==='VOL048' && col(r,'hora_de')==='12:00' && col(r,'estado')==='descartado');
+    ok('la original queda descartada con [Repartido en 2 filas]', !!orig && /Repartido en 2 filas/.test(col(orig,'observaciones')), orig&&col(orig,'observaciones'));
+    ok('2 hijas pendientes encadenadas 27260→27358 (98 km, 70 %) y 27358→27400 (42 km, 30 %)', hijas.length===2 && col(hijas[0],'inicial')===27260 && col(hijas[0],'final')===27358 && col(hijas[0],'total')===98 && col(hijas[1],'inicial')===27358 && col(hijas[1],'total')===42 && col(hijas[1],'estado')==='pendiente', hijas.map(x=>col(x,'inicial')+'→'+col(x,'final')).join(' | '));
+    ok('CC 3702.02.11 / 3701.02.07, descripción propia en la segunda, chip de reparto en pantalla', col(hijas[0],'centro_coste')==='3702.02.11' && col(hijas[1],'centro_coste')==='3701.02.07' && col(hijas[1],'descripcion_trabajo')==='Terraplen' && (await $(pg,'#pendientes .badge:has-text("Reparto 30")').count())===1);
+    ok('las hijas se pueden aprobar (sin alertas): el botón cuenta 5', /\(5\)/.test(await $(pg,'#btnAprobarTodo').textContent()), await $(pg,'#btnAprobarTodo').textContent());
+    // aprobar todo lo sin alertas (5: EXC015 domingo, las 2 del reparto de MO004 y las 2 hijas)
     pg.once('dialog', d=>d.accept());
     await $(pg,'#btnAprobarTodo').click(); await pg.waitForFunction(()=>document.querySelectorAll('#pendientes .fila').length===1);
     ok('«Aprobar todo lo sin alertas» deja solo la manual (con alerta)', (await $(pg,'#pendientes .fila').textContent()).includes('WNW030'));
     // Base
     await $(pg,'#tabBase').click(); await pg.waitForSelector('#tbBase tr td b');
     const filasBase=await $(pg,'#tbBase tr').count();
-    ok('Base: 6 aprobadas en el rango (5 + el domingo de CR026)', filasBase===6, String(filasBase));
+    ok('Base: 7 aprobadas en el rango (4 + el domingo de CR026 + las 2 hijas del reparto)', filasBase===7, String(filasBase));
     await pg.screenshot({ path:path.join(OUT,'revision_1440_base.png'), fullPage:true });
     await $(pg,'#btnCopiar').click(); await pg.waitForTimeout(200);
     const tsv=await pg.evaluate(()=>navigator.clipboard.readText());
     const lineas=tsv.split('\n');
-    ok('«Copiar para Excel»: 6 líneas de 43 columnas (B→AR)', lineas.length===6 && lineas.every(l=>l.split('\t').length===43), lineas.map(l=>l.split('\t').length).join(','));
+    ok('«Copiar para Excel»: 7 líneas de 43 columnas (B→AR)', lineas.length===7 && lineas.every(l=>l.split('\t').length===43), lineas.map(l=>l.split('\t').length).join(','));
     const L=l=>{ let n=0; for(const ch of l) n=n*26+(ch.charCodeAt(0)-64); return n-2; };
     const vol=lineas.map(l=>l.split('\t')).find(c=>c[L('F')]==='VOL048' && c[L('AL')]==='07:00');
     const [d,m,y]=HOY.split('-').reverse();
@@ -321,6 +346,23 @@ const server=http.createServer((req,res)=>{
     ok('a 390px no hay desborde horizontal', ancho.sw<=ancho.w+1, JSON.stringify(ancho));
     await pg2.screenshot({ path:path.join(OUT,'revision_390.png'), fullPage:true });
     await pg2.context().close();
+    // D178: jeisson (asistencia_plus) entra por usuario; el «← Menú» lo devuelve a sus tiles; duvan no entra
+    const pgJ=await pagina({width:1440,height:900}, { usuario:'jeisson', rol:'asistencia_plus', tm2_token:tokenDe('jeisson','asistencia_plus') });
+    await pgJ.goto(BASE+'/revision-maquinaria.html'); await pgJ.waitForSelector('.fila, .vacio');
+    ok('jeisson entra a la revisión y su «← Menú» va a seleccion-reporte.html', /revision-maquinaria/.test(pgJ.url()) && (await $(pgJ,'#btnMenu').getAttribute('data-on-click'))==="irA('seleccion-reporte.html')" && await $(pgJ,'#btnMenu').isVisible());
+    await pgJ.goto(BASE+'/seleccion-reporte.html'); await pgJ.waitForSelector('#tiles .tile');
+    ok('jeisson ve 5 tiles: asistencia, resumen, flota, revisión de partes y parte digital', (await $(pgJ,'#tiles a.tile').count())===5 && (await $(pgJ,'#tiles a.tile[href="revision-maquinaria.html"]').count())===1 && (await $(pgJ,'#tiles a.tile[href="parte.html"]').count())===1);
+    await pgJ.context().close();
+    const pgD=await pagina({width:390,height:844}, { usuario:'duvan', rol:'asistencia_plus_dren', tm2_token:tokenDe('duvan','asistencia_plus_dren') });
+    await pgD.goto(BASE+'/revision-maquinaria.html'); await pgD.waitForTimeout(300);
+    ok('duvan (asistencia_plus_dren) es devuelto al login', /index\.html/.test(pgD.url()));
+    await pgD.context().close();
+    const pgR=await pagina({width:390,height:844}, { usuario:'residente', rol:'residente', tm2_token:tokenDe('residente','residente') });
+    await pgR.goto(BASE+'/residente.html'); await pgR.waitForSelector('.tile');
+    ok('residente.html: grupo «Maquinaria · parte digital» con revisión y formulario', (await $(pgR,'a.tile[href="revision-maquinaria.html"]').count())===1 && (await $(pgR,'a.tile[href="parte.html"]').count())===1);
+    await pgR.goto(BASE+'/revision-maquinaria.html'); await pgR.waitForSelector('.fila, .vacio');
+    ok('residente: «← Menú» vuelve a residente.html', (await $(pgR,'#btnMenu').getAttribute('data-on-click'))==="irA('residente.html')");
+    await pgR.context().close();
     const pg3=await pagina({width:1440,height:900}, { usuario:'admin', rol:'admin', tm2_token:tokenDe('admin','admin') });
     await pg3.goto(BASE+'/menu.html'); await pg3.waitForSelector('.tile');
     ok('menu.html: accesos a revision-maquinaria.html y parte.html en el grupo Maquinaria', await $(pg3,'a.tile[href="revision-maquinaria.html"]').count()===1 && await $(pg3,'a.tile[href="parte.html"]').count()===1 && await $(pg3,'.pc-g5 .group-label').count()===1);

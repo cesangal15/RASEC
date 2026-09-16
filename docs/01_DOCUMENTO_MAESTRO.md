@@ -318,7 +318,7 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 
 | Tema | Detalle |
 |---|---|
-| Operadores duplicados | Depurar `PARTE_OPERADORES` (p. ej. Aleyxer Rincon / Aleixer Lizarazo). El código no los funde. |
+| Operadores duplicados | **D178:** las variantes conocidas ya las funde el código (`PARTE_OPERADORES_ALIAS`) y la semilla quedó depurada. Queda: correr `depurarOperadoresParte(true)` en el editor para ordenar la hoja y decidir si `Aleyxer Rincon` / `Aleixer Lizarazo` son la misma persona (apellidos distintos: no se fundió). |
 | Etiquetas del parte | Validar con Jeisson las etiquetas de `PARTE_ITEMS` (D174). |
 | Equipos sin tipo | Revisar GQW139, SJQ401 y TAR538: sin `tipo` en `PARTE_EQUIPOS` no tienen QR. Completar el tipo y regenerar con `generar_qr.py --solo CODIGO`, si siguen en obra. |
 | Usuario revisor (opcional) | Crear un usuario con rol `parte_maquinaria` en `USUARIOS` solo si otra persona va a revisar partes. |
