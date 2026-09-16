@@ -45,9 +45,18 @@ export async function tableroLeer(c){
   const filas = await c.sql`SELECT meta, foto FROM tablero WHERE obra_id=${OBRA_ID} LIMIT 1`;
   if(!filas.length) return json(c, {ok:true, foto:null, meta:null});
   const r = filas[0];
-  const meta = (r.meta && typeof r.meta==='object' && Object.keys(r.meta).length) ? r.meta : null;
-  const foto = (r.foto && typeof r.foto==='object') ? r.foto : null;
+  const metaObj = jsonbObjeto_(r.meta), fotoObj = jsonbObjeto_(r.foto);
+  const meta = (metaObj && Object.keys(metaObj).length) ? metaObj : null;
+  const foto = fotoObj || null;
   return json(c, {ok:true, foto:foto, meta:meta});
+}
+// Un jsonb que postgres.js devuelve como objeto; o, si quedó guardado como TEXTO JSON (string escalar dentro del
+// jsonb: pasa cuando se le entrega un string ya serializado, porque postgres.js vuelve a hacer JSON.stringify en
+// los parámetros jsonb), se interpreta. Así una fila escrita con el doble encoding se sigue leyendo bien.
+function jsonbObjeto_(v){
+  if(v && typeof v==='object' && !Array.isArray(v)) return v;
+  if(typeof v==='string' && v){ try{ const o=JSON.parse(v); return (o && typeof o==='object' && !Array.isArray(o)) ? o : null; }catch(err){ return null; } }
+  return null;
 }
 
 /* ---------- Codigo.gs L3213–L3236: POST {action:'tablero_guardar', foto} → {ok, meta} ----------
@@ -77,8 +86,11 @@ export async function tableroGuardar(c, body, ses){
                  usuario:String((ses && ses.usuario) || body.usuario || ''), periodos:foto.per.length,
                  caracteres:crudo.length, trozos:Math.ceil(crudo.length / TABLERO_TROZO) };
 
+  // `::text::jsonb`: el parámetro viaja como TEXTO y Postgres lo convierte a jsonb. Sin el cast, postgres.js ve
+  // la columna jsonb y le vuelve a aplicar JSON.stringify al string → se guardaba un texto entre comillas y
+  // tableroLeer respondía foto:null (tablero público vacío tras el corte, 16-sep-2026).
   await c.sql`INSERT INTO tablero (obra_id, meta, foto, publicado_ts)
-    VALUES (${OBRA_ID}, ${JSON.stringify(meta)}, ${crudo}, now())
+    VALUES (${OBRA_ID}, ${JSON.stringify(meta)}::text::jsonb, ${crudo}::text::jsonb, now())
     ON CONFLICT (obra_id) DO UPDATE SET meta=EXCLUDED.meta, foto=EXCLUDED.foto, publicado_ts=now()`;
 
   return json(c, {ok:true, meta:meta});
