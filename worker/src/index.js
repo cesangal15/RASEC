@@ -31,41 +31,59 @@
  * Lo que NO hace: no cachea nada (Cache-Control: no-store), no reenvía cookies ni cabeceras del
  * cliente, no toca el cuerpo, no guarda registros con datos de personas.
  *
- * 4.01 · Fase 2 (D180) — CONMUTADOR POR RUTA: el backend del Parte Digital puede vivir AQUÍ
- * (src/api/parte.js contra Postgres, src/db.js) en vez de en el Apps Script. Lo decide una variable
- * por ruta, sin tocar el frontend:
- *   BACKEND_PARTE        = sheets | db   → /parte          (producción)
- *   BACKEND_PARTE_PRUEBA = sheets | db   → /prueba/parte   (canario con ?env=prueba, D168)
- * Con `db` la petición NO se reenvía a Google: pasa por el mismo filtro (CORS, rate limit, tamaño) y
- * se despacha a parteDoGet_/parteDoPost_ con el MISMO contrato. Lo que necesita (`wrangler secret put`):
+ * 4.01 (D180) — CONMUTADOR POR RUTA: cada módulo puede vivir AQUÍ (src/api/*.js contra Postgres,
+ * src/db.js) en vez de en su Apps Script. Lo decide una variable por ruta, sin tocar el frontend:
+ *   BACKEND_PARTE / BACKEND_PARTE_PRUEBA               = sheets | db   → /parte        · /prueba/parte        (Fase 2, en producción)
+ *   BACKEND_OBRA / BACKEND_OBRA_PRUEBA                 = sheets | db   → /obra         · /prueba/obra         (Fase 4)
+ *   BACKEND_ASISTENCIAS / BACKEND_ASISTENCIAS_PRUEBA   = sheets | db   → /asistencias  · /prueba/asistencias  (Fase 3)
+ * (/prueba/* = canario con ?env=prueba, D168). Con `db` la petición NO se reenvía a Google: pasa por el
+ * mismo filtro (CORS, rate limit, tamaño, presencia de token) y se despacha al módulo (MODULOS) con el
+ * MISMO contrato: parteDoGet_/parteDoPost_, obraDoGet_/obraDoPost_, asistenciasDoGet_/asistenciasDoPost_.
+ * Lo que necesita (`wrangler secret put`):
  *   HYPERDRIVE (binding en wrangler.toml) o DATABASE_URL   → conexión a Postgres (db.js)
- *   AUTH_SECRETO (+ AUTH_V, var, por defecto '1')           → verificar los tokens D109 que emite el
- *                                                             login del Apps Script de obra (mismo secreto)
- *   Para /prueba/parte: HYPERDRIVE_PRUEBA / DATABASE_URL_PRUEBA y AUTH_SECRETO_PRUEBA / AUTH_V_PRUEBA si
- *   el entorno de prueba tiene su propia BD o su propio Apps Script (secreto distinto); si faltan, usa
- *   los de producción (misma BD, mismo emisor de tokens).
+ *   AUTH_SECRETO (+ AUTH_V, var, por defecto '1')           → el MISMO par que los Apps Script: verificar los
+ *                                                             tokens D109 en los tres módulos y, con obra en
+ *                                                             `db`, EMITIRLOS en el login (src/auth.js)
+ *   Para /prueba/*: HYPERDRIVE_PRUEBA / DATABASE_URL_PRUEBA y AUTH_SECRETO_PRUEBA / AUTH_V_PRUEBA si el
+ *   entorno de prueba tiene su propia BD o su propio secreto; si faltan, usa los de producción.
+ * LOG por petición (tabla `log`, decisión 9): parte → 'parte:'+op; obra y asistencias → action (GET sin
+ * action = 'ping', POST sin action = 'reporte'); el tablero público (GET obra action=tablero) no escribe LOG.
  * Vuelta atrás: la var a `sheets` (panel o wrangler.toml + `wrangler deploy`); las filas creadas en la
- * BD entre tanto se pegan a mano al Sheet (informe §3, Fase 2, paso 6).
+ * BD entre tanto se pegan a mano al Sheet (informe §3).
  */
 
 import { abrirDb } from './db.js';
 import { parteDoGet_, parteDoPost_ } from './api/parte.js';
+import { obraDoGet_, obraDoPost_ } from './api/obra.js';
+import { asistenciasDoGet_, asistenciasDoPost_ } from './api/asistencias.js';
 import { logIniciar_, logMarcar_, logEscribir_ } from './comun.js';
 
 // `mod=parte` sobre /obra (como lo llama revision-maquinaria.js y como lo despacha doGet/doPost de Codigo.gs)
 // es el Parte: se atiende con la ruta /parte correspondiente (mismo conmutador, sin filtro de token).
+// Conexión y secretos por ruta: producción mira los nombres base; /prueba/* prueba primero los *_PRUEBA (D168).
+const DB_PROD     = ['HYPERDRIVE', 'DATABASE_URL'];
+const DB_PRUEBA   = ['HYPERDRIVE_PRUEBA', 'DATABASE_URL_PRUEBA', 'HYPERDRIVE', 'DATABASE_URL'];
+const AUTH_PROD   = ['AUTH_SECRETO'],                   AUTHV_PROD   = ['AUTH_V'];
+const AUTH_PRUEBA = ['AUTH_SECRETO_PRUEBA', 'AUTH_SECRETO'], AUTHV_PRUEBA = ['AUTH_V_PRUEBA', 'AUTH_V'];
 const RUTAS = {
-  '/obra':               { secreto: 'OBRA_URL',               token: true, parte: '/parte' },
-  '/asistencias':        { secreto: 'ASISTENCIAS_URL',        token: true  },
-  '/parte':              { secreto: 'PARTE_URL',              token: false, modulo: 'parte', backend: 'BACKEND_PARTE',
-                           db: ['HYPERDRIVE', 'DATABASE_URL'], auth: ['AUTH_SECRETO'], authV: ['AUTH_V'] },
-  '/prueba/obra':        { secreto: 'OBRA_PRUEBA_URL',        token: true, parte: '/prueba/parte' },
-  '/prueba/asistencias': { secreto: 'ASISTENCIAS_PRUEBA_URL', token: true  },
-  '/prueba/parte':       { secreto: 'PARTE_PRUEBA_URL',       token: false, modulo: 'parte', backend: 'BACKEND_PARTE_PRUEBA',
-                           db: ['HYPERDRIVE_PRUEBA', 'DATABASE_URL_PRUEBA', 'HYPERDRIVE', 'DATABASE_URL'],
-                           auth: ['AUTH_SECRETO_PRUEBA', 'AUTH_SECRETO'], authV: ['AUTH_V_PRUEBA', 'AUTH_V'] }
+  '/obra':               { secreto: 'OBRA_URL',               token: true,  parte: '/parte',        modulo: 'obra',        backend: 'BACKEND_OBRA',
+                           db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD },
+  '/asistencias':        { secreto: 'ASISTENCIAS_URL',        token: true,                          modulo: 'asistencias', backend: 'BACKEND_ASISTENCIAS',
+                           db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD },
+  '/parte':              { secreto: 'PARTE_URL',              token: false,                         modulo: 'parte',       backend: 'BACKEND_PARTE',
+                           db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD },
+  '/prueba/obra':        { secreto: 'OBRA_PRUEBA_URL',        token: true,  parte: '/prueba/parte', modulo: 'obra',        backend: 'BACKEND_OBRA_PRUEBA',
+                           db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA },
+  '/prueba/asistencias': { secreto: 'ASISTENCIAS_PRUEBA_URL', token: true,                          modulo: 'asistencias', backend: 'BACKEND_ASISTENCIAS_PRUEBA',
+                           db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA },
+  '/prueba/parte':       { secreto: 'PARTE_PRUEBA_URL',       token: false,                         modulo: 'parte',       backend: 'BACKEND_PARTE_PRUEBA',
+                           db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA }
 };
-const MODULOS = { parte: { get: parteDoGet_, post: parteDoPost_ } };
+const MODULOS = {
+  parte:       { get: parteDoGet_,       post: parteDoPost_ },
+  obra:        { get: obraDoGet_,        post: obraDoPost_ },          // Fase 4 (stub hasta que se porte)
+  asistencias: { get: asistenciasDoGet_, post: asistenciasDoPost_ }    // Fase 3 (stub hasta que se porte)
+};
 
 // Acciones que pasan SIN token en las rutas con filtro (D108 login · D161 tablero público).
 const SIN_TOKEN = new Set(['login', 'tablero']);
@@ -196,7 +214,18 @@ async function reenviar(method, destinoBase, url, bodyText, contentType) {
 function primero(env, nombres) { for (const n of (nombres || [])) { if (env[n]) return env[n]; } return ''; }
 function backendDb(ruta, env) { return !!ruta.backend && String(env[ruta.backend] || 'sheets').trim().toLowerCase() === 'db'; }
 
-// Misma secuencia que doGet/doPost de Codigo.gs: LOG por petición (tabla `log`), despacho por op, `_ms`.
+// Etiqueta de la fila de LOG (decisión 9): parte → 'parte:'+op (como logAction_ de Codigo.gs L1094);
+// obra y asistencias → `action` (GET sin action = 'ping', POST sin action = 'reporte', como doGet/doPost).
+function etiquetaLog(modulo, method, o) {
+  if (modulo === 'parte') return 'parte:' + String((o && o.op) || '').toLowerCase();
+  return String((o && o.action) || '') || (method === 'GET' ? 'ping' : 'reporte');
+}
+// El tablero público (obra, GET action=tablero, D161) es lectura anónima: no escribe LOG.
+function sinLog(modulo, method, o) {
+  return modulo === 'obra' && method === 'GET' && String((o && o.action) || '').toLowerCase() === 'tablero';
+}
+
+// Misma secuencia que doGet/doPost de Codigo.gs: LOG por petición (tabla `log`), despacho por op/action, `_ms`.
 // Respuesta SIEMPRE 200 con el JSON del contrato (como Apps Script); 5xx solo si el Worker o la BD fallan.
 async function servirDb(ruta, env, ctx, url, method, bodyText) {
   const t0 = Date.now();
@@ -208,14 +237,15 @@ async function servirDb(ruta, env, ctx, url, method, bodyText) {
   try {
     if (method === 'GET') {
       const params = {}; url.searchParams.forEach((v, k) => { params[k] = v; });
-      logIniciar_(c, ruta.modulo + ':' + String(params.op || '').toLowerCase());
+      logIniciar_(c, etiquetaLog(ruta.modulo, method, params));
+      if (sinLog(ruta.modulo, method, params)) c.pet.log.silencio = true;
       out = await mod.get(c, params);
     } else {
       logIniciar_(c, 'POST');
       let body = null;
       try { body = JSON.parse(bodyText); } catch (e) { body = null; }
       if (!body || typeof body !== 'object') { logMarcar_(c, 'rechazado', 'JSON inválido'); out = { ok: false, error: 'payload', campo: 'json', detalle: 'El cuerpo no es JSON.' }; }
-      else { c.pet.log.action = ruta.modulo + ':' + String(body.op || '').toLowerCase(); out = await mod.post(c, body); }
+      else { c.pet.log.action = etiquetaLog(ruta.modulo, method, body); out = await mod.post(c, body); }
     }
   } catch (e) {
     logMarcar_(c, 'error', String(e && e.message || e));

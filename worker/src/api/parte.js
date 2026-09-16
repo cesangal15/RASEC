@@ -22,12 +22,15 @@
  *     `duplicadas`, aunque llegue en paralelo). `op=revisar` y `op=repartir` bloquean la fila con
  *     `FOR UPDATE` dentro de la transacción y la reescriben; nunca se borra una fila.
  *   · Sin `ensureRows_`, `parteFormatoTexto_`, `invalidarHoja_`, `_memoRango`: no hay celdas. Los
- *     catálogos se memorizan por PETICIÓN en `c.memo` (una consulta por tabla y petición).
- *   · Sin `setupParte()` ni `depurarOperadoresParte()`: son mantenimiento de la HOJA, que sigue siendo
- *     la fuente de los catálogos (§7.7); la BD los recibe por backfill/pull (worker/sql/backfill_parte.js).
- *   · La flota vigente (D173) sale de la tabla `maquinas` (copia de la hoja MAQUINAS) con la misma
- *     regla de `flotaEnFecha_` acotada a lo que el Parte usa (todos los tipos, frentes PARTE_FRENTES).
- *   · `parteDescBase_` lee `base_items` (copia de la tabla de ítems A–H de la hoja BASE).
+ *     catálogos se memorizan por PETICIÓN en `c.memo` (memo_ de comun.js: una consulta por tabla y petición).
+ *   · Sin `setupParte()` ni `depurarOperadoresParte()`: eran mantenimiento de la HOJA. Desde 4.01 los
+ *     catálogos (parte_equipos, parte_cc, parte_items, parte_operadores, parte_actividades, maquinas,
+ *     base_items) se editan en Supabase (Table Editor); el backfill (worker/sql/backfill_parte.js) fue la
+ *     carga inicial, no hay pull Sheet→BD.
+ *   · La flota vigente (D173) sale de la tabla `maquinas` con la misma regla de `flotaEnFecha_` acotada
+ *     a lo que el Parte usa (todos los tipos, frentes PARTE_FRENTES): parteFlotaVigente_ de src/catalogos.js,
+ *     de donde también vienen parteEquipos_/parteEquiposActivos_/parteSelectorEquipos_ (OBRA los comparte).
+ *   · `parteDescBase_` lee `base_items` (tabla de ítems A–H de la hoja BASE) vía baseItems_ de catalogos.js.
  *
  * Todo lo que es NEGOCIO (alertas, topes, reparto por %, alias de operadores, normalización «02.10»,
  * permisos, validación D166, rate limit público 20/h por equipo y 200/h global) está copiado tal cual.
@@ -35,10 +38,13 @@
  * Contexto `c` = { sql, env, secreto, authV, pet:{t0, log}, memo }. Lo arma src/index.js por petición.
  */
 import {
-  OBRA_ID, json, hoyBogota, fdate, toDate, fdateValida_, normTexto, ccCorto,
+  OBRA_ID, json, hoyBogota, fdate, toDate, fdateValida_, normTexto, ccCorto, memo_,
   logIdentidad_, logMarcar_, puerta_, sesion_, rateLimit_, respuestaRateLimit_,
   valEsquema_, valListaDe_, rechazoPayload_, VAL_MAX_HORAS
 } from '../comun.js';
+// Fases 3–4: los catálogos que OBRA también usa (fichas de parte_equipos, flota vigente de `maquinas`,
+// ítems de la BASE) viven en src/catalogos.js con los mismos nombres; aquí solo se importan.
+import { parteEquipos_, parteFlotaVigente_, parteEquiposActivos_, parteSelectorEquipos_, baseItems_ } from '../catalogos.js';
 
 /* ---------- hojas → tablas ---------- */
 export const PARTE_BANDEJA_HEADERS = ['id_registro','timestamp','estado','fecha','codigo','tipo','placa','medidor',
@@ -70,7 +76,7 @@ const PARTE_OPERADORES_ALIAS = {
   'JAN CARLOS':'Jean Carlos Muñoz'
 };
 function parteOperadorCanon_(n){ const s=parteTexto_(n); if(!s) return ''; const c=PARTE_OPERADORES_ALIAS[normTexto(s)]; return c || s; }
-const PARTE_FRENTES = ['UF1-UF2'];
+// PARTE_FRENTES (['UF1-UF2']) se importa de catalogos.js
 const PARTE_TOPES = { HOROMETRO:{ bloquea:24, alerta:12, unidad:'h' }, KM:{ bloquea:700, alerta:400, unidad:'km' } };
 const PARTE_DIAS_CC_RECIENTE = 30;
 const PARTE_MAX_DIAS_BASE   = 186;
@@ -212,80 +218,10 @@ function parteFilaSalida_(c, r){
   return o;
 }
 
-/* ============ catálogos (tablas importadas del Sheet; una consulta por tabla y petición) ============ */
-async function memo_(c, clave, fn){ if(!(clave in c.memo)) c.memo[clave]=await fn(); return c.memo[clave]; }
-async function parteEquipos_(c){
-  return memo_(c, 'equipos', async function(){
-    const filas=await c.sql`SELECT codigo, tipo, placa, proveedor, medidor, ultima_fecha, ultimo_final, activo, ultimo_final_manual FROM parte_equipos WHERE obra_id=${OBRA_ID}`;
-    const out={};
-    filas.forEach(function(r){
-      const cod=parteTexto_(r.codigo); if(!cod) return;
-      const manual = (r.ultimo_final_manual!==undefined && r.ultimo_final_manual!==null && r.ultimo_final_manual!=='') ? r.ultimo_final_manual : r.ultimo_final;
-      out[parteNormCod_(cod)]={
-        codigo:cod, tipo:parteTexto_(r.tipo), placa:parteTexto_(r.placa), proveedor:parteTexto_(r.proveedor),
-        medidor:parteMedidor_(r.medidor), medidor_crudo:parteTexto_(r.medidor),
-        activo:parteSiNo_(r.activo, true),
-        ultimo_final_manual:parteNum_(manual), ultima_fecha:fdate(r.ultima_fecha||'')
-      };
-    });
-    return out;
-  });
-}
-/* D173 — flota VIGENTE en una fecha desde la tabla `maquinas` (= hoja MAQUINAS): la regla de
- * `flotaEnFecha_` (Codigo.gs) con {todos:true, frentes:PARTE_FRENTES}. Sin una sola estancia válida
- * devuelve null (fuente 'codigo' en el .gs): manda `activo` de PARTE_EQUIPOS. */
-function normFrente_(v){
-  const s=String(v==null?'':v).toUpperCase().replace(/\s+/g,'').replace(/[_/·]/g,'-').trim();
-  if(!s) return 'UF1-UF2';
-  if(s==='UF1-UF2'||s==='UF1'||s==='UF2'||s==='UF2-UF1'||s==='UF12') return 'UF1-UF2';
-  if(s==='UF3') return 'UF3';
-  return s;
-}
-async function parteFlotaVigente_(c, fecha){
-  const f = fdateValida_(fecha) || parteHoy_();
-  const filas=await memo_(c, 'maquinas', function(){
-    return c.sql`SELECT id_maquina, tipo, propiedad, fecha_ingreso, fecha_retiro, frente FROM maquinas WHERE obra_id=${OBRA_ID}`;
-  });
-  const catalogo={}; let validas=0;
-  filas.forEach(function(r){
-    const id=String(r.id_maquina==null?'':r.id_maquina).trim().toUpperCase(); if(!id) return;
-    const ing=fdateValida_(r.fecha_ingreso); if(!ing) return;
-    const ret = r.fecha_retiro ? fdateValida_(r.fecha_retiro) : '';
-    validas++;
-    if(!(ing<=f && (!ret || f<ret))) return;
-    const frente=normFrente_(r.frente);
-    if(PARTE_FRENTES.indexOf(frente)<0) return;
-    catalogo[id]={ tipo:String(r.tipo==null?'':r.tipo).toUpperCase().trim(), propiedad:String(r.propiedad==null?'':r.propiedad).trim(), frente:frente };
-  });
-  if(!validas) return null;
-  return { fecha:f, fuente:'hoja', catalogo:catalogo };
-}
-async function parteEquiposActivos_(c, fecha){
-  const m=await parteEquipos_(c), fl=await parteFlotaVigente_(c, fecha);
-  let lista;
-  if(!fl){
-    lista=Object.keys(m).map(function(k){ return m[k]; }).filter(function(q){ return q.activo; });
-  }else{
-    lista=Object.keys(fl.catalogo).map(function(id){
-      const x=fl.catalogo[id], q=m[parteNormCod_(id)];
-      if(q) return Object.assign({}, q, { activo:true, frente:x.frente, propiedad:x.propiedad, sin_ficha:false });
-      return { codigo:id, tipo:x.tipo, placa:'', proveedor:x.propiedad||'', medidor:'', medidor_crudo:'', activo:true,
-               ultimo_final_manual:null, ultima_fecha:'', frente:x.frente, propiedad:x.propiedad, sin_ficha:true };
-    });
-  }
-  return lista.sort(function(a,b){ return a.codigo<b.codigo?-1:a.codigo>b.codigo?1:0; });
-}
-async function parteSelectorEquipos_(c){
-  const vig=await parteEquiposActivos_(c), enFlota={};
-  const out=vig.map(function(q){ enFlota[parteNormCod_(q.codigo)]=1; return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, en_flota:true }; });
-  const m=await parteEquipos_(c);
-  Object.keys(m).sort().forEach(function(k){
-    if(enFlota[k]) return;
-    const q=m[k]; if(!q.tipo) return;
-    out.push({ codigo:q.codigo, tipo:q.tipo, placa:q.placa, en_flota:false });
-  });
-  return out;
-}
+/* ============ catálogos (una consulta por tabla y petición; memo_ de comun.js) ============
+ * parteEquipos_, parteFlotaVigente_ (D173: flotaEnFecha_ con {todos:true, frentes:PARTE_FRENTES}, null si
+ * la tabla `maquinas` no tiene una sola estancia válida), parteEquiposActivos_ y parteSelectorEquipos_
+ * viven ahora en src/catalogos.js (los usa también OBRA); se importan arriba con los mismos nombres. */
 /* ============ D174 — actividad primero, CC derivado ============ */
 function parteItemDeCC_(cc){ const m=/^37\d\d\.(.+)$/.exec(String(cc==null?'':cc).trim()); return m ? m[1] : ''; }
 async function parteItems_(c){
@@ -385,20 +321,8 @@ async function parteCC_(c){
   });
 }
 // Descripción del ítem desde `base_items` (copia de la tabla A–H de la hoja BASE, D68) cuando PARTE_CC no la trae.
-async function parteBaseItems_(c){
-  return memo_(c, 'base_items', async function(){
-    const items={};
-    try{
-      const filas=await c.sql`SELECT cc, descripcion FROM base_items WHERE obra_id=${OBRA_ID} ORDER BY orden`;
-      filas.forEach(function(r){
-        const ccKey=parteTexto_(r.cc), d=r.descripcion; if(!ccKey || !d) return;
-        (items[ccKey]=items[ccKey]||[]).push({ desc:d });
-        const corto=ccCorto(ccKey); if(corto && corto!==ccKey) (items[corto]=items[corto]||[]).push({ desc:d });
-      });
-    }catch(err){ /* sin BASE: sin descripción */ }
-    return items;
-  });
-}
+// = getBaseItems acotado a {cc:[{desc, norm}]}: el lector completo (con drenajes) es baseItems_ de catalogos.js.
+async function parteBaseItems_(c){ return (await baseItems_(c)).items; }
 function parteDescBase_(items, cc){
   try{
     const cand=items[String(cc==null?'':cc).trim()] || items[ccCorto(cc)];

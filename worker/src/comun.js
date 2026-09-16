@@ -6,6 +6,14 @@
  * emitirToken_ / verificarToken_ / sesion_ / puerta_ (D109), rateLimit_ / respuestaRateLimit_ (D166),
  * logIdentidad_ / logMarcar_ / logEscribir_ (D166: una fila de LOG por petición).
  *
+ * Fases 3 y 4 (asistencias y obra en el Worker) añaden al final, sin reordenar lo anterior:
+ * memo_ (memo por petición, antes privado de api/parte.js), ftime / norm (CodigoAsistencias.gs),
+ * deriveArea (Codigo.gs L2211), VAL_DIAS_FUTURO_FLOTA (D138) + export de valTexto_ / valArray_,
+ * permiso_ (guard de escritura, Codigo.gs L1940 `_permiso_` sobre la sesión del token) y
+ * hashClave_ / ES_HASH (Codigo.gs L3053: SHA-256 hex de `usuario:clave`, con WebCrypto).
+ * Lo que es de UN solo módulo no vive aquí: catálogos de obra/parte en src/catalogos.js, login en
+ * src/auth.js, negocio de obra en src/api/obra/*, de asistencias en src/api/asistencias/*.
+ *
  * Diferencias con Apps Script, y por qué:
  *   · No hay globales por petición (`_log`, `_t0`): en un Worker conviven peticiones en el mismo isolate.
  *     Todo viaja en `c` (contexto de petición): { sql, env, secreto, authV, pet:{t0, log}, memo }.
@@ -171,7 +179,7 @@ export function rechazoPayload_(c, campo, detalle){
   logMarcar_(c, 'rechazado', 'payload:'+campo+(detalle ? (' '+detalle) : ''));
   return json(c, { ok:false, error:'payload', campo:String(campo||''), detalle:String(detalle||'') });
 }
-function valTexto_(v, max){
+export function valTexto_(v, max){
   if(v===null || v===undefined) return '';
   if(typeof v==='object') return 'debe ser texto';
   const s=String(v); const m=max||VAL_MAX_TEXTO;
@@ -211,7 +219,7 @@ function valHora_(v){
   const s=String(v).trim(); if(s.length>12) return 'hora demasiado larga';
   return /^\d{1,2}[:.]\d{2}/.test(s) ? '' : 'hora no válida (HH:MM)';
 }
-function valArray_(v, max){
+export function valArray_(v, max){
   if(v===null || v===undefined) return '';
   if(!Array.isArray(v)) return 'debe ser una lista';
   if(v.length>(max||VAL_MAX_FILAS)) return 'más de '+(max||VAL_MAX_FILAS)+' elementos';
@@ -246,4 +254,74 @@ export function valListaDe_(arr, esquema, nombre, max){
     const f=valEsquema_(arr[i], esquema, nombre+'['+i+']'); if(f) return f;
   }
   return null;
+}
+
+/* ======================================================================================================
+ * Fases 3 y 4 (4.01 · D180) — compartido por obra, asistencias y parte. Añadido al final, sin reordenar.
+ * ====================================================================================================== */
+
+/* ---------- memo por PETICIÓN (antes privado en api/parte.js) ----------
+ * Sustituye a _memoHoja/readSheet (Codigo.gs L304–L342), a _memoHoja/_memoRango/cacheLeer_/cacheGuardar_
+ * (CodigoAsistencias.gs L694–L874) y a los memos de ejecución (_baseRows, _cubMap, _flotaRows…): una ida
+ * a Postgres por tabla y petición. No hay caché ENTRE peticiones: una escritura que después relee borra
+ * la clave (invalidarMemo_ en catalogos.js o `delete c.memo.x`). */
+export async function memo_(c, clave, fn){ if(!(clave in c.memo)) c.memo[clave]=await fn(); return c.memo[clave]; }
+
+/* ---------- CodigoAsistencias.gs L162–L171: hora cruda → 'HH:MM' (cero a la izquierda, D72) ----------
+ * Distinta de parteHoraStr_ (api/parte.js: acepta fracción de día y devuelve el texto tal cual si no
+ * calza), así que NO se unifican. En la BD las horas ya son texto (regla 3 del esquema), pero pueden
+ * venir como '7:00' del backfill o del Table Editor: se aplica igual en el borde de salida. */
+export function ftime(v){
+  if(v === null || v === undefined || v === '') return '';
+  if(typeof v === 'object' && typeof v.getHours === 'function')
+    return ('0'+v.getHours()).slice(-2)+':'+('0'+v.getMinutes()).slice(-2);
+  const s=String(v).trim(), m=s.match(/(\d{1,2}):(\d{2})/);
+  if(m) return ('0'+m[1]).slice(-2)+':'+m[2];
+  return s.slice(0,5);
+}
+/* CodigoAsistencias.gs L892: clave de comparación (usuarios, áreas, tipo_dia, presente). No confundir
+ * con normTexto (MAYÚSCULAS sin tildes, para comparar descripciones). */
+export function norm(s){ return String(s==null?'':s).trim().toLowerCase(); }
+
+/* ---------- Codigo.gs L2211–L2218: área derivada del CC (capítulo 06.* → odt, 07.* → odl, resto tierras) ---------- */
+export function deriveArea(cc){
+  const c=String(cc==null?'':cc).trim();
+  if(!c) return 'tierras';
+  const sin=c.replace(/^\d{4}\./,'');
+  if(sin.indexOf('06.')===0) return 'odt';
+  if(sin.indexOf('07.')===0) return 'odl';
+  return 'tierras';
+}
+
+/* ---------- Codigo.gs L2770 / CodigoAsistencias.gs L423 (D138): futuro admitido en fechas de ingreso/retiro ---------- */
+export const VAL_DIAS_FUTURO_FLOTA = 366;
+
+/* ---------- Codigo.gs L1940–L1955 `_permiso_`: guard de escritura en el SERVIDOR (D109 / D139) ----------
+ * En el .gs leía body._rol / body.usuario / body._auth_tolerada, que doPost sembraba desde el token. Aquí
+ * recibe directamente la sesión de puerta_ ({usuario, rol, tolerado}): el cliente no puede inventarlos.
+ * Misma lógica: modo tolerante → pasa; rol en `roles` → pasa; usuario en `usuarios` → pasa; 'jefe' recibe
+ * el mensaje de solo lectura; cualquier otro, 'Tu usuario no puede '+queEs. */
+export function permiso_(ses, roles, usuarios, queEs){
+  if(ses && ses.tolerado) return {ok:true};   // AUTH_ESTRICTO=false: modo tolerante de D109
+  const rol=String((ses&&ses.rol)||'').trim().toLowerCase();
+  const usr=String((ses&&ses.usuario)||'').trim().toLowerCase();
+  if((roles||[]).indexOf(rol)>=0) return {ok:true};
+  if((usuarios||[]).indexOf(usr)>=0) return {ok:true};
+  if(rol==='jefe') return {ok:false, error:'El jefe entra a la pantalla de Maquinaria en SOLO LECTURA: '
+    + 'puede consultarlo todo, pero no '+queEs+'. No se guardó nada.'};
+  return {ok:false, error:'Tu usuario no puede '+queEs+'. No se guardó nada.'};
+}
+
+/* ---------- Codigo.gs L3053–L3060: SHA-256 hex minúscula de `usuario_en_minúsculas:clave` (D108) ----------
+ * El `& 0xff` del .gs solo corregía el signo de los bytes de computeDigest; con Uint8Array el resultado
+ * es idéntico byte a byte, así que los hashes ya guardados en USUARIOS/usuarios valen tal cual. Async
+ * (crypto.subtle): loginResultado_ (auth.js) es async. */
+export const ES_HASH = /^[0-9a-f]{64}$/;
+export async function hashClave_(usuario, clave){
+  const txt = String(usuario||'').trim().toLowerCase() + ':' + String(clave==null?'':clave);
+  const buf = await crypto.subtle.digest('SHA-256', _enc.encode(txt));
+  const b = new Uint8Array(buf);
+  let hex='';
+  for(let i=0;i<b.length;i++) hex += ('0' + b[i].toString(16)).slice(-2);
+  return hex;
 }
