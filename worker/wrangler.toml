@@ -20,7 +20,7 @@
 #   Vars   BACKEND_PARTE / BACKEND_PARTE_PRUEBA               = sheets | db   (Fase 2, en producción)
 #          BACKEND_OBRA / BACKEND_OBRA_PRUEBA                 = sheets | db   (Fase 4)
 #          BACKEND_ASISTENCIAS / BACKEND_ASISTENCIAS_PRUEBA   = sheets | db   (Fase 3)
-#          (conmutadores por ruta, abajo en [vars]; producción sigue en Google hasta el corte de cada fase)
+#          (conmutadores por ruta, abajo en [vars]; desde el 16-sep-2026 los tres en "db")
 #   Secretos (wrangler secret put): DATABASE_URL (o el binding Hyperdrive de abajo), AUTH_SECRETO
 #            (= mostrarSecretoAuth() del Apps Script de obra: el MISMO en los tres Apps Script y aquí, así los
 #            tokens D109 son intercambiables y, con obra en db, el Worker los EMITE en el login) y, si prueba
@@ -51,9 +51,9 @@ RATE_LIMIT_POR_MIN = "120"
 # entorno de prueba (/prueba/parte, ?env=prueba) ya apunta a la BD. Vuelta atrás = "sheets" + deploy.
 BACKEND_PARTE = "db"
 BACKEND_PARTE_PRUEBA = "db"
-# 4.01 · Fases 3 y 4 — Obra y Asistencias por ruta, mismo conmutador (decisión 11): producción sigue en
-# Google ("sheets") hasta el corte de cada fase; el entorno de prueba (/prueba/obra, /prueba/asistencias,
-# ?env=prueba) ya apunta a la BD. Con obra en "db" el login lo hace el Worker (src/auth.js).
+# 4.01 · Fases 3 y 4 — Obra y Asistencias por ruta, mismo conmutador (decisión 11). CORTE HECHO el
+# 16-sep-2026: producción en "db" (Supabase); con obra en "db" el login lo hace el Worker (src/auth.js).
+# Vuelta atrás = "sheets" + `wrangler deploy` (lo escrito en la BD entre tanto no estará en los Sheets).
 BACKEND_OBRA = "db"
 BACKEND_OBRA_PRUEBA = "db"
 BACKEND_ASISTENCIAS = "db"
