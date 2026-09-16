@@ -150,7 +150,14 @@ window.onload = function(){
   const rol=localStorage.getItem('rol'), usuario=localStorage.getItem('usuario');
   if(!rol || (rol!=='encargado' && rol!=='admin' && rol!=='residente')){ window.location.href='index.html'; return; }
   document.getElementById('userDisplay').textContent=usuario||'encargado';
-  if(rol==='admin'){var _bm=document.getElementById('btnMenu');if(_bm)_bm.style.display='inline-block';}
+  // Botón de regreso según de dónde viene: admin -> menú; residente -> su panel (residente.html).
+  // Antes el residente no tenía cómo volver y le tocaba cerrar y abrir de nuevo. El handler va por
+  // `data-on-click` (tema.js lo despacha desde document), así que se cambia el atributo, no `onclick`.
+  var _bm=document.getElementById('btnMenu');
+  if(_bm){
+    if(rol==='admin'){ _bm.style.display='inline-block'; }
+    else if(rol==='residente'){ _bm.textContent='← Volver'; _bm.setAttribute('data-on-click',"irA('residente.html')"); _bm.style.display='inline-block'; }
+  }
   document.getElementById('fecha').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
 };
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
