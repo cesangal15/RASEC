@@ -47,7 +47,14 @@ export async function tableroLeer(c){
   const r = filas[0];
   const metaObj = jsonbObjeto_(r.meta), fotoObj = jsonbObjeto_(r.foto);
   const meta = (metaObj && Object.keys(metaObj).length) ? metaObj : null;
-  const foto = fotoObj || null;
+  // La foto puede venir de dos formas: el objeto tal cual (backfill / servidor viejo) o COMPRIMIDA
+  // ({z:<gzip en base64>}, ver tableroGuardar). Si trae `z` se descomprime; si el descomprimido no es
+  // JSON válido se devuelve null (el tablero se queda con la suya, nunca pantalla en blanco).
+  let foto = fotoObj || null;
+  if(foto && typeof foto.z === 'string' && !Array.isArray(foto.per)){
+    try{ foto = JSON.parse(await gunzipB64_(foto.z)); }
+    catch(err){ foto = null; }
+  }
   return json(c, {ok:true, foto:foto, meta:meta});
 }
 // Un jsonb que postgres.js devuelve como objeto; o, si quedó guardado como TEXTO JSON (string escalar dentro del
@@ -86,12 +93,36 @@ export async function tableroGuardar(c, body, ses){
                  usuario:String((ses && ses.usuario) || body.usuario || ''), periodos:foto.per.length,
                  caracteres:crudo.length, trozos:Math.ceil(crudo.length / TABLERO_TROZO) };
 
+  // La foto se guarda COMPRIMIDA (gzip → base64) dentro de `foto` como {z:<base64>}. Motivo (16-sep-2026):
+  // la foto real ronda ~190 KB y el Worker de Cloudflare, al empujar ese único write al pooler de Supabase,
+  // se caía con "write CONNECTION_CLOSED" (el mismo síntoma que el backfill resolvió con lotes chicos). El
+  // backfill —que corre en Node, no en el Worker— sí escribía esa foto entera. Comprimida baja a ~50 KB, muy
+  // por debajo de lo que el Worker escribe sin problema. tableroLeer la descomprime; una foto vieja sin
+  // comprimir (backfill) se sigue leyendo igual. La solución de fondo (cualquier tamaño) es Hyperdrive.
+  const foto_z = { z: await gzipB64_(crudo) };
+
   // `::text::jsonb`: el parámetro viaja como TEXTO y Postgres lo convierte a jsonb. Sin el cast, postgres.js ve
   // la columna jsonb y le vuelve a aplicar JSON.stringify al string → se guardaba un texto entre comillas y
   // tableroLeer respondía foto:null (tablero público vacío tras el corte, 16-sep-2026).
   await c.sql`INSERT INTO tablero (obra_id, meta, foto, publicado_ts)
-    VALUES (${OBRA_ID}, ${JSON.stringify(meta)}::text::jsonb, ${crudo}::text::jsonb, now())
+    VALUES (${OBRA_ID}, ${JSON.stringify(meta)}::text::jsonb, ${JSON.stringify(foto_z)}::text::jsonb, now())
     ON CONFLICT (obra_id) DO UPDATE SET meta=EXCLUDED.meta, foto=EXCLUDED.foto, publicado_ts=now()`;
 
   return json(c, {ok:true, meta:meta});
+}
+
+/* ---------- gzip ↔ base64 (Worker: CompressionStream/Buffer con nodejs_compat; Node: iguales en test) ----------
+ * Se usan para encoger la foto antes del único write al pooler (ver tableroGuardar). base64 (texto ASCII, +33 %)
+ * en vez de bytea (hex, +100 %) porque lo que importa es el tamaño EN EL CABLE del parámetro. */
+async function gzipB64_(texto){
+  const cs = new CompressionStream('gzip');
+  const w = cs.writable.getWriter(); w.write(new TextEncoder().encode(texto)); w.close();
+  const buf = await new Response(cs.readable).arrayBuffer();
+  return Buffer.from(buf).toString('base64');
+}
+async function gunzipB64_(b64){
+  const ds = new DecompressionStream('gzip');
+  const w = ds.writable.getWriter(); w.write(Buffer.from(b64, 'base64')); w.close();
+  const buf = await new Response(ds.readable).arrayBuffer();
+  return new TextDecoder().decode(buf);
 }

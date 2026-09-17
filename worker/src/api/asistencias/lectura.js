@@ -25,7 +25,7 @@
  *
  * Contexto `c` = { sql, env, secreto, authV, pet:{t0, log}, memo }. Lo arma src/index.js por petición.
  */
-import { OBRA_ID, json, hoyBogota, fdate, fdateValida_, ftime, norm } from '../../comun.js';
+import { OBRA_ID, json, hoyBogota, fdate, fdateValida_, ftime, norm, textoArrayPg_ } from '../../comun.js';
 import {
   cuadrillas_, personal_, catCC_, turnos_, getConfigMap, getFestivos, areaDeCuadrillaMap,
   cuadrillaActiva, cuadrillasInactivasSet, cuadrillasDeUsuario, sinCCexcluidos, ccUsadosParaArea,
@@ -98,7 +98,7 @@ export async function roster(c, params){
   if(cuadrillas.length){
     const filasCC=await c.sql`SELECT cuadrilla, cc FROM (
         SELECT DISTINCT ON (cuadrilla, cc) cuadrilla, cc, "timestamp"
-        FROM asistencia WHERE obra_id=${OBRA_ID} AND cuadrilla = ANY(${cuadrillas}) AND cc<>''
+        FROM asistencia WHERE obra_id=${OBRA_ID} AND cuadrilla = ANY(${textoArrayPg_(cuadrillas)}::text[]) AND cc<>''
         ORDER BY cuadrilla, cc, "timestamp" DESC) t
       ORDER BY cuadrilla, "timestamp" DESC`;
     filasCC.forEach(function(r){ const list=recientesCC[r.cuadrilla]; if(!list) return; if(list.indexOf(r.cc)<0 && list.length<10) list.push(r.cc); });
