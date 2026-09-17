@@ -209,10 +209,32 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .chainR:hover{background:var(--card);}
 .chainR:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
 @media(max-width:1080px){
+  /* La cabecera de columnas no cabe: se retira y cada celda lleva su rótulo. */
   .chainH{display:none;}
-  .chainR{grid-template-columns:1fr 1fr;gap:14px;}
+  .chainR{grid-template-columns:1fr 1fr;gap:14px 22px;}
   .chainR .velC{border-left:0;padding-left:0;}
-  .chainR .lnk .sep{display:none;}
+  .chainR .lnk .sep,.chainR .velC .eq{display:none;}
+  /* `.chainR` delante para ganarle por especificidad a la regla base
+     `.lnkLab{display:none}`, que está más abajo en el archivo. */
+  .chainR .lnkLab,.chainR .velLab{display:block;font-size:10px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:5px;line-height:1.2;}
+}
+/* La tabla del desglose tiene 8 columnas y no baja de ~560 px: donde no cabe,
+   scrollea SOLA en horizontal (arrastraba toda la página por el borde). */
+@media(max-width:760px){
+  .mtWrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+  .mtH,.mtR{min-width:560px;}
+}
+/* Teléfono: las dos columnas de métricas se apilan en una. Cada cifra ocupa el
+   ancho completo con su rótulo encima, que es lo que la hace legible de un
+   vistazo; en dos columnas quedaban demasiado estrechas. */
+@media(max-width:620px){
+  .chainR{grid-template-columns:1fr;gap:16px;}
+  .drop{padding-left:0;}
+  /* Nota de sección alineada a la izquierda: en el teléfono cae a su propio
+     renglón y el texto a la derecha quedaba descolgado del borde. `.secH`
+     delante para ganarle a la regla base, que está más abajo en el archivo. */
+  .secH .secA.u-nota-cadena{text-align:left;max-width:none;}
 }
 .actC{display:flex;align-items:flex-start;gap:11px;}
 .actC .sw{width:11px;height:11px;margin-top:8px;flex:none;}
@@ -245,6 +267,12 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .velC .s{font-size:10.5px;color:var(--muted);margin-top:5px;font-variant-numeric:tabular-nums;}
 .drop{border-bottom:1px solid var(--border);padding:6px 0 20px 36px;
   display:flex;flex-direction:column;gap:8px;}
+/* Envoltorio de la tabla de equipos: en ancho se comporta igual; en móvil (regla
+   más abajo) es lo único que scrollea en horizontal, sin arrastrar la página. */
+.mtWrap{display:flex;flex-direction:column;gap:8px;}
+/* Rótulo por eslabón/velocidad. Oculto en ancho —lo da la cabecera `.chainH`—;
+   el móvil lo enciende cuando esa cabecera se retira. */
+.lnkLab,.velLab{display:none;}
 .mtH,.mtR{display:grid;gap:0 14px;align-items:center;
   grid-template-columns:minmax(78px,.85fr) minmax(90px,1.35fr) 54px minmax(54px,.65fr)
                         minmax(58px,.7fr) minmax(58px,.65fr) minmax(62px,.75fr)

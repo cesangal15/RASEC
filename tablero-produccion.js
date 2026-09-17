@@ -695,8 +695,13 @@ function cadena(sel_p){
       el('div','hint',abierta?'Cerrar desglose':(m.maq.length?'Ver '+eqs(m.maq.length):'')));
     ac.append(sw,box);
     // --- eslabones
-    const mk=(sep,val,unit,sub,w,col)=>{
+    /* `lab` = rótulo de la columna. En pantalla ancha lo da la cabecera `.chainH`;
+       en móvil ESA cabecera se oculta (no cabe), así que cada eslabón lleva su
+       propio rótulo (`.lnkLab`) que el CSS sólo muestra cuando la cabecera no está.
+       Sin él, en el teléfono se veían tres «89%» sin decir cuál es cuál. */
+    const mk=(sep,val,unit,sub,w,col,lab)=>{
       const d=el('div','lnk');
+      if(lab)d.appendChild(el('div','lnkLab',lab));
       if(sep)d.appendChild(el('div','sep',sep));
       const v=el('div','v');
       const b=el('div','syne val',val);if(col)b.style.color=col;
@@ -705,7 +710,7 @@ function cadena(sel_p){
       d.append(v,bar,el('div','s',sub));
       return d;
     };
-    const l1=mk('',f0(m.horas),'h',r.dias+' días con registro',m.horas/maxH);
+    const l1=mk('',f0(m.horas),'h',r.dias+' días con registro',m.horas/maxH,null,'Horas operadas');
     /* Debajo de la cifra se dice DE DÓNDE sale: cuánto standby había, si sobró
        o faltó, y qué explica el hueco. Un porcentaje de utilización sin su
        standby al lado no se puede discutir en una reunión. */
@@ -731,10 +736,10 @@ function cadena(sel_p){
                (trozos.length?': '+trozos.join(' y '):'');
       }
     }
-    const l2=mk('×',hayU?pct(ut):'—','',subU,ut||0);
+    const l2=mk('×',hayU?pct(ut):'—','',subU,ut||0,null,'Utilización');
     const l3=mk('×',pct(ef),'',
       f1(mhC)+' de '+f1(m.meta_hora)+' m³ hora-máquina',
-      Math.min(1,ef));
+      Math.min(1,ef),null,'Eficiencia');
     // --- velocidad
     /* VELOCIDAD DE LA MAQUINARIA (ver el bloque de arriba): producción real
        contra lo que el tiempo disponible daba a ritmo nominal. Rendimiento de la
@@ -751,6 +756,7 @@ function cadena(sel_p){
     const espVel = (m.meta_hora && dmaq>0) ? m.meta_hora*8*dmaq : null;
     const vel = espVel ? comp(m.prod)/espVel : null;
     const vc=el('div','velC');
+    vc.appendChild(el('div','velLab','Velocidad'));
     vc.appendChild(el('div','eq','→'));
     const vv=el('div','v');
     const big=el('div','syne big', vel==null?'—':pct(vel));
@@ -775,10 +781,15 @@ function cadena(sel_p){
 
     if(abierta){
       const d=el('div','drop');
+      /* La tabla de equipos tiene 8 columnas y no encoge por debajo de ~580 px:
+         en el teléfono se salía por la derecha y arrastraba TODA la página con
+         ella. Va dentro de `.mtWrap`, que en móvil scrollea SOLO ella en
+         horizontal —la página no se mueve— y deja las columnas legibles. */
+      const tbl=el('div','mtWrap');
       const h=el('div','mtH');
       ['Equipo','Tipo','UF','Horas','Standby','Sin usar','Utilización','Peso en las horas']
         .forEach((x,i)=>{const s=el('div',null,x);if(i>=3&&i<=6)s.style.textAlign='right';h.appendChild(s);});
-      d.appendChild(h);
+      tbl.appendChild(h);
       const tot=Math.max(1,...m.maq.map(x=>x.h));
       m.maq.forEach(q=>{
         /* PARTE VACÍO: cero operadas y cero perdidas. No entra en el standby de
@@ -821,8 +832,9 @@ function cadena(sel_p){
         const bw=el('div','mtBar');const bi=el('i');
         bi.style.width=(q.h/tot*100)+'%';bi.style.background=a.c;bw.appendChild(bi);
         t.appendChild(bw);
-        d.appendChild(t);
+        tbl.appendChild(t);
       });
+      d.appendChild(tbl);
       const nt=el('div','nota');
       /* Las definiciones de standby y de días-máquina vivían aquí en dos
          parrafadas. Fuera: esto se proyecta ante directivos y ahí no aportan —
