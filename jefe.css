@@ -104,3 +104,8 @@
     .acts-grid{columns:2;column-gap:18px;}
     .acts-grid .resumen-block{break-inside:avoid;}
   }
+
+/* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera ni tiles propios. */
+html.embed .header{display:none;}
+html.embed .tile-link{display:none!important;}
+html.embed .container{padding-top:8px;}
