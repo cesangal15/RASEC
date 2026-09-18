@@ -41,24 +41,42 @@
   .kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
   .kpi.warn .v{color:var(--accent-txt);}
 
-  .tabla-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
-  table{border-collapse:collapse;width:100%;font-size:12.5px;}
-  thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:2;}
-  thead th.rownum,tbody td.rownum{width:52px;min-width:52px;text-align:center;color:var(--muted);cursor:default;}
+  kbd{font-family:'DM Sans',sans-serif;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text);}
+  .tabla-wrap{overflow:auto;max-height:72vh;border:1px solid var(--border);border-radius:12px;background:var(--surface);outline:none;}
+  .tabla-wrap:focus{box-shadow:inset 0 0 0 2px rgba(245,166,35,.35);}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;table-layout:fixed;}
+  thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:3;}
+  thead th.rownum,tbody td.rownum{width:44px;min-width:44px;text-align:center;color:var(--muted);cursor:default;background:var(--surface2);position:sticky;left:0;z-index:1;}
+  thead th.rownum{z-index:4;}
+  tbody td.rownum.acc{left:auto;position:static;background:transparent;}
   tbody td{padding:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);vertical-align:middle;}
-  tbody tr:hover td{background:rgba(255,255,255,.02);}
-  tbody td.cell{position:relative;}
-  tbody td.cell.sel{outline:2px solid var(--accent);outline-offset:-2px;background:rgba(245,166,35,.10);}
-  tbody td .cin{width:100%;border:none;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;padding:7px 9px;outline:none;min-height:34px;}
-  tbody td .cin:focus{background:var(--input-bg);box-shadow:inset 0 0 0 2px var(--accent);}
-  tbody td.deriv{background:rgba(255,255,255,.015);}
-  tbody td.deriv .cin{color:var(--muted);}
-  tbody td.deriv .cin:focus{color:var(--text);}      /* al enfocar (override manual) recupera contraste */
-  tbody td select.cin{appearance:none;-webkit-appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;}
-  tbody td .cin.num{text-align:right;font-variant-numeric:tabular-nums;}
+  /* zebra + columnas calculadas en gris, para distinguir a simple vista */
+  tbody tr:nth-child(even) td{background:rgba(127,127,127,.06);}
+  tbody td.deriv{background:rgba(127,127,127,.11);}
+  tbody tr:nth-child(even) td.deriv{background:rgba(127,127,127,.16);}
+  tbody td.cell{cursor:cell;}
+  tbody td.cell .cv{padding:7px 9px;min-height:34px;line-height:20px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  tbody td.deriv .cv{color:var(--muted);}
+  tbody td.cell.num .cv{text-align:right;font-variant-numeric:tabular-nums;}
+  /* selección y celda activa (como Excel) */
+  tbody td.cell.sel{background:rgba(245,166,35,.14)!important;}
+  tbody td.cell.activa{box-shadow:inset 0 0 0 2px var(--accent);}
+  /* editor que aparece SOLO al editar */
+  .editor{width:100%;border:none;background:var(--input-bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;padding:7px 9px;outline:none;min-height:34px;box-shadow:inset 0 0 0 2px var(--accent);}
+  .editor.num{text-align:right;}
+  select.editor{appearance:none;-webkit-appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;}
+  /* anchos por columna para que quepa el texto (table-layout:fixed) */
+  .col-fecha{width:96px;} .col-descripcion{width:250px;} .col-elemento{width:160px;}
+  .col-centro_de_costo{width:104px;} .col-grupo{width:90px;} .col-capitulo{width:150px;}
+  .col-unidad_funcional{width:56px;} .col-proyecto{width:70px;} .col-abs_inicial,.col-abs_final{width:82px;}
+  .col-liberacion{width:110px;} .col-acta{width:56px;} .col-unidad_medida{width:70px;} .col-orden{width:60px;}
+  .col-largo,.col-espesor,.col-fc,.col-cantidad{width:78px;} .col-observacion{width:200px;}
+  tbody td.col-descripcion .cv,tbody td.col-observacion .cv,tbody td.col-capitulo .cv{white-space:normal;}
   tbody tr.dirty td.rownum{border-left:3px solid var(--info);}
-  tbody tr.sincc td.cell[data-k="descripcion"] .cin,tbody tr.sincc td.cell[data-k="centro_de_costo"] .cin{color:var(--error-txt);}
-  tbody tr.sincc td.cell[data-k="centro_de_costo"]{background:rgba(239,106,92,.10);}
+  tbody tr.sincc td.col-centro_de_costo{background:rgba(239,106,92,.14);}
+  tbody tr.sincc td.col-centro_de_costo .cv{color:var(--error-txt);}
+  .xbtn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:4px 7px;}
+  .xbtn:hover{border-color:var(--error);color:var(--error-txt);}
   td.vacio{padding:26px;text-align:center;color:var(--muted);}
 
   .leyenda{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:11.5px;color:var(--muted);}
