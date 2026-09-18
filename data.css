@@ -14,7 +14,7 @@
   .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
   .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
   .container{max-width:1480px;margin:0 auto;width:100%;padding:14px 16px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
-  .intro,.toolbar,.kpis,.leyenda{flex:0 0 auto;}
+  .intro,.toolbar,.filtros,.kpis,.leyenda{flex:0 0 auto;}
 
   .intro{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
   .intro b{color:var(--text);}
@@ -28,6 +28,13 @@
   .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;}
   .toolbar .f{min-width:130px;}
   .toolbar .f.grow{flex:1;min-width:180px;}
+  /* Fila de filtros de la vista: acta, grupo, capítulo, UF, actividad + buscar. */
+  .filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+  .filtros .f{min-width:96px;}
+  .filtros .f.grow{flex:1;min-width:170px;}
+  .filtros select,.filtros input{font-size:13px;padding:7px 10px;}
+  .filtros select{padding-right:30px;}
+  #btnLimpiar{min-height:38px;align-self:flex-end;}
   .btn{padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;white-space:nowrap;min-height:40px;}
   .btn:hover{border-color:var(--accent);}
   .btn:disabled{opacity:.5;cursor:default;}

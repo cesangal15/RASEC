@@ -92,6 +92,7 @@ function aplicarModelo(d){
   FILAS=(d.filas||[]).map(function(r){ const o=Object.assign({},r); o._key=r.id_registro; o._orig=Object.assign({},r); o._alta=false; o._baja=false; return o; });
   act=anc=editando=null; undoStack=[]; redoStack=[]; actualizarUndoBtns();
   if(document.getElementById('desde').value!==d.desde){ document.getElementById('desde').value=d.desde; document.getElementById('hasta').value=d.hasta; }
+  llenarFiltros();
   pintarCab(); pintar();
   ['btnAlta','btnFill','btnUndo','btnRedo','btnGuardar'].forEach(function(id){ const b=document.getElementById(id); if(b) b.style.display=PUEDE_EDITAR?'inline-block':'none'; });
   actualizarDirty();
@@ -106,9 +107,37 @@ function pintarCab(){
   if(PUEDE_EDITAR) h+='<th class="rownum"></th>';
   document.getElementById('cab').innerHTML=h;
 }
+/* ---------- filtros de la vista (acta, grupo, capítulo, UF, actividad) ---------- */
+const FILTROS=[
+  { id:'fActa',  k:'acta',             num:true },
+  { id:'fGrupo', k:'grupo' },
+  { id:'fCap',   k:'capitulo' },
+  { id:'fUf',    k:'unidad_funcional' },
+  { id:'fAct',   k:'descripcion' },
+];
+// Rellena cada selector con los valores presentes en el rango cargado (conserva la selección si sigue existiendo).
+function llenarFiltros(){
+  FILTROS.forEach(function(f){
+    const sel=document.getElementById(f.id); if(!sel) return;
+    const prev=sel.value, todas=sel.options.length?sel.options[0].textContent:'Todas';
+    const set={};
+    FILAS.forEach(function(r){ if(r._baja) return; const v=String(r[f.k]==null?'':r[f.k]).trim(); if(v) set[v]=true; });
+    let arr=Object.keys(set);
+    arr.sort(f.num ? function(a,b){ return (Number(a)||0)-(Number(b)||0); } : function(a,b){ return a.localeCompare(b,'es'); });
+    sel.innerHTML='<option value="">'+esc(todas)+'</option>'+arr.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
+    sel.value = (arr.indexOf(prev)>=0) ? prev : '';
+  });
+}
+function limpiarFiltros(){
+  FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el) el.value=''; });
+  const q=document.getElementById('q'); if(q) q.value='';
+  pintar();
+}
 function filasVisibles(){
   const q=normNom(document.getElementById('q').value);
+  const fx=FILTROS.map(function(f){ const el=document.getElementById(f.id); return { k:f.k, v: el?el.value:'' }; }).filter(function(x){ return x.v!==''; });
   let vis=FILAS.filter(function(r){ return !r._baja; });
+  fx.forEach(function(x){ vis=vis.filter(function(r){ return String(r[x.k]==null?'':r[x.k]).trim()===x.v; }); });
   if(q) vis=vis.filter(function(r){ return COLS.some(function(c){ return normNom(r[c.k]).indexOf(q)>=0; }); });
   if(ordCol>=0 && COLS[ordCol]){ const k=COLS[ordCol].k; vis=vis.slice().sort(function(a,b){ const va=normNom(a[k]),vb=normNom(b[k]); return (va<vb?-1:va>vb?1:0)*ordDir; }); }
   return vis;
@@ -335,7 +364,9 @@ function altaFila(){
   const r={ _key:'nuevo-'+(++tempSeq), id_registro:'', version:0, fecha:desde, orden:'', grupo:'', centro_de_costo:'', capitulo:'',
     descripcion:'', unidad_funcional:'', proyecto:'', elemento:'', abs_inicial:'', abs_final:'', liberacion:'CAMPO', acta:actaDe(desde),
     unidad_medida:'', largo:'', espesor:1, fc:1, cantidad:'', observacion:'', editado_por:'', editado_ts:'', _alta:true, _baja:false, _orig:{} };
-  FILAS.unshift(r); ordCol=-1; document.getElementById('q').value='';
+  FILAS.unshift(r); ordCol=-1;
+  document.getElementById('q').value='';                          // limpia filtros para que la fila nueva se vea
+  FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el) el.value=''; });
   pintar(); actualizarDirty(); setActiva(0,0,false); beginEdit(0, COLS.findIndex(function(c){return c.k==='descripcion';}));
 }
 function bajaFila(key){
