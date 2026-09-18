@@ -9,6 +9,8 @@
  * CSP D170: nada de onclick/style en línea; data-on-* + funciones globales.
  * ==========================================================================*/
 if(window.TM2Estilos) TM2Estilos.aplicar();
+// Modo EMBED (dentro del Hub del Jefe, V3-10): oculta la cabecera propia. Sin ?embed=1 no cambia nada.
+try{ if(new URLSearchParams(location.search).get('embed')==='1') document.documentElement.classList.add('embed'); }catch(e){}
 
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;         // entorno.js (D168): producción o prueba
 const ROLES_VER   = ['admin','jefe','residente'];   // quién ENTRA a la grilla
@@ -364,6 +366,7 @@ function actualizarDirty(){
   const n=dirtyCambios().length;
   const b=document.getElementById('btnGuardar'); const c=document.getElementById('nDirty');
   if(c) c.textContent=n; if(b) b.disabled = n===0;
+  try{ if(window.parent!==window) window.parent.postMessage({tm2:'dirty', page:'grilla', n:n}, location.origin); }catch(e){}
 }
 async function guardar(btn){
   const cambios=dirtyCambios();

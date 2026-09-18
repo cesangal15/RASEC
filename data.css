@@ -90,3 +90,7 @@
   .toast.err{border-color:var(--error);}
 
   @media(max-width:640px){ .header{padding:12px 16px;} .container{padding:14px 12px;} }
+
+  /* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera propia. */
+  html.embed .header{display:none;}
+  html.embed .container{padding-top:8px;}

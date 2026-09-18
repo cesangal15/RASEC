@@ -1,5 +1,7 @@
 // D170: aplica los data-estilo del marcado ANTES de que corra la lógica de la pantalla (ver tema.js).
 if(window.TM2Estilos) TM2Estilos.aplicar();
+// Modo EMBED (dentro del Hub del Jefe, V3-10): oculta la cabecera propia y los tiles. Sin ?embed=1 no cambia nada.
+try{ if(new URLSearchParams(location.search).get('embed')==='1') document.documentElement.classList.add('embed'); }catch(e){}
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 
 // Estado de la consulta. `cols` trae los índices de columna que informa el backend (con fallback al
@@ -58,16 +60,20 @@ window.onload = function(){
      `menu.html` la siguen llevando, y el portero de la pantalla no se toca. */
   const _tt=document.getElementById('tileTablero');
   if(_tt) _tt.style.display='flex';
-  // Fuente única de edición (D181): revisión de DATA (lo principal) + grilla de catálogos BASE.
+  // Fuente única de edición (D181): panel unificado (Hub) + revisión de DATA + grilla de catálogos BASE.
+  const _th=document.getElementById('tileHub');
+  if(_th && (rol==='jefe' || rol==='admin' || rol==='residente')) _th.style.display='flex';
   const _td=document.getElementById('tileData');
   if(_td && (rol==='jefe' || rol==='admin' || rol==='residente')) _td.style.display='flex';
   const _tg=document.getElementById('tileGrilla');
   if(_tg && (rol==='jefe' || rol==='admin' || rol==='residente')) _tg.style.display='flex';
   // Fecha por defecto = HOY en zona horaria Colombia (D50), nunca toISOString().
   const hoy=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
-  document.getElementById('desde').value=hoy;
-  document.getElementById('hasta').value=hoy;
+  let uDesde=null, uHasta=null; try{ const u=new URLSearchParams(location.search); uDesde=u.get('desde'); uHasta=u.get('hasta'); }catch(e){}
+  document.getElementById('desde').value=uDesde||hoy;
+  document.getElementById('hasta').value=uHasta||uDesde||hoy;
   syncRango();
+  if(uDesde && typeof consultar==='function') consultar();   // embebido con rango → muestra el consolidado de una vez
 };
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
 

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Obra (Hub)</title>
+<meta name="theme-color" content="#f5a623">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="entorno.js"></script>
+<link rel="stylesheet" href="tema.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="hub-jefe.css">
+</head>
+<body>
+<div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
+  <div class="header-left">
+    <div class="label">Fuente única · D181</div>
+    <h1>🏗️ Panel de Obra</h1>
+  </div>
+  <div class="header-user">
+    <span id="userDisplay">—</span>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="barra">
+  <div class="tabs" id="tabs"></div>
+  <div class="fechas" id="fechas">
+    <label>Rango (Resumen · DATA)</label>
+    <input type="date" id="desde">
+    <span class="a">→</span>
+    <input type="date" id="hasta">
+    <button class="btn mini" data-on-click="verFechas()">Ver</button>
+  </div>
+</div>
+
+<div class="marco" id="marco">
+  <div class="cargando" id="cargando">Cargando…</div>
+</div>
+
+<script src="hub-jefe.js"></script>
+</body>
+</html>

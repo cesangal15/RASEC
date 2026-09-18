@@ -11,6 +11,8 @@
  * eventos se enganchan por JS (addEventListener), no inline.
  * ==========================================================================*/
 if(window.TM2Estilos) TM2Estilos.aplicar();
+// Modo EMBED (dentro del Hub del Jefe, V3-10): oculta la cabecera propia. Sin ?embed=1 no cambia nada.
+try{ if(new URLSearchParams(location.search).get('embed')==='1') document.documentElement.classList.add('embed'); }catch(e){}
 
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;
 const ROLES_VER  = ['admin','jefe','residente'];
@@ -134,14 +136,16 @@ function pintar(){
 
 /* ---------- selección / navegación (modo hoja de cálculo) ---------- */
 function tdDe(r,c){ return document.querySelector('#cuerpo td.cell[data-r="'+r+'"][data-c="'+c+'"]'); }
-function setActiva(r,c,extender){
+function setActiva(r,c,extender,scroll){
   if(!VIS.length || !COLS.length) return;
   r=Math.max(0,Math.min(r,VIS.length-1)); c=Math.max(0,Math.min(c,COLS.length-1));
   act={r:r,c:c}; if(!extender||!anc) anc={r:r,c:c};
   aplicaSel();
-  const td=tdDe(r,c); if(td && td.scrollIntoView) td.scrollIntoView({block:'nearest',inline:'nearest'});
+  // Scroll SOLO en navegación por teclado: hacerlo en cada clic desplaza el contenedor entre los dos
+  // clics de un doble-clic y el segundo cae en otra fila.
+  if(scroll){ const td=tdDe(r,c); if(td && td.scrollIntoView) td.scrollIntoView({block:'nearest',inline:'nearest'}); }
 }
-function mover(dr,dc,extender){ if(!act){ setActiva(0,0,false); return; } setActiva(act.r+dr, act.c+dc, extender); }
+function mover(dr,dc,extender){ if(!act){ setActiva(0,0,false,true); return; } setActiva(act.r+dr, act.c+dc, extender, true); }
 function rango(){ if(!act||!anc) return null; return { r0:Math.min(act.r,anc.r), r1:Math.max(act.r,anc.r), c0:Math.min(act.c,anc.c), c1:Math.max(act.c,anc.c) }; }
 function aplicaSel(){
   const rc=rango();
@@ -155,7 +159,7 @@ function aplicaSel(){
 /* ---------- edición ---------- */
 function beginEdit(r,c,inicial){
   if(!PUEDE_EDITAR) return;
-  setActiva(r,c,false);
+  setActiva(r,c,false,false);
   const col=COLS[c], row=VIS[r], td=tdDe(r,c); if(!td) return;
   editando={r:r,c:c};
   let el;
@@ -187,13 +191,13 @@ function commitEdit(dr,dc){
   editando=null;
   if(td){ const ed=td.querySelector('.editor'); if(ed) ed.remove(); const cv=td.querySelector('.cv'); if(cv) cv.style.display=''; td.classList.remove('editando'); }
   setValor(r,c,val);
-  const wrap=document.getElementById('wrap'); if(wrap) wrap.focus();
+  const wrap=document.getElementById('wrap'); if(wrap) wrap.focus({preventScroll:true});
   if(dr||dc) mover(dr,dc,false);
 }
 function cancelEdit(){
   if(!editando) return; const {r,c}=editando; const td=tdDe(r,c); editando=null;
   if(td){ const ed=td.querySelector('.editor'); if(ed) ed.remove(); const cv=td.querySelector('.cv'); if(cv) cv.style.display=''; td.classList.remove('editando'); }
-  const wrap=document.getElementById('wrap'); if(wrap) wrap.focus();
+  const wrap=document.getElementById('wrap'); if(wrap) wrap.focus({preventScroll:true});
 }
 function setValor(r,c,val){
   const row=VIS[r], k=COLS[c].k; if(!row) return;
@@ -216,8 +220,8 @@ function montarEventos(){
     if(ev.target.closest('.editor')) return;   // clic dentro del editor
     ev.preventDefault();
     if(editando) commitEdit(0,0);
-    if(wrap) wrap.focus();
-    setActiva(+td.dataset.r, +td.dataset.c, ev.shiftKey);
+    if(wrap) wrap.focus({preventScroll:true});
+    setActiva(+td.dataset.r, +td.dataset.c, ev.shiftKey, false);
   });
   cuerpo.addEventListener('dblclick', function(ev){ const td=ev.target.closest && ev.target.closest('td.cell'); if(td) beginEdit(+td.dataset.r,+td.dataset.c); });
   wrap.addEventListener('keydown', function(ev){
@@ -314,7 +318,8 @@ function dirtyCambios(){
   });
   return out;
 }
-function actualizarDirty(){ const n=dirtyCambios().length; const b=document.getElementById('btnGuardar'), c=document.getElementById('nDirty'); if(c) c.textContent=n; if(b) b.disabled=n===0; }
+function actualizarDirty(){ const n=dirtyCambios().length; const b=document.getElementById('btnGuardar'), c=document.getElementById('nDirty'); if(c) c.textContent=n; if(b) b.disabled=n===0;
+  try{ if(window.parent!==window) window.parent.postMessage({tm2:'dirty', page:'data', n:n}, location.origin); }catch(e){} }
 async function guardar(btn){
   if(editando) commitEdit(0,0);
   const cambios=dirtyCambios(); if(!cambios.length){ toast('No hay cambios que guardar.'); return; }
@@ -331,4 +336,8 @@ async function guardar(btn){
 
 /* ---------- arranque ---------- */
 montarEventos();
-(function(){ const p=periodoDeHoy(); document.getElementById('desde').value=p.desde; document.getElementById('hasta').value=p.hasta; cargar(p.desde, p.hasta); })();
+(function(){
+  let desde, hasta; try{ const u=new URLSearchParams(location.search); desde=u.get('desde'); hasta=u.get('hasta'); }catch(e){}
+  if(!desde){ const p=periodoDeHoy(); desde=p.desde; hasta=p.hasta; }
+  document.getElementById('desde').value=desde; document.getElementById('hasta').value=hasta||desde; cargar(desde, hasta||desde);
+})();

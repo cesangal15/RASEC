@@ -96,3 +96,7 @@
     .container{padding:14px 12px;}
     thead th,tbody td .cin,tbody td.derivada{font-size:12px;}
   }
+
+  /* Modo EMBED dentro del Hub del Jefe (V3-10). */
+  html.embed .header{display:none;}
+  html.embed .container{padding-top:8px;}
