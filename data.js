@@ -100,12 +100,42 @@ function aplicarModelo(d){
 
 /* ---------- render ---------- */
 let ordCol=-1, ordDir=1;
-function ordenarPor(i){ if(ordCol===i){ ordDir=-ordDir; } else { ordCol=i; ordDir=1; } pintar(); }
+function ordenarPor(i){ if(ordCol===i){ ordDir=-ordDir; } else { ordCol=i; ordDir=1; } pintarCab(); pintar(); }
+
+/* ---------- ancho de columnas (arrastrable, se guarda en el navegador) ---------- */
+const ANCHO_DEF={ fecha:96, orden:60, grupo:90, centro_de_costo:104, capitulo:150, descripcion:250,
+  unidad_funcional:56, proyecto:70, elemento:160, abs_inicial:82, abs_final:82, liberacion:110, acta:56,
+  unidad_medida:70, largo:78, espesor:78, fc:78, cantidad:78, observacion:200 };
+let ANCHOS={};
+try{ ANCHOS=JSON.parse(localStorage.getItem('tm2_data_anchos')||'{}')||{}; }catch(e){ ANCHOS={}; }
+function anchoDe(k){ const v=ANCHOS[k]; return (typeof v==='number'&&v>0)?v : (ANCHO_DEF[k]||90); }
+function guardarAnchos(){ try{ localStorage.setItem('tm2_data_anchos', JSON.stringify(ANCHOS)); }catch(e){} }
+function pintarCols(){
+  const cg=document.getElementById('cols'); if(!cg) return;
+  // La CSP D170 ignora style="" puesto por innerHTML: los <col> van sin estilo y el ancho
+  // se fija por CSSOM (col.style.width), que la CSP sí permite.
+  let total=44, h='<col data-rn="1">';                              // columna #
+  COLS.forEach(function(c){ total+=anchoDe(c.k); h+='<col id="colw-'+c.k+'">'; });
+  if(PUEDE_EDITAR){ total+=40; h+='<col data-acc="1">'; }           // columna del botón ✕
+  cg.innerHTML=h;
+  const rn=cg.querySelector('col[data-rn]'); if(rn) rn.style.width='44px';
+  COLS.forEach(function(c){ const col=document.getElementById('colw-'+c.k); if(col) col.style.width=anchoDe(c.k)+'px'; });
+  const acc=cg.querySelector('col[data-acc]'); if(acc) acc.style.width='40px';
+  const t=document.getElementById('tabla'); if(t) t.style.width=total+'px';
+}
 function pintarCab(){
   let h='<th class="rownum">#</th>';
-  COLS.forEach(function(c,i){ h+='<th data-k="'+c.k+'" data-on-click="ordenarPor('+i+')" title="'+(c.edita?'editable':'calculado')+'">'+esc(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'</th>'; });
+  COLS.forEach(function(c,i){ h+='<th data-k="'+c.k+'" data-on-click="ordenarPor('+i+')" title="'+(c.edita?'editable':'calculado')+'">'+esc(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'<span class="rz" data-k="'+c.k+'" title="Arrastra para el ancho · doble clic para reiniciar"></span></th>'; });
   if(PUEDE_EDITAR) h+='<th class="rownum"></th>';
   document.getElementById('cab').innerHTML=h;
+  pintarCols();
+}
+/* ---------- alto de fila (densidad): compacto / normal / amplio, se guarda en el navegador ---------- */
+function setAlto(v){
+  v=(['compacto','normal','amplio'].indexOf(v)>=0)?v:'compacto';
+  const t=document.getElementById('tabla'); if(t) t.classList.remove('alto-compacto','alto-normal','alto-amplio'); if(t) t.classList.add('alto-'+v);
+  const s=document.getElementById('fAlto'); if(s) s.value=v;
+  try{ localStorage.setItem('tm2_data_alto', v); }catch(e){}
 }
 /* ---------- filtros de la vista (acta, grupo, capítulo, UF, actividad) ---------- */
 const FILTROS=[
@@ -139,7 +169,13 @@ function filasVisibles(){
   let vis=FILAS.filter(function(r){ return !r._baja; });
   fx.forEach(function(x){ vis=vis.filter(function(r){ return String(r[x.k]==null?'':r[x.k]).trim()===x.v; }); });
   if(q) vis=vis.filter(function(r){ return COLS.some(function(c){ return normNom(r[c.k]).indexOf(q)>=0; }); });
-  if(ordCol>=0 && COLS[ordCol]){ const k=COLS[ordCol].k; vis=vis.slice().sort(function(a,b){ const va=normNom(a[k]),vb=normNom(b[k]); return (va<vb?-1:va>vb?1:0)*ordDir; }); }
+  if(ordCol>=0 && COLS[ordCol]){
+    const c=COLS[ordCol], k=c.k, esNum=(c.tipo==='num');
+    vis=vis.slice().sort(function(a,b){
+      if(esNum){ const na=num(a[k]), nb=num(b[k]); return ((na==null?-Infinity:na)-(nb==null?-Infinity:nb))*ordDir; }  // números como en Excel
+      const va=normNom(a[k]), vb=normNom(b[k]); return (va<vb?-1:va>vb?1:0)*ordDir;
+    });
+  }
   return vis;
 }
 function disp(r, c){ const v=r[c.k]; if(v===''||v==null) return ''; if(c.tipo==='num' && c.k==='cantidad') return fmt(v); return String(v); }
@@ -280,6 +316,33 @@ function montarEventos(){
   });
   document.addEventListener('mouseup', function(){ arrastrando=false; });
   cuerpo.addEventListener('dblclick', function(ev){ const td=ev.target.closest && ev.target.closest('td.cell'); if(td) beginEdit(+td.dataset.r,+td.dataset.c); });
+
+  // ---- Ancho de columna: arrastrar la agarradera del encabezado (doble clic la reinicia) ----
+  const cab=document.getElementById('cab'); let rz=null;
+  cab.addEventListener('mousedown', function(ev){
+    const g=ev.target.closest && ev.target.closest('.rz'); if(!g) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const k=g.dataset.k, col=document.getElementById('colw-'+k), th=g.closest('th');
+    // el ancho base sale del <th> (que SÍ se renderiza); el <col> no tiene caja medible
+    rz={ k:k, col:col, x0:ev.clientX, w0:(th?Math.round(th.getBoundingClientRect().width):anchoDe(k)), w:anchoDe(k) };
+    document.body.classList.add('rz-activo');
+  });
+  document.addEventListener('mousemove', function(ev){
+    if(!rz) return;
+    rz.w=Math.max(48, Math.round(rz.w0 + (ev.clientX - rz.x0)));
+    if(rz.col) rz.col.style.width=rz.w+'px';
+  });
+  document.addEventListener('mouseup', function(){
+    if(!rz) return;
+    ANCHOS[rz.k]=rz.w; guardarAnchos(); pintarCols();
+    document.body.classList.remove('rz-activo'); rz=null;
+  });
+  cab.addEventListener('dblclick', function(ev){
+    const g=ev.target.closest && ev.target.closest('.rz'); if(!g) return;
+    ev.preventDefault(); ev.stopPropagation();
+    delete ANCHOS[g.dataset.k]; guardarAnchos(); pintarCols();
+  });
+  cab.addEventListener('click', function(ev){ if(ev.target.closest && ev.target.closest('.rz')) ev.stopPropagation(); }); // el clic en la agarradera no ordena
   wrap.addEventListener('keydown', function(ev){
     if(editando) return;
     if(!act){ if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(ev.key)>=0){ setActiva(0,0,false); ev.preventDefault(); } return; }
@@ -407,6 +470,7 @@ async function guardar(btn){
 
 /* ---------- arranque ---------- */
 montarEventos();
+try{ setAlto(localStorage.getItem('tm2_data_alto')||'compacto'); }catch(e){ setAlto('compacto'); }
 (function(){
   let desde, hasta; try{ const u=new URLSearchParams(location.search); desde=u.get('desde'); hasta=u.get('hasta'); }catch(e){}
   if(!desde){ const p=periodoDeHoy(); desde=p.desde; hasta=p.hasta; }

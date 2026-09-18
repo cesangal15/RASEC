@@ -53,8 +53,13 @@
   kbd{font-family:'DM Sans',sans-serif;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text);}
   .tabla-wrap{overflow:auto;flex:1 1 auto;min-height:220px;border:1px solid var(--border);border-radius:12px;background:var(--surface);outline:none;}
   .tabla-wrap:focus{box-shadow:inset 0 0 0 2px rgba(245,166,35,.35);}
-  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;table-layout:fixed;}
+  table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:12.5px;table-layout:fixed;}
   thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:3;}
+  /* agarradera para arrastrar el ancho de la columna (borde derecho del encabezado) */
+  thead th .rz{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:5;}
+  thead th .rz:hover{background:linear-gradient(90deg,transparent,var(--accent));opacity:.6;}
+  body.rz-activo{cursor:col-resize;user-select:none;}
+  body.rz-activo .tabla-wrap{cursor:col-resize;}
   thead th.rownum,tbody td.rownum{width:44px;min-width:44px;text-align:center;color:var(--muted);cursor:default;background:var(--surface2);position:sticky;left:0;z-index:1;}
   thead th.rownum{z-index:4;}
   tbody td.rownum.acc{left:auto;position:static;background:transparent;}
@@ -75,13 +80,12 @@ tbody td.cell .cv{padding:3px 8px;min-height:22px;line-height:16px;color:var(--t
   .editor{width:100%;border:none;background:var(--input-bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;padding:3px 8px;outline:none;min-height:22px;box-shadow:inset 0 0 0 2px var(--accent);}
   .editor.num{text-align:right;}
   select.editor{appearance:none;-webkit-appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;}
-  /* anchos por columna para que quepa el texto (table-layout:fixed) */
-  .col-fecha{width:96px;} .col-descripcion{width:250px;} .col-elemento{width:160px;}
-  .col-centro_de_costo{width:104px;} .col-grupo{width:90px;} .col-capitulo{width:150px;}
-  .col-unidad_funcional{width:56px;} .col-proyecto{width:70px;} .col-abs_inicial,.col-abs_final{width:82px;}
-  .col-liberacion{width:110px;} .col-acta{width:56px;} .col-unidad_medida{width:70px;} .col-orden{width:60px;}
-  .col-largo,.col-espesor,.col-fc,.col-cantidad{width:78px;} .col-observacion{width:200px;}
-  /* (Excel-like) el texto NO se ajusta: una línea con «…»; el completo se ve al pasar el ratón (title). */
+  /* Los anchos de columna los pone un <colgroup> desde JS (por defecto + lo que arrastres, guardado
+   * en el navegador). El texto NO se ajusta: una línea con «…»; el completo se ve al pasar el ratón (title).
+   * En modo «Amplio» (alto de fila) sí se ajusta para leer descripciones largas. */
+  #tabla.alto-normal tbody td.cell .cv,#tabla.alto-normal .editor{min-height:30px;padding:6px 8px;}
+  #tabla.alto-amplio  tbody td.cell .cv{min-height:46px;padding:9px 8px;white-space:normal;line-height:18px;}
+  #tabla.alto-amplio  .editor{min-height:46px;padding:9px 8px;}
   tbody tr.dirty td.rownum{border-left:3px solid var(--info);}
   tbody tr.sincc td.col-centro_de_costo{background:rgba(239,106,92,.14);}
   tbody tr.sincc td.col-centro_de_costo .cv{color:var(--error-txt);}

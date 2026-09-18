@@ -62,6 +62,9 @@
     <div class="f"><label>UF</label><select id="fUf" data-on-change="pintar()"><option value="">Todas</option></select></div>
     <div class="f grow"><label>Actividad</label><select id="fAct" data-on-change="pintar()"><option value="">Todas</option></select></div>
     <div class="f grow"><label>Buscar</label><input type="text" id="q" placeholder="texto en cualquier columna…" data-on-input="pintar()"></div>
+    <div class="f"><label>Alto de fila</label><select id="fAlto" data-on-change="setAlto(this.value)">
+      <option value="compacto">Compacto</option><option value="normal">Normal</option><option value="amplio">Amplio (texto completo)</option>
+    </select></div>
     <button class="btn" id="btnLimpiar" data-on-click="limpiarFiltros()">✕ Limpiar</button>
   </div>
 
@@ -73,6 +76,7 @@
 
   <div class="tabla-wrap" id="wrap" tabindex="0">
     <table id="tabla">
+      <colgroup id="cols"></colgroup>
       <thead><tr id="cab"></tr></thead>
       <tbody id="cuerpo"><tr><td class="vacio">Elige un rango y pulsa Consultar.</td></tr></tbody>
     </table>
