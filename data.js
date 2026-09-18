@@ -229,14 +229,27 @@ function actualizarUndoBtns(){ const u=document.getElementById('btnUndo'), r=doc
 /* ---------- teclado + eventos de la tabla ---------- */
 function montarEventos(){
   const cuerpo=document.getElementById('cuerpo'), wrap=document.getElementById('wrap');
+  let arrastrando=false;                       // selección de rango con el ratón (como Excel)
   cuerpo.addEventListener('mousedown', function(ev){
+    if(ev.button!==0) return;                  // solo botón izquierdo
     const td=ev.target.closest && ev.target.closest('td.cell'); if(!td) return;
     if(ev.target.closest('.editor')) return;   // clic dentro del editor
     ev.preventDefault();
     if(editando) commitEdit(0,0);
     if(wrap) wrap.focus({preventScroll:true});
     setActiva(+td.dataset.r, +td.dataset.c, ev.shiftKey, false);
+    if(!ev.shiftKey) arrastrando=true;         // empieza el arrastre desde esta celda (ancla)
   });
+  // Arrastrar con el ratón extiende la selección desde el ancla, igual que en Excel.
+  cuerpo.addEventListener('mousemove', function(ev){
+    if(!arrastrando) return;
+    if((ev.buttons&1)===0){ arrastrando=false; return; }   // el botón se soltó fuera de la tabla
+    const td=ev.target.closest && ev.target.closest('td.cell'); if(!td) return;
+    const r=+td.dataset.r, c=+td.dataset.c;
+    if(act && r===act.r && c===act.c) return;              // misma celda: nada que redibujar
+    setActiva(r, c, true, false);                          // extiende (mantiene el ancla)
+  });
+  document.addEventListener('mouseup', function(){ arrastrando=false; });
   cuerpo.addEventListener('dblclick', function(ev){ const td=ev.target.closest && ev.target.closest('td.cell'); if(td) beginEdit(+td.dataset.r,+td.dataset.c); });
   wrap.addEventListener('keydown', function(ev){
     if(editando) return;
