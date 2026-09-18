@@ -614,7 +614,7 @@ function flFiltroGrupo(g){ FL.grupo=g||'todos'; renderFlota(); }   // D183
 function renderFlotaCabecera(){
   const cont=document.getElementById('flotaCont'), puede=PUEDE_FLOTA;
   // El resumen se calcula SIN el filtro de búsqueda: es el estado de la obra, no de la búsqueda.
-  // (El filtro de FRENTE sí aplica: «cuántas máquinas tengo hoy» se pregunta por proyecto.)
+  // (Los filtros de FRENTE y de GRUPO sí aplican, D183: «cuántas máquinas tengo hoy» se acota por proyecto y disciplina.)
   const qGuardada=FL.q; FL.q=''; const g=flGrupos(); FL.q=qGuardada;
   const sinFicha=Object.keys(g.hoy).reduce(function(n,t){ return n+g.hoy[t].filter(function(x){ return x.e.con_ficha===false; }).length; },0);
   let html='';

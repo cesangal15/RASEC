@@ -332,8 +332,11 @@ export async function flotaFilas_(c){
       filas=await c.sql`SELECT id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente, grupo
         FROM maquinas WHERE obra_id=${OBRA_ID} ORDER BY id_maquina, fecha_ingreso`;
     }catch(err){
-      // D183: si la columna `grupo` aún no existe (migración 003 sin aplicar), no romper la flota:
-      // se relee sin `grupo` (queda '' → tierras). El alta con grupo sí necesita la columna.
+      // D183: SOLO si la columna `grupo` aún no existe (migración 003 sin aplicar) caemos a un SELECT sin
+      // `grupo` (queda '' → tierras). Cualquier OTRO error (blip transitorio, timeout) se RELANZA: si no,
+      // un fallo pasajero devolvería toda la flota como 'tierras' en silencio y ocultaría el problema de raíz.
+      const m=String(err&&err.message||err);
+      if(!(err&&err.code==='42703') && !/column\s+"?grupo"?\s+does not exist/i.test(m)) throw err;
       filas=await c.sql`SELECT id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente
         FROM maquinas WHERE obra_id=${OBRA_ID} ORDER BY id_maquina, fecha_ingreso`;
     }

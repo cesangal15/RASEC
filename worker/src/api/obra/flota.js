@@ -125,7 +125,7 @@ export async function flotaEstancias_(c, fecha){
     if(!r.tipo) avisos.push(_est_(r)+': sin tipo; no lleva producción y solo sale en la flota del parte.');
     else if(MAQ_TIPOS_FLOTA.indexOf(r.tipo)<0) avisos.push(_est_(r)+': tipo "'+r.tipo+'" no está en la lista conocida; no lleva producción y solo sale en la flota del parte.');
     if(FLOTA_FRENTES.indexOf(r.frente)<0) avisos.push(_est_(r)+': frente "'+r.frenteCrudo+'" no se reconoce ('+FLOTA_FRENTES.join(' · ')+'); ese equipo no lo espera ningún parte.');
-    if(FLOTA_GRUPOS.indexOf(r.grupo)<0) avisos.push(_est_(r)+': grupo "'+r.grupoCrudo+'" no se reconoce ('+FLOTA_GRUPOS.join(' · ')+'); se trata como tierras.');
+    if(FLOTA_GRUPOS.indexOf(r.grupo)<0) avisos.push(_est_(r)+': grupo "'+r.grupoCrudo+'" no se reconoce ('+FLOTA_GRUPOS.join(' · ')+'); corrígelo a tierras o drenajes.');
     const ficha=fichas[normMaqClave_(r.id)]||null;
     const progHoja=parseFloat(r.prog);
     const e={ id_maquina:r.id, tipo:r.tipo, propiedad:r.propiedad, notas:r.nota, fila:r.fila,
@@ -342,17 +342,28 @@ export async function flotaGuardar(c, body, ses){
   const fichaMsg=await fichaParteAsegurar_(c, id, tipo, ficha);
   const extra = (tipoAviso ? ' '+tipoAviso : '') + (fichaMsg ? ' '+fichaMsg : '');
 
-  await c.sql.begin(async function(sql){
-    if(op==='corregir'){
-      // Puede cambiar id_maquina o fecha_ingreso (columnas de la PK): se actualizan en la transacción.
-      await sql`UPDATE maquinas SET id_maquina=${id}, tipo=${tipo}, horas_prog=${prog===''?null:prog}, propiedad=${propiedad},
-        fecha_ingreso=${ing}, fecha_retiro=${ret||null}, notas=${notas}, frente=${frente}, grupo=${grupo}
-        WHERE obra_id=${OBRA_ID} AND id_maquina=${cid} AND fecha_ingreso=${cing}`;
-    }else{
-      await sql`INSERT INTO maquinas (obra_id, id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente, grupo)
-        VALUES (${OBRA_ID}, ${id}, ${tipo}, ${prog===''?null:prog}, ${propiedad}, ${ing}, ${ret||null}, ${notas}, ${frente}, ${grupo})`;
-    }
-  });
+  try{
+    await c.sql.begin(async function(sql){
+      if(op==='corregir'){
+        // Puede cambiar id_maquina o fecha_ingreso (columnas de la PK): se actualizan en la transacción.
+        await sql`UPDATE maquinas SET id_maquina=${id}, tipo=${tipo}, horas_prog=${prog===''?null:prog}, propiedad=${propiedad},
+          fecha_ingreso=${ing}, fecha_retiro=${ret||null}, notas=${notas}, frente=${frente}, grupo=${grupo}
+          WHERE obra_id=${OBRA_ID} AND id_maquina=${cid} AND fecha_ingreso=${cing}`;
+      }else{
+        await sql`INSERT INTO maquinas (obra_id, id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente, grupo)
+          VALUES (${OBRA_ID}, ${id}, ${tipo}, ${prog===''?null:prog}, ${propiedad}, ${ing}, ${ret||null}, ${notas}, ${frente}, ${grupo})`;
+      }
+    });
+  }catch(err){
+    // D183: si la columna `grupo` aún no existe (Worker desplegado antes de aplicar la migración 003),
+    // el INSERT/UPDATE con `grupo` falla (42703). Mensaje claro en vez de un 500 opaco. La ficha del Parte
+    // ya quedó asegurada (fichaParteAsegurar_ arriba); no es huérfana dañina (equivale a un equipo con ficha
+    // sin estancia) y se adopta sola al reintentar el alta tras aplicar 003.
+    const m=String(err&&err.message||err);
+    if(err&&err.code==='42703' && /grupo/i.test(m))
+      return json(c, { ok:false, error:'Falta aplicar la migración 003_grupo_flota.sql en la base de datos (columna «grupo» de la flota). Avisa a soporte; la estancia no se guardó.' });
+    throw err;
+  }
 
   if(op==='corregir')
     return fin({ op:'corregir', id_maquina:id, fecha_ingreso:ing, mensaje:'Estancia de '+id+' corregida.'+extra });

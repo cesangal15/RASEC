@@ -95,7 +95,7 @@ def norm_frente(v):
 def norm_grupo(v):
     """Grupo/disciplina de la máquina (D183): tierras | drenajes. Vacío = tierras (DEFAULT de la columna).
     Igual que normGrupo_ del Worker: odt/odl colapsan a 'drenajes'."""
-    s = (v or "").strip().lower().replace(" ", "")
+    s = (v or "").strip().lower().replace(" ", "").replace("_", "-").replace("/", "-").replace("·", "-")
     if s in ("", "tierras", "tierra"):
         return "tierras"
     if s in ("drenajes", "drenaje", "dren", "odt", "odl", "odt-odl", "odl-odt"):
