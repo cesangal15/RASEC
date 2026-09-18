@@ -415,6 +415,12 @@ Pantalla `grilla.html`; se entra desde el **menú del admin** y desde el **Panel
   la superficie cómoda para quien no debe entrar al Table Editor crudo.
 - **Lo que NO cambia:** editar un subtramo aquí afecta a los **envíos futuros** (la derivación BASE→DATA se
   materializa al enviar, no reescribe filas de `data` ya guardadas), igual que hoy.
+- **Probarla antes del corte, sin tocar nada** (recomendado): `node tools/sandbox/servidor.mjs` levanta un
+  **sandbox 100% local** —Worker real + Postgres en memoria + las pantallas— sembrado con los **subtramos
+  reales** del Excel. Abre `http://127.0.0.1:8099`, entra con `admin`/`1234` (o `jefe`/`clave-jefe`) y usa la
+  grilla de verdad (edición, solapes, `if_version`, roles). No toca Supabase ni Cloudflare; todo en memoria.
+  Detalle en `tools/sandbox/README.md`. La pantalla habla con el Worker local porque `auth.js` apunta la API
+  al mismo origen **solo en localhost** (en producción no se activa).
 
 ## 14. Maestro del reporte diario por CONEXIÓN VIVA (Power Query) — 4.01 · V3-09 · D181
 
