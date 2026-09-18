@@ -4,7 +4,8 @@
    * Solo tokens de tema.css → claro/oscuro. CSP D170: sin inline.
    * ==========================================================================*/
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:0 0 40px;}
+  html,body{height:100%;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
   .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;gap:10px;}
   .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
   .header-left h1{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;}
@@ -12,7 +13,8 @@
   .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
   .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
   .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
-  .container{max-width:1480px;margin:0 auto;padding:18px 16px;}
+  .container{max-width:1480px;margin:0 auto;width:100%;padding:14px 16px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  .intro,.toolbar,.kpis,.leyenda{flex:0 0 auto;}
 
   .intro{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
   .intro b{color:var(--text);}
@@ -42,7 +44,7 @@
   .kpi.warn .v{color:var(--accent-txt);}
 
   kbd{font-family:'DM Sans',sans-serif;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text);}
-  .tabla-wrap{overflow:auto;max-height:72vh;border:1px solid var(--border);border-radius:12px;background:var(--surface);outline:none;}
+  .tabla-wrap{overflow:auto;flex:1 1 auto;min-height:220px;border:1px solid var(--border);border-radius:12px;background:var(--surface);outline:none;}
   .tabla-wrap:focus{box-shadow:inset 0 0 0 2px rgba(245,166,35,.35);}
   table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px;table-layout:fixed;}
   thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:3;}
@@ -91,6 +93,8 @@
 
   @media(max-width:640px){ .header{padding:12px 16px;} .container{padding:14px 12px;} }
 
-  /* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera propia. */
+  /* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera propia; la tabla ocupa TODA la altura. */
   html.embed .header{display:none;}
-  html.embed .container{padding-top:8px;}
+  html.embed .intro{display:none;}
+  html.embed .leyenda{display:none;}
+  html.embed .container{max-width:none;padding:8px 12px;}

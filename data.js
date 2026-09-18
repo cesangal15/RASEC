@@ -46,6 +46,7 @@ let COLS=[], FILAS=[], VIS=[];
 let ACT_BY={}, EL_BY={}, PERIODOS=[], LIB_OPC=[''];
 let tempSeq=0;
 let act=null, anc=null, editando=null;    // celda activa / ancla del rango / edición en curso
+let undoStack=[], redoStack=[];            // deshacer / rehacer (Ctrl+Z / Ctrl+Y)
 const DRIVERS = ['fecha','descripcion','elemento','largo','espesor','fc'];
 
 /* ---------- rango por defecto: periodo 16→15 que contiene hoy ---------- */
@@ -89,10 +90,10 @@ function aplicarModelo(d){
   document.getElementById('dlDesc').innerHTML=(d.actividades||[]).map(function(a){ return '<option value="'+esc(a.descripcion)+'">'+esc((a.uf||'')+' · '+a.cc)+'</option>'; }).join('');
   document.getElementById('dlElem').innerHTML=(d.subtramos||[]).map(function(e){ return '<option value="'+esc(e.elemento)+'">'+esc(e.uf||'')+'</option>'; }).join('');
   FILAS=(d.filas||[]).map(function(r){ const o=Object.assign({},r); o._key=r.id_registro; o._orig=Object.assign({},r); o._alta=false; o._baja=false; return o; });
-  act=anc=editando=null;
+  act=anc=editando=null; undoStack=[]; redoStack=[]; actualizarUndoBtns();
   if(document.getElementById('desde').value!==d.desde){ document.getElementById('desde').value=d.desde; document.getElementById('hasta').value=d.hasta; }
   pintarCab(); pintar();
-  ['btnAlta','btnFill','btnGuardar'].forEach(function(id){ const b=document.getElementById(id); if(b) b.style.display=PUEDE_EDITAR?'inline-block':'none'; });
+  ['btnAlta','btnFill','btnUndo','btnRedo','btnGuardar'].forEach(function(id){ const b=document.getElementById(id); if(b) b.style.display=PUEDE_EDITAR?'inline-block':'none'; });
   actualizarDirty();
 }
 
@@ -190,6 +191,8 @@ function commitEdit(dr,dc){
   const val=el?el.value:'';
   editando=null;
   if(td){ const ed=td.querySelector('.editor'); if(ed) ed.remove(); const cv=td.querySelector('.cv'); if(cv) cv.style.display=''; td.classList.remove('editando'); }
+  const row0=VIS[r], k0=COLS[c]&&COLS[c].k;
+  if(row0 && k0 && String(row0[k0]==null?'':row0[k0])!==String(val)) pushUndo();
   setValor(r,c,val);
   const wrap=document.getElementById('wrap'); if(wrap) wrap.focus({preventScroll:true});
   if(dr||dc) mover(dr,dc,false);
@@ -211,6 +214,17 @@ function refrescarFila(r){
   COLS.forEach(function(c,ci){ const cv=tr.querySelector('td[data-c="'+ci+'"] .cv'); if(cv){ const d=disp(row,c); cv.textContent=d; cv.title=d; } });
   tr.classList.toggle('dirty', esDirty(row)); tr.classList.toggle('sincc', !String(row.centro_de_costo||'').trim());
 }
+
+/* ---------- deshacer / rehacer (Ctrl+Z / Ctrl+Y) ----------
+ * Una pila de instantáneas de FILAS (JSON) antes de cada acción que muta: editar,
+ * pegar, rellenar, vaciar, añadir y eliminar fila. Ctrl+Z restaura la anterior; Ctrl+Y
+ * (o Ctrl+Shift+Z) rehace. No se toca el deshacer nativo cuando el foco está en un campo. */
+function snapEstado(){ return JSON.stringify(FILAS); }
+function pushUndo(){ undoStack.push(snapEstado()); if(undoStack.length>80) undoStack.shift(); redoStack.length=0; actualizarUndoBtns(); }
+function restaurar(js){ FILAS=JSON.parse(js); act=anc=editando=null; pintar(); actualizarDirty(); actualizarUndoBtns(); }
+function deshacer(){ if(!undoStack.length){ toast('Nada que deshacer.'); return; } redoStack.push(snapEstado()); restaurar(undoStack.pop()); toast('Deshecho.'); }
+function rehacer(){ if(!redoStack.length){ toast('Nada que rehacer.'); return; } undoStack.push(snapEstado()); restaurar(redoStack.pop()); toast('Rehecho.'); }
+function actualizarUndoBtns(){ const u=document.getElementById('btnUndo'), r=document.getElementById('btnRedo'); if(u) u.disabled=!undoStack.length; if(r) r.disabled=!redoStack.length; }
 
 /* ---------- teclado + eventos de la tabla ---------- */
 function montarEventos(){
@@ -243,6 +257,16 @@ function montarEventos(){
   });
   document.addEventListener('copy', function(ev){ if(editando) return; if(!enGrid()) return; const t=tsvSeleccion(); if(t==null) return; ev.preventDefault(); ev.clipboardData.setData('text/plain', t); });
   document.addEventListener('paste', function(ev){ if(editando || !PUEDE_EDITAR) return; if(!enGrid()) return; const t=(ev.clipboardData||window.clipboardData).getData('text'); if(!t) return; ev.preventDefault(); pegar(t); });
+  document.addEventListener('keydown', function(ev){
+    const ctrl=ev.ctrlKey||ev.metaKey; if(!ctrl) return;
+    const k=(ev.key||'').toLowerCase(); if(k!=='z' && k!=='y') return;
+    if(editando) return;                                   // respeta el deshacer nativo del editor abierto
+    const ae=document.activeElement;                       // ni el de los campos (fecha, búsqueda)
+    if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    if(!PUEDE_EDITAR) return;
+    ev.preventDefault();
+    if(k==='y' || (k==='z' && ev.shiftKey)) rehacer(); else deshacer();
+  });
 }
 function enGrid(){ const w=document.getElementById('wrap'); return !!(w && (document.activeElement===w || (act && w.contains(document.activeElement)))); }
 
@@ -260,6 +284,7 @@ function copiarSel(btn){
 function pegar(txt){
   if(!act) return;
   const grid=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(function(l){ return l.split('\t'); });
+  pushUndo();
   let n=0;
   for(let dr=0;dr<grid.length;dr++){ const r=act.r+dr; if(r>=VIS.length) break;
     for(let dc=0;dc<grid[dr].length;dc++){ const c=act.c+dc; if(c>=COLS.length) break; setValor(r,c,grid[dr][dc].trim()); n++; } }
@@ -267,6 +292,7 @@ function pegar(txt){
 }
 function rellenar(){
   const rc=rango(); if(!rc){ toast('Elige la celda o el rango a rellenar.', true); return; }
+  pushUndo();
   let n=0;
   if(rc.r0===rc.r1){ // una fila seleccionada → rellena su valor a TODAS las de abajo (por columna del rango)
     for(let c=rc.c0;c<=rc.c1;c++){ const base=VIS[rc.r0][COLS[c].k]; for(let r=rc.r0+1;r<VIS.length;r++){ setValor(r,c,base); n++; } }
@@ -275,7 +301,7 @@ function rellenar(){
   }
   if(n) toast('Rellenadas '+n+' celda(s).');
 }
-function borrarSeleccion(){ const rc=rango(); if(!rc) return; let n=0;
+function borrarSeleccion(){ const rc=rango(); if(!rc) return; pushUndo(); let n=0;
   for(let r=rc.r0;r<=rc.r1;r++) for(let c=rc.c0;c<=rc.c1;c++){ setValor(r,c,''); n++; } if(n) toast('Vaciadas '+n+' celda(s).'); }
 
 /* ---------- KPIs ---------- */
@@ -291,6 +317,7 @@ function esDirty(r){ if(r._alta||r._baja) return true; return COLS.some(function
 /* ---------- alta / baja ---------- */
 function filaPorKey(k){ return FILAS.filter(function(r){ return String(r._key)===String(k); })[0]||null; }
 function altaFila(){
+  pushUndo();
   const desde=document.getElementById('desde').value||hoyBogota();
   const r={ _key:'nuevo-'+(++tempSeq), id_registro:'', version:0, fecha:desde, orden:'', grupo:'', centro_de_costo:'', capitulo:'',
     descripcion:'', unidad_funcional:'', proyecto:'', elemento:'', abs_inicial:'', abs_final:'', liberacion:'CAMPO', acta:actaDe(desde),
@@ -300,8 +327,8 @@ function altaFila(){
 }
 function bajaFila(key){
   const r=filaPorKey(key); if(!r) return;
-  if(r._alta){ FILAS=FILAS.filter(function(x){ return x._key!==key; }); }
-  else { if(!confirm('¿Eliminar esta fila de DATA ('+(r.descripcion||r.id_registro)+')?')) return; r._baja=true; }
+  if(r._alta){ pushUndo(); FILAS=FILAS.filter(function(x){ return x._key!==key; }); }
+  else { if(!confirm('¿Eliminar esta fila de DATA ('+(r.descripcion||r.id_registro)+')?')) return; pushUndo(); r._baja=true; }
   pintar(); actualizarDirty();
 }
 

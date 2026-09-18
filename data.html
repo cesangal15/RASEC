@@ -36,7 +36,8 @@
     calculadas (se corrigen a mano solo si metes una actividad nueva que no está en el catálogo).
     <br><b>Cómo se usa (como Excel):</b> un clic <b>selecciona</b> la celda; muévete con las <kbd>flechas</kbd>;
     marca un rango con <kbd>Shift</kbd>+flechas o Shift+clic; <b>edita</b> con doble clic, <kbd>Enter</kbd> o
-    escribiendo; <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copia/pega y <kbd>Ctrl</kbd>+<kbd>D</kbd> rellena hacia abajo; <kbd>Supr</kbd> vacía.
+    escribiendo; <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copia/pega y <kbd>Ctrl</kbd>+<kbd>D</kbd> rellena hacia abajo; <kbd>Supr</kbd> vacía;
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace y <kbd>Ctrl</kbd>+<kbd>Y</kbd> rehace.
     <span id="soloLectura" class="badge warn" data-estilo="display:none;">Tu rol entra en SOLO LECTURA</span>
   </div>
 
@@ -46,7 +47,9 @@
     <button class="btn primario" data-on-click="consultar()">Consultar →</button>
     <div class="f grow"><label>Buscar</label><input type="text" id="q" placeholder="actividad, CC, subtramo…" data-on-input="pintar()"></div>
     <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;">＋ Fila</button>
-    <button class="btn" id="btnFill" data-on-click="rellenarAbajo()" data-estilo="display:none;">Rellenar ↓</button>
+    <button class="btn" id="btnFill" data-on-click="rellenar()" data-estilo="display:none;">Rellenar ↓</button>
+    <button class="btn" id="btnUndo" data-on-click="deshacer()" data-estilo="display:none;" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+    <button class="btn" id="btnRedo" data-on-click="rehacer()" data-estilo="display:none;" title="Rehacer (Ctrl+Y)" disabled>↷ Rehacer</button>
     <button class="btn" data-on-click="copiarSel(this)">📋 Copiar</button>
     <button class="btn" data-on-click="recargar()">↻ Recargar</button>
     <button class="btn primario" id="btnGuardar" data-on-click="guardar(this)" data-estilo="display:none;" disabled>💾 Guardar <span class="n" id="nDirty">0</span></button>

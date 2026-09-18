@@ -97,6 +97,9 @@
     thead th,tbody td .cin,tbody td.derivada{font-size:12px;}
   }
 
-  /* Modo EMBED dentro del Hub del Jefe (V3-10). */
+  /* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera; la tabla ocupa más alto. */
   html.embed .header{display:none;}
-  html.embed .container{padding-top:8px;}
+  html.embed .intro{display:none;}
+  html.embed .leyenda{display:none;}
+  html.embed .container{max-width:none;padding:8px 12px;}
+  html.embed .tabla-wrap{max-height:calc(100vh - 210px);overflow:auto;}
