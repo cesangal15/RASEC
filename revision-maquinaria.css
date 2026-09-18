@@ -171,6 +171,11 @@
     .rp-fila input[type=text],.rp-fila input[placeholder=PR]{grid-column:1 / -1;}
   }
 
+  /* Apartado «reportaron sin estar en la flota» (sep-2026). */
+  .aviso-fuera{border-color:rgba(245,166,35,0.5);background:rgba(245,166,35,0.08);}
+  .aviso-fuera .chips-fuera{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;margin-bottom:12px;line-height:1.6;}
+  .aviso-fuera .chips-fuera b{color:var(--accent-txt);}
+
   /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
   .u-mb8{margin-bottom:8px;}
   .u-mt10{margin-top:10px;}

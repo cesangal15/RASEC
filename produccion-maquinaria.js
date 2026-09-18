@@ -54,6 +54,8 @@ window.onload = function(){
     document.getElementById('tabProd').style.display='none';
     verTab('flota');
   }
+  // Enlace directo a la flota (revisión → «Abrir Maquinaria › Flota», o el flujo de alta): #flota abre esa pestaña.
+  else if((location.hash||'').toLowerCase().indexOf('flota')>=0){ verTab('flota'); }
 };
 
 // Pestañas. La flota se pide la PRIMERA vez que se abre: quien solo viene a ajustar producción no
@@ -487,6 +489,7 @@ function flFormDatos(titulo){
     '<div class="f wide"><label>Notas</label><input type="text" value="'+esc(FL.vals.notas||'')+'" data-on-input="flSet(\'notas\',this.value)"></div>'+
     '</div>'+
     '<div class="fhint"><b>Frente</b>: a qué proyecto atiende (el Parte Digital espera cada día a los de <b>'+esc((FLOTA.frentesParte||[]).join(' · '))+'</b>). '+
+      'Ojo: hoy la flota <b>no separa tierras de drenajes</b> — una máquina de drenajes (p. ej. el turbo del ing. de drenajes) puesta en UF1-UF2 se pedirá a diario en el parte de tierras. Si no debe pedirse a diario, avísalo (separar por grupo está pendiente). '+
       '<b>Placa · medidor · proveedor</b> son la ficha del equipo en <code>PARTE_EQUIPOS</code>: si no existe se crea con el alta (sin ficha el QR no abre el parte); si ya existe, solo se rellena lo que esté en blanco. '+
       'Horas programadas en blanco = se deducen de la propiedad: <b>5 h</b> alquilada · <b>6.4 h</b> propia (D10); solo cuentan para los tipos que producen. '+
       'El código es el del <b>parte</b> (MO003, CR008, VOL048, RT-02 con guion): si no se reconoce, se avisa antes de guardar.'+
@@ -536,10 +539,13 @@ async function flEnviar(payload){
     }
     if(d && d.ok){
       const m=d.mensaje||'Flota actualizada.';
+      const esAlta=(payload.op==='alta'), altaCod=d.id_maquina||payload.id_maquina, altaFrente=payload.frente||'';
       FL.op=''; FL.clave=null; FL.vals={};
       aplicarFlota(d);                       // la respuesta ya trae la hoja releída
       FL.msg={ tipo:'ok', txt:'✓ '+m };
       renderFlota();
+      // Tras un alta/reingreso: «¿incluir en el parte diario?» → se muestra el QR de una vez para imprimirlo.
+      if(esAlta && altaCod) flAbrirQR(altaCod, { frente:altaFrente, enParte:(FLOTA.frentesParte||[]).indexOf(altaFrente)>=0 });
       return;
     }
     FL.msg={ tipo:'err', txt:(d&&d.error)||'Respuesta inesperada del servidor.' };
@@ -724,6 +730,75 @@ function renderFlotaLista(){
 }
 function flTogglePleg(k){ FL.pleg[k]=!FL.pleg[k]; renderFlotaLista(); }
 
+/* ============ QR del parte digital, dentro de la app (sep-2026) ============
+ * El QR de cada equipo es solo la URL de SU formulario público (parte.html?eq=CODIGO) codificada en imagen;
+ * el teléfono la abre con la cámara (misma URL que genera tools/generar_qr.py). Aquí se puede ver, copiar,
+ * abrir y descargar el QR de la máquina que sea, cuando sea, sin depender del script del PC. La imagen la
+ * dibuja una librería local (vendor/qrcode.js, MIT); si no cargó (sin señal) se cae al enlace copiable. */
+const PARTE_URL_BASE='https://tm2.galca.app';   // dominio de producción (igual que URL_BASE de generar_qr.py)
+function parteLinkDe(cod){ return PARTE_URL_BASE+'/parte.html?eq='+encodeURIComponent(String(cod||'').trim()); }
+// Datos de la máquina para el panel (la estancia vigente, si no la más reciente).
+function flInfoMaquina(cod){
+  const ls=(FLOTA.estancias||[]).filter(function(e){ return e.id_maquina===cod; });
+  return ls.filter(function(e){ return e.vigente; })[0] || ls.filter(function(e){ return e.valida; })[0] || ls[0] || null;
+}
+// modoAlta: null (botón QR normal) | {frente, enParte} (tras un alta/reingreso: confirma la inclusión en el parte).
+function flAbrirQR(codigo, modoAlta){
+  const cod=String(codigo||'').trim(); if(!cod) return;
+  const info=flInfoMaquina(cod), url=parteLinkDe(cod);
+  const enParte = modoAlta ? modoAlta.enParte : ((FLOTA.frentesParte||[]).indexOf(info?flFrenteDe(info):'')>=0);
+  const sinFicha = info && info.con_ficha===false;
+  let html='';
+  if(modoAlta){
+    html+='<div class="qr-ok">✓ <b>'+esc(cod)+'</b> quedó en la flota'+(modoAlta.frente?(' · frente '+esc(modoAlta.frente)):'')+'.</div>';
+    html+= enParte
+      ? '<div class="qr-inc">Desde hoy el <b>Parte Digital la espera cada día</b>: ya puede reportar por su QR. Imprímelo y pégalo en la cabina.</div>'
+      : '<div class="qr-inc warn">El frente <b>'+esc(modoAlta.frente||'')+'</b> no entra al parte diario de tierras (UF1-UF2). La máquina queda en la flota; su QR abre igual, pero no se le pedirá parte a diario.</div>';
+  }
+  html+='<div class="qr-tit">▦ QR del parte · <b>'+esc(cod)+'</b>'+(info&&info.tipo?' <span class="qr-tipo">'+esc(info.tipo)+'</span>':'')+'</div>';
+  html+='<div class="qr-lienzo" id="qrLienzo"></div>';
+  if(sinFicha) html+='<div class="qr-inc warn">⚠ Esta máquina <b>no tiene ficha</b> en el catálogo del parte (placa/medidor): el QR abrirá con error hasta que corrijas la estancia y guardes placa y medidor.</div>';
+  html+='<div class="qr-link"><input type="text" id="qrUrl" value="'+esc(url)+'" readonly aria-label="enlace del parte"></div>';
+  html+='<div class="qr-acts">'+
+          '<button class="btn-action" data-on-click="flCopiarEnlace()">📋 Copiar enlace</button>'+
+          '<a class="btn-action" href="'+esc(url)+'" target="_blank" rel="noopener">Abrir parte ↗</a>'+
+          '<button class="btn-action primary" id="qrDl" data-on-click="flDescargarQR(\''+esc(cod)+'\')">⬇ Descargar PNG</button>'+
+        '</div>';
+  html+='<div class="qr-pie">La imagen apunta a <b>'+esc(PARTE_URL_BASE)+'</b> (producción). Para las etiquetas en vinilo se sigue usando la herramienta de QR del PC (<code>tools/generar_qr.py</code>).</div>';
+  document.getElementById('qrCuerpo').innerHTML=html;
+  document.getElementById('qrModal').classList.remove('hidden');
+  // Dibuja el QR (o cae al enlace si la librería no cargó).
+  const lienzo=document.getElementById('qrLienzo');
+  if(typeof QRCode!=='undefined' && lienzo){
+    try{ new QRCode(lienzo, { text:url, width:232, height:232, correctLevel:QRCode.CorrectLevel.H }); }
+    catch(err){ lienzo.innerHTML='<div class="qr-fail">No se pudo generar la imagen del QR. Usa el enlace de abajo o la herramienta del PC.</div>'; }
+  }else if(lienzo){
+    lienzo.innerHTML='<div class="qr-fail">No cargó el generador de QR (¿sin señal?). Copia el enlace de abajo o genera la etiqueta con la herramienta del PC.</div>';
+    const dl=document.getElementById('qrDl'); if(dl) dl.disabled=true;
+  }
+}
+function flCerrarQR(){ document.getElementById('qrModal').classList.add('hidden'); document.getElementById('qrCuerpo').innerHTML=''; }
+function flQRFondo(e, el){ if(e.target===el) flCerrarQR(); }
+function flCopiarEnlace(){
+  const inp=document.getElementById('qrUrl'); if(!inp) return;
+  const txt=inp.value;
+  const ok=function(){ const b=document.querySelector('#qrCuerpo .qr-acts button'); if(b){ const t=b.textContent; b.textContent='✓ Copiado'; setTimeout(function(){ b.textContent=t; }, 1500); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok, function(){ inp.select(); document.execCommand&&document.execCommand('copy'); ok(); }); }
+  else { inp.select(); try{ document.execCommand('copy'); }catch(e){} ok(); }
+}
+function flDescargarQR(cod){
+  const cnv=document.querySelector('#qrLienzo canvas');
+  const img=document.querySelector('#qrLienzo img');   // Android viejo: la librería usa <img> con data URL
+  let href='';
+  try{ href = cnv ? cnv.toDataURL('image/png') : (img && img.src ? img.src : ''); }catch(err){ href = (img&&img.src)||''; }
+  if(!href){ alert('La imagen del QR no está disponible (sin señal). Usa el enlace o la herramienta del PC.'); return; }
+  try{
+    const a=document.createElement('a');
+    a.href=href; a.download='QR_'+String(cod||'equipo').replace(/[^A-Za-z0-9_-]/g,'')+'.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }catch(err){ alert('No se pudo descargar la imagen.'); }
+}
+
 /* Una fila de máquina. `modo` decide qué columnas y qué botones:
  *   hoy   — propiedad · prog · desde        → Dar de baja / Corregir
  *   llega — tipo · prog · llega el          → Corregir
@@ -739,6 +814,9 @@ function flFila(e, puede, modo, ls){
     if(modo==='fuera') acts.push('<button class="btn-mini" data-on-click="flAbrir(\'reingreso\','+arg+')">↩ Reingreso</button>');
     acts.push('<button class="btn-mini" data-on-click="flAbrir(\'corregir\','+arg+')">Corregir</button>');
   }
+  // QR del parte digital: disponible para cualquiera que llegue a la flota (también solo lectura). Se puede
+  // generar/imprimir el QR de la máquina que sea, cuando sea (pedido del dueño, sep-2026).
+  if(modo!=='rota') acts.push('<button class="btn-mini qr" data-on-click="flAbrirQR(\''+esc(id)+'\')">▦ QR</button>');
   if(nEst>1) acts.push('<button class="btn-mini'+(FL.hist[id]?' on':'')+'" data-on-click="flToggleHist(\''+esc(id)+'\')" '+
                        'title="Estancias anteriores de esta máquina">'+(FL.hist[id]?'▾':'▸')+' '+nEst+' estancias</button>');
 

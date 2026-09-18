@@ -55,6 +55,14 @@
   </div>
 </div>
 
+<div class="qr-modal hidden" id="qrModal" data-on-click="flQRFondo(event,this)">
+  <div class="qr-box">
+    <button class="qr-x" data-on-click="flCerrarQR()" aria-label="Cerrar">✕</button>
+    <div id="qrCuerpo"></div>
+  </div>
+</div>
+
+<script src="vendor/qrcode.js"></script>
 <script src="produccion-maquinaria.js"></script>
 </body>
 </html>

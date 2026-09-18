@@ -469,7 +469,7 @@ function parteSugerencias_(tipo){
  * La hoja crece ~60 filas/día; para "último final del equipo", DUPLICADO y CC_INUSUAL no hace falta
  * traer las 27 columnas, solo 6. Se lee cada columna pedida entera (N×1) y se arma un objeto por fila
  * con esas claves y `_row`. Memo en `_memoRango` con prefijo de la hoja (así `invalidarHoja_` lo limpia). */
-const PARTE_COLS_CLAVE = ['id_registro','estado','fecha','codigo','final','hora_de','hora_a','centro_coste','timestamp'];
+const PARTE_COLS_CLAVE = ['id_registro','estado','fecha','codigo','reporte_num','final','hora_de','hora_a','centro_coste','timestamp'];
 function parteCols_(nombre, cols){
   const clave=nombre+'|cols|'+cols.join(',');
   if(_memoRango.hasOwnProperty(clave)) return _memoRango[clave];
@@ -506,8 +506,18 @@ function parteFilasCompletas_(nombre, rows){
 }
 function parteEstadoDe_(r){ return parteTexto_(r.estado).toLowerCase() || 'pendiente'; }
 
-// Último `final` registrado del equipo (filas no descartadas; la más reciente por fecha, hora_a y
-// timestamp). Respaldo: `ultimo_final_manual`/`ultimo_final` de PARTE_EQUIPOS (arranque del primer día).
+// Minuto de FIN del turno tratando el cruce de medianoche (D181 — turno noche). Un turno 18:00→06:00 se
+// reporta en el día que EMPIEZA, así que su hora_a (06:00) es del día siguiente y ocurrió DESPUÉS de la
+// entrada: +24 h para que ordene como lo último. Sin hora_de válida (o sin cruce) = minuto de hora_a tal cual.
+function parteFinMin_(horaDe, horaA){
+  const mA=parteHoraMin_(horaA); if(mA<0) return -1;
+  const mDe=parteHoraMin_(horaDe);
+  return (mDe>=0 && mA<mDe) ? mA+1440 : mA;
+}
+
+// Último `final` registrado del equipo (filas no descartadas; la más reciente por fecha, hora de FIN y
+// timestamp; D181: la hora de fin cruza medianoche por parteFinMin_, así el turno noche cuenta como el más
+// reciente). Respaldo: `ultimo_final_manual`/`ultimo_final` de PARTE_EQUIPOS (arranque del primer día).
 function parteUltimoFinal_(equipo){
   const cod=parteNormCod_(equipo.codigo);
   let mejor=null;
@@ -515,7 +525,7 @@ function parteUltimoFinal_(equipo){
     if(parteNormCod_(r.codigo)!==cod || parteEstadoDe_(r)==='descartado') return;
     const fin=parteNum_(r.final); if(fin===null) return;
     const ts = (r.timestamp && typeof r.timestamp==='object' && typeof r.timestamp.getTime==='function') ? r.timestamp.getTime() : 0;
-    const cand={ final:fin, fecha:r.fecha, hora_a:parteHoraStr_(r.hora_a), min:parteHoraMin_(r.hora_a), ts:ts, id_registro:parteTexto_(r.id_registro), origen:'bandeja' };
+    const cand={ final:fin, fecha:r.fecha, hora_a:parteHoraStr_(r.hora_a), min:parteFinMin_(r.hora_de, r.hora_a), ts:ts, id_registro:parteTexto_(r.id_registro), origen:'bandeja' };
     if(!mejor || cand.fecha>mejor.fecha || (cand.fecha===mejor.fecha && (cand.min>mejor.min || (cand.min===mejor.min && cand.ts>=mejor.ts)))) mejor=cand;
   });
   if(mejor) return { final:mejor.final, fecha:mejor.fecha, hora_a:mejor.hora_a, origen:'bandeja', id_registro:mejor.id_registro };
@@ -573,7 +583,9 @@ function parteExpandirReparto_(tramos){
     if(Math.abs(suma-100)>0.5) return { error:'Tramo '+n+': los porcentajes del reparto suman '+parteRedondea_(suma)+' % y deben sumar 100 %. No se guardó nada.' };
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const total=(ini!==null && fin!==null) ? fin-ini : null;
-    const mDe=parteHoraMin_(t.hora_de), mA=parteHoraMin_(t.hora_a), conHoras=(mDe>=0 && mA>=0 && mA>mDe);
+    const mDe=parteHoraMin_(t.hora_de); let mA=parteHoraMin_(t.hora_a);
+    if(mA>=0 && mDe>=0 && mA<mDe) mA+=1440;   // D181: turno que cruza medianoche, el fin es del día siguiente
+    const conHoras=(mDe>=0 && mA>=0 && mA>mDe);
     let acum=0, iniAct=ini, minAct=mDe;
     for(let j=0;j<rep.length;j++){
       const r=rep[j], pct=parteNum_(r.pct), ultimo=(j===rep.length-1); acum+=pct;
@@ -646,11 +658,18 @@ function parteReporte(body, ses){
   const ultimo=parteUltimoFinal_(q);
   const idsEx={}; hist.forEach(function(r){ const id=parteTexto_(r.id_registro); if(id) idsEx[id]=1; });
   const ccRecientes={}; let hayHistorialCC=false;
+  // D181 (turno noche): nº de parte físico → días ya registrados (no descartados). El mismo parte con OTRA
+  // fecha ≈ mismo turno subido dos veces (riesgo del turno que cruza medianoche) → PARTE_REPETIDO.
+  const reportesPrevios={};
   hist.forEach(function(r){
     if(parteEstadoDe_(r)==='descartado' || !r.fecha) return;
-    const cc=normTexto(r.centro_coste); if(!cc || parteEsPseudoCC_(cc)) return;
-    hayHistorialCC=true;
-    if(r.fecha>=parteFechaMasDias_(hoy, -PARTE_DIAS_CC_RECIENTE)) ccRecientes[cc]=1;
+    const cc=normTexto(r.centro_coste);
+    if(cc && !parteEsPseudoCC_(cc)){
+      hayHistorialCC=true;
+      if(r.fecha>=parteFechaMasDias_(hoy, -PARTE_DIAS_CC_RECIENTE)) ccRecientes[cc]=1;
+    }
+    const rn=parteTexto_(r.reporte_num);
+    if(rn) (reportesPrevios[rn]=reportesPrevios[rn]||{})[r.fecha]=1;
   });
 
   const sh=getSheet('PARTE_BANDEJA', PARTE_BANDEJA_HEADERS), ts=new Date();
@@ -686,6 +705,8 @@ function parteReporte(body, ses){
     const dup = !!hDe && (hist.some(function(r){ return parteEstadoDe_(r)!=='descartado' && r.fecha===fecha && parteHoraStr_(r.hora_de)===hDe; })
              || filas.some(function(f){ return f[3]===fecha && parteHoraStr_(f[15])===hDe; }));
     if(dup) alertas.push('DUPLICADO');
+    // Mismo nº de parte físico ya subido en OTRO día (D181): posible doble carga del mismo turno noche.
+    if(reporte && reportesPrevios[reporte] && !reportesPrevios[reporte][fecha]) alertas.push('PARTE_REPETIDO');
     if(sinCC) alertas.push('SIN_CC');
     else if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');
     if(sinMedidor) alertas.push('SIN_MEDIDOR');
