@@ -36,6 +36,7 @@ import { drenajesCatalogo, tramosCatalogo, enviarData, VAL_OBRA_ENVIAR } from '.
 import { maquinariaProduccion, maquinariaProduccionGuardar, VAL_OBRA_MAQPROD, VAL_OBRA_AJUSTE, VAL_OBRA_NUEVA } from './obra/maquinaria.js';
 import { guardarReporte, validarReporte_, VAL_OBRA_CANTIDAD } from './obra/reporte.js';
 import { gridLeer, gridGuardar, VAL_OBRA_GRID, VAL_OBRA_GRID_CAMBIO } from './obra/grilla.js';  // V3-08 / D181
+import { dataGridLeer, dataGridGuardar, VAL_DATA_GRID, VAL_DATA_GRID_CAMBIO } from './obra/datagrid.js';  // V3-08b / D181
 
 /* ---------- esquemas D166 que solo usa el router (Codigo.gs L2953–L2964) ---------- */
 const VAL_OBRA_FLOTA = {
@@ -61,6 +62,8 @@ function validarPayloadObra_(c, body){
     f = valEsquema_(body, VAL_OBRA_FLOTA, '') || valEsquema_(body.clave, VAL_OBRA_FLOTA_CLAVE, 'clave');
   } else if(a==='grid_guardar'){
     f = valEsquema_(body, VAL_OBRA_GRID, '') || valListaDe_(body.cambios, VAL_OBRA_GRID_CAMBIO, 'cambios', 500);   // V3-08 / D181
+  } else if(a==='data_grid_guardar'){
+    f = valEsquema_(body, VAL_DATA_GRID, '') || valListaDe_(body.cambios, VAL_DATA_GRID_CAMBIO, 'cambios', 1000);  // V3-08b / D181
   } else if(a==='tablero_guardar'){
     const foto=body.foto;
     if(foto!==undefined && (foto===null || typeof foto!=='object' || Array.isArray(foto))) f={ campo:'foto', motivo:'debe ser un objeto' };
@@ -95,6 +98,7 @@ export async function obraDoGet_(c, params){
   if(a==='drenajes')             return drenajesCatalogo(c);
   if(a==='tramos')               return tramosCatalogo(c);       // D104: subtramos del eje para el selector
   if(a==='grid')                 return gridLeer(c, params);     // V3-08 / D181: grilla editable de catálogos
+  if(a==='data_grid')            return dataGridLeer(c, params); // V3-08b / D181: revisión editable de DATA
   if(a==='maquinas')             return maquinasCatalogo(c, params); // D138: flota vigente en una fecha
   if(a==='flota')                return flotaLeer(c, params);        // D139: estancias + avisos de la pestaña Flota
   if(a==='acumulado_drenajes')   return acumuladoDrenajes(c, params);
@@ -120,6 +124,7 @@ export async function obraDoPost_(c, body){
   if(body.action==='maquinaria_produccion')  return maquinariaProduccionGuardar(c, body, ses);
   if(body.action==='flota_guardar')          return flotaGuardar(c, body, ses);   // D139: alta/baja de máquinas
   if(body.action==='grid_guardar')           return gridGuardar(c, body, ses);    // V3-08 / D181: guarda la grilla
+  if(body.action==='data_grid_guardar')      return dataGridGuardar(c, body, ses); // V3-08b / D181: guarda DATA
   if(body.action==='tablero_guardar')        return tableroGuardar(c, body, ses); // D158: publica la foto del tablero
   return guardarReporte(c, body, ses);
 }

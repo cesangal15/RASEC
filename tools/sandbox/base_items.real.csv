@@ -1,0 +1,157 @@
+cc,descripcion,unidad,capitulo,grupo,uf,proyecto,orden
+3701.01.01,Demolición de edificaciones,m2,DEMOLICIONES Y REUBICACIONES,TIERRAS,UF1,3701,1
+3701.01.02,Demolición de Estructuras,m3,DEMOLICIONES Y REUBICACIONES,DRENAJES Y ESTRUCTURAS,UF1,3701,2
+3701.01.03,Remoción de alcantarillas,m,DEMOLICIONES Y REUBICACIONES,DRENAJES Y ESTRUCTURAS,UF1,3701,3
+3701.01.04,Remoción de cercas de alambre,m,DEMOLICIONES Y REUBICACIONES,TIERRAS,UF1,3701,4
+3701.01.05,Cercas de alambre de púas con postes de concreto,m,DEMOLICIONES Y REUBICACIONES,TIERRAS,UF1,3701,5
+3701.02.01,Desmonte y limpieza en bosque,Ha,EXPLANACIONES,TIERRAS,UF1,3701,6
+3701.02.02,Aprovechamiento forestal,Und,EXPLANACIONES,TIERRAS,UF1,3701,7
+3701.02.03,Desmonte y limpieza en zonas no boscosas,Ha,EXPLANACIONES,TIERRAS,UF1,3701,8
+3701.02.04,Excavación en roca de la explanación y canales,m3,EXPLANACIONES,TIERRAS,UF1,3701,9
+3701.02.05,Excavaciones en material común APROVECHABLE,m3,EXPLANACIONES,TIERRAS,UF1,3701,10
+3701.02.05,Excavaciones en material común NO APROVECHABLE,m3,EXPLANACIONES,TIERRAS,UF1,3701,11
+3701.02.06,Excavación en material común de préstamos,m3,EXPLANACIONES,TIERRAS,UF1,3701,12
+3701.02.07,Terraplenes (solo conformación),m3,EXPLANACIONES,TIERRAS,UF1,3701,13
+3701.02.08,Conformación y disposición de sobrantes (incluye obras de adecuación),m3,EXPLANACIONES,TIERRAS,UF1,3701,14
+3701.02.09,Caminos y accesos,m3,EXPLANACIONES,TIERRAS,UF1,3701,15
+3701.02.10,Transporte de la excavación entre cien metros (100 m) y mil metros (1.000 m),m3-Estación,TRANSPORTE EXPLANACIONES,TIERRAS,UF1,3701,16
+3701.02.11,Transporte de la excavación de la explanación distancias mayores de mil metros (1000 m),m3-km,TRANSPORTE EXPLANACIONES,TIERRAS,UF1,3701,17
+3701.03.01,Subbase Granular,m3,"BASES, SUBBASES Y AFIRMADOS",TIERRAS,UF1,3701,18
+3701.03.03,Base granular estabilizada con cemento (No incluye cemento),m3,"BASES, SUBBASES Y AFIRMADOS",TIERRAS,UF1,3701,19
+3701.03.05,Cemento hidráulico para base tratada con cemento,kg,"BASES, SUBBASES Y AFIRMADOS",TIERRAS,UF1,3701,20
+3701.03.02,Transporte de subbase granular,m3-km,TRANSPORTE FIRMES,TIERRAS,UF1,3701,21
+3701.03.04,Transporte de base granular,m3-km,TRANSPORTE FIRMES,TIERRAS,UF1,3701,22
+3701.04.01,Riego de imprimación con emulsión asfáltica,m2,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF1,3701,23
+3701.04.02,Riego de Liga con emulsión asfáltica,m2,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF1,3701,24
+3701.04.03,Mezcla densa en caliente tipo MDC-25 Base Asfáltica,m3,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF1,3701,25
+3701.04.04,Mezcla asfáltica modificada con grano de caucho,m3,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF1,3701,26
+3701.04.05,Mezcla asfáltica tipo MDC-19 modificada con polímero tipo III,m3,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF1,3701,27
+3701.11.02,Limpieza entrega fin de obra,m3-km,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF1,3701,28
+3701.04.06,Transporte de mezcla asfáltica,m3-km,TRANSPORTE FIRMES,TIERRAS,UF1,3701,29
+3701.06.01,Excavaciones varias sin clasicar,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,30
+3701.06.02,Rellenos con material seleccionado,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,31
+3701.06.03,Material granular drenante,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,32
+3701.06.04,Acero de refuerzo Fy=420 Mpa.,kg,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,33
+3701.06.05,Tubería de Concreto Reforzado de 900mm de diámetro interior (Tipo III),m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,34
+3701.06.06,Tubería de Concreto Reforzado de 1200 mm de diámetro interior (Tipo III),m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,35
+3701.06.07,"Concreto clase 14 MPA (solados, estructuras)",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,36
+3701.06.08,"Concreto clase 21 MPA (atraques, cabezales)",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,37
+3701.06.09,"Concreto clase  28 MPA (encoles, descoles, box, sumideros)",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,38
+3701.06.10,Cinta pvc para juntas,m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,39
+3701.06.11,Piedra pegada en concreto de 17.5 Mpa para canales de adecuación y protección de descoles (e=10cm),m2,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,40
+3701.06.12,Geodrén vial h=1 m con tubería de 100 mm,m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,41
+3701.06.13,Geodrén planar h=1 m,m2,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,42
+3701.06.14,"Box abovedados galvanizados - Incluye tornilleria 1,5x1,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,43
+3701.06.15,Box abovedados galvanizados - Incluye tornilleria 2x1,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,44
+3701.06.16,Box abovedados galvanizados - Incluye tornilleria 4x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,45
+3701.06.18,Box abovedados galvanizados - Incluye tornilleria 5x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,46
+3701.06.19,Box abovedados galvanizados - Incluye tornilleria 2x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,47
+3701.06.20,"Box abovedados galvanizados - Incluye tornilleria 3x1,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,48
+3701.06.21,"Box abovedados galvanizados - Incluye tornilleria 3,5x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,49
+3701.06.22,"Box abovedados galvanizados - Incluye tornilleria 4x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,50
+3701.06.23,"Box abovedados galvanizados - Incluye tornilleria 2,5x2",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,51
+3701.06.24,Box abovedados galvanizados - Incluye tornilleria 3x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,52
+3701.06.25,"Box abovedados galvanizados - Incluye tornilleria 2,5x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,53
+3701.06.27,"Box abovedados galvanizados - Incluye tornilleria 5x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,54
+3701.06.28,"Box abovedados galvanizados - Incluye tornilleria 4x3,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,55
+3701.06.29,Box abovedados galvanizados - Incluye tornilleria 3x3,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,56
+3701.06.32,Box abovedados galvanizados - Incluye tornilleria 4x4,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,57
+3701.06.33,Box abovedados galvanizados - Incluye tornilleria 1x1,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF1,3701,58
+3701.07.01,Excavaciones varias sin clasicar ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,59
+3701.07.02,Material granular drenante ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,60
+3701.07.03,Rellenos con material seleccionado ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,61
+3701.07.04,Cuneta de concreto vaciado en situ; no incluye la conformación del sitio de apoyo. (21 Mpa),m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,62
+3701.07.05,Concreto clase 28 MPA (Sumideros) ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,63
+3701.07.06,Concreto clase 21 MPA (disipadores de energía) ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,64
+3701.07.07,Concreto clase 14 MPA (Cunetas de terraza y coronación),m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,65
+3701.07.07,Concreto clase 14 MPA (solados) ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,66
+3701.07.08,Acero de refuerzo Fy=420 Mpa. ODL,kg,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,67
+3701.07.09,Malla electrosoldada de refuerzo fy 490 Mpa (6mm / 15x15) ODL,kg,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,68
+3701.07.10,Tubería de Concreto Reforzado de 600 mm de diámetro interior ODL,m,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,69
+3701.07.11,Geodrén vial h=1 m con tubería de 100 mm ODL,m,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF1,3701,70
+3701.09.01,Protección de taludes con tierra orgánica,m2,PROTECCIÓN DE TALUDES,TIERRAS,UF1,3701,71
+3701.09.02,Protección de taludes con productos enrollados para control de erosión con biomanto,m2,PROTECCIÓN DE TALUDES,TIERRAS,UF1,3701,72
+3702.01.01,Demolición de edificaciones,m2,DEMOLICIONES Y REUBICACIONES,TIERRAS,UF2,3702,73
+3702.01.02,Demolición de Estructuras,m3,DEMOLICIONES Y REUBICACIONES,DRENAJES Y ESTRUCTURAS,UF2,3702,74
+3702.01.03,Remoción de alcantarillas,m,DEMOLICIONES Y REUBICACIONES,DRENAJES Y ESTRUCTURAS,UF2,3702,75
+3702.01.04,Remoción de cercas de alambre,m,DEMOLICIONES Y REUBICACIONES,TIERRAS,UF2,3702,76
+3702.01.05,Cercas de alambre de púas con postes de concreto,m,DEMOLICIONES Y REUBICACIONES,TIERRAS,UF2,3702,77
+3702.02.01,Desmonte y limpieza en bosque,Ha,EXPLANACIONES,TIERRAS,UF2,3702,78
+3702.02.02,Aprovechamiento forestal,Und,EXPLANACIONES,TIERRAS,UF2,3702,79
+3702.02.03,Desmonte y limpieza en zonas no boscosas,Ha,EXPLANACIONES,TIERRAS,UF2,3702,80
+3702.02.04,Excavación en roca de la explanación y canales,m3,EXPLANACIONES,TIERRAS,UF2,3702,81
+3702.02.05,Excavaciones en material común APROVECHABLE,m3,EXPLANACIONES,TIERRAS,UF2,3702,82
+3702.02.05,Excavaciones en material común NO APROVECHABLE,m3,EXPLANACIONES,TIERRAS,UF2,3702,83
+3702.02.06,Excavación en material común de préstamos,m3,EXPLANACIONES,TIERRAS,UF2,3702,84
+3702.02.07,Terraplenes (solo conformación),m3,EXPLANACIONES,TIERRAS,UF2,3702,85
+3702.02.08,Conformación y disposición de sobrantes (incluye obras de adecuación),m3,EXPLANACIONES,TIERRAS,UF2,3702,86
+3702.02.09,Caminos y accesos,m3,EXPLANACIONES,TIERRAS,UF2,3702,87
+3702.02.10,Transporte de la excavación entre cien metros (100 m) y mil metros (1.000 m),m3-Estación,TRANSPORTE EXPLANACIONES,TIERRAS,UF2,3702,88
+3702.02.11,Transporte de la excavación de la explanación distancias mayores de mil metros (1000 m),m3-km,TRANSPORTE EXPLANACIONES,TIERRAS,UF2,3702,89
+3702.03.01,Subbase Granular,m3,"BASES, SUBBASES Y AFIRMADOS",TIERRAS,UF2,3702,90
+3702.03.03,Base granular estabilizada con cemento (No incluye cemento),m3,"BASES, SUBBASES Y AFIRMADOS",TIERRAS,UF2,3702,91
+3702.03.05,Cemento hidráulico para base tratada con cemento,kg,"BASES, SUBBASES Y AFIRMADOS",TIERRAS,UF2,3702,92
+3702.03.02,Transporte de subbase granular,m3-km,TRANSPORTE FIRMES,TIERRAS,UF2,3702,93
+3702.03.04,Transporte de base granular,m3-km,TRANSPORTE FIRMES,TIERRAS,UF2,3702,94
+3702.04.01,Riego de imprimación con emulsión asfáltica,m2,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF2,3702,95
+3702.04.02,Riego de Liga con emulsión asfáltica,m2,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF2,3702,96
+3702.04.03,Mezcla densa en caliente tipo MDC-25 Base Asfáltica,m3,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF2,3702,97
+3702.04.04,Mezcla asfáltica modificada con grano de caucho,m3,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF2,3702,98
+3702.04.05,Mezcla asfáltica tipo MDC-19 modificada con polímero tipo III,m3,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF2,3702,99
+3702.11.02,Limpieza entrega fin de obra,m3-km,PAVIMENTOS ASFALTICOS,PAVIMENTOS,UF2,3702,100
+3702.04.06,Transporte de mezcla asfáltica,m3-km,TRANSPORTE FIRMES,TIERRAS,UF2,3702,101
+3702.06.01,Excavaciones varias sin clasicar,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,102
+3702.06.02,Rellenos con material seleccionado,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,103
+3702.06.03,Material granular drenante,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,104
+3702.06.04,Acero de refuerzo Fy=420 Mpa.,kg,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,105
+3702.06.05,Tubería de Concreto Reforzado de 900mm de diámetro interior (Tipo III),m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,106
+3702.06.06,Tubería de Concreto Reforzado de 1200 mm de diámetro interior (Tipo III),m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,107
+3702.06.07,"Concreto clase 14 MPA (solados, estructuras)",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,108
+3702.06.08,"Concreto clase 21 MPA (atraques, cabezales)",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,109
+3702.06.09,"Concreto clase  28 MPA (encoles, descoles, box, sumideros)",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,110
+3702.06.10,Cinta pvc para juntas,m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,111
+3702.06.11,Piedra pegada en concreto de 17.5 Mpa para canales de adecuación y protección de descoles (e=10cm),m2,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,112
+3702.06.12,Geodrén vial h=1 m con tubería de 100 mm,m,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,113
+3702.06.13,Geodrén planar h=1 m,m2,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,114
+3702.06.14,"Box abovedados galvanizados - Incluye tornilleria 1,5x1,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,115
+3702.06.15,Box abovedados galvanizados - Incluye tornilleria 2x1,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,116
+3702.06.16,Box abovedados galvanizados - Incluye tornilleria 4x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,117
+3702.06.18,Box abovedados galvanizados - Incluye tornilleria 5x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,118
+3702.06.19,Box abovedados galvanizados - Incluye tornilleria 2x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,119
+3702.06.20,"Box abovedados galvanizados - Incluye tornilleria 3x1,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,120
+3702.06.21,"Box abovedados galvanizados - Incluye tornilleria 3,5x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,121
+3702.06.22,"Box abovedados galvanizados - Incluye tornilleria 4x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,122
+3702.06.23,"Box abovedados galvanizados - Incluye tornilleria 2,5x2",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,123
+3702.06.24,Box abovedados galvanizados - Incluye tornilleria 3x2,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,124
+3702.06.25,"Box abovedados galvanizados - Incluye tornilleria 2,5x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,125
+3702.06.27,"Box abovedados galvanizados - Incluye tornilleria 5x2,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,126
+3702.06.28,"Box abovedados galvanizados - Incluye tornilleria 4x3,5",m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,127
+3702.06.29,Box abovedados galvanizados - Incluye tornilleria 3x3,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,128
+3702.06.32,Box abovedados galvanizados - Incluye tornilleria 4x4,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,129
+3702.06.33,Box abovedados galvanizados - Incluye tornilleria 1x1,m3,DRENAJE TRANSVERSAL,DRENAJES Y ESTRUCTURAS,UF2,3702,130
+3702.07.01,Excavaciones varias sin clasicar ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,131
+3702.07.02,Material granular drenante ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,132
+3702.07.03,Rellenos con material seleccionado ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,133
+3702.07.04,Cuneta de concreto vaciado en situ; no incluye la conformación del sitio de apoyo. (21 Mpa),m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,134
+3702.07.05,Concreto clase 28 MPA (Sumideros)  ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,135
+3702.07.06,Concreto clase 21 MPA (disipadores de energía) ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,136
+3702.07.07,Concreto clase 14 MPA (Cunetas de terraza y coronación),m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,137
+3702.07.07,Concreto clase 14 MPA (solados) ODL,m3,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,138
+3702.07.08,Acero de refuerzo Fy=420 Mpa. ODL,kg,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,139
+3702.07.09,Malla electrosoldada de refuerzo fy 490 Mpa (6mm / 15x15) ODL,kg,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,140
+3702.07.10,Tubería de Concreto Reforzado de 600 mm de diámetro interior ODL,m,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,141
+3702.07.11,Geodrén vial h=1 m con tubería de 100 mm ODL,m,DRENAJE LONGITUDINAL,DRENAJES Y ESTRUCTURAS,UF2,3702,142
+3702.09.01,Protección de taludes con tierra orgánica,m2,PROTECCIÓN DE TALUDES,TIERRAS,UF2,3702,143
+3702.09.02,Protección de taludes con productos enrollados para control de erosión con biomanto,m2,PROTECCIÓN DE TALUDES,TIERRAS,UF2,3702,144
+3701.02.07,Pedraplen compacto,m3,EXPLANACIONES,TIERRAS,UF1,3701,145
+3702.02.07,Pedraplen compacto,m3,EXPLANACIONES,TIERRAS,UF2,3702,146
+3701.05.02,"Geodren planar h=0,5 m MSR",M,ESTRUCTURAS,TIERRAS,UF1,3701,147
+3701.05.03,"Tubería PVC d=4"" para drenaje perforada MSR",M,ESTRUCTURAS,TIERRAS,UF1,3701,148
+3701.05.04,Relleno para muros de tierra MSR,M3,ESTRUCTURAS,TIERRAS,UF1,3701,149
+3701.05.05,Material granular drenante MSR,M3,ESTRUCTURAS,TIERRAS,UF1,3701,150
+3701.05.06,Geomalla tejida uniaxial de 55 kn/m (método md),M2,ESTRUCTURAS,TIERRAS,UF1,3701,151
+3701.05.07,Geomalla tejida uniaxial de 115 kn/m (método md),M2,ESTRUCTURAS,TIERRAS,UF1,3701,152
+3701.05.08,Geotextil tejido uniaxial de 1480 n (método grab md),M2,ESTRUCTURAS,TIERRAS,UF1,3701,153
+3701.05.09,Geotextil tejido uniaxial de 2890 n (método grab md),M2,ESTRUCTURAS,TIERRAS,UF1,3701,154
+3701.05.10,Geodrén planar h=1 m MSR,M,ESTRUCTURAS,TIERRAS,UF1,3701,155
+3701.05.11,Geobolsas de geotextil (propybag) MSR,UND,ESTRUCTURAS,TIERRAS,UF1,3701,156

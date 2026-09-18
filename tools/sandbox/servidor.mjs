@@ -81,6 +81,38 @@ async function cargarBaseElementosCsv(sql, archivo){
   }
   return n;
 }
+const numOrNull = (v) => (v===undefined || v===null || String(v).trim()==='') ? null : Number(String(v).replace(',','.'));
+async function cargarBaseItemsCsv(sql, archivo){
+  const filas = parseCsv(fs.readFileSync(archivo, 'utf8'));
+  await sql`DELETE FROM base_items WHERE obra_id='tm2sur'`;
+  let n = 0;
+  for (const f of filas){
+    if (!(f.cc||'').trim()) continue;
+    await sql`INSERT INTO base_items (obra_id, cc, descripcion, unidad, capitulo, grupo, uf, proyecto, orden)
+      VALUES ('tm2sur', ${f.cc}, ${f.descripcion||''}, ${f.unidad||''}, ${f.capitulo||''}, ${f.grupo||''}, ${f.uf||''}, ${f.proyecto||''}, ${parseInt(f.orden,10)||0})
+      ON CONFLICT (obra_id, cc, descripcion) DO NOTHING`;
+    n++;
+  }
+  return n;
+}
+async function cargarDataCsv(sql, archivo){
+  const filas = parseCsv(fs.readFileSync(archivo, 'utf8'));
+  await sql`DELETE FROM data WHERE obra_id='tm2sur'`;
+  let n = 0;
+  for (const f of filas){
+    if (!(f.fecha||'').trim() || !(f.id_registro||'').trim()) continue;
+    await sql`INSERT INTO data (obra_id, fecha, orden, grupo, centro_de_costo, capitulo, descripcion, unidad_funcional,
+        proyecto, elemento, abs_inicial, abs_final, liberacion, acta, unidad_medida, largo, espesor, fc, cantidad,
+        observacion, id_registro, "timestamp", capataz, rol, actividad, pk_inicial, pk_final, area, clima)
+      VALUES ('tm2sur', ${f.fecha}, ${f.orden||''}, ${f.grupo||''}, ${f.centro_de_costo||''}, ${f.capitulo||''}, ${f.descripcion||''},
+        ${f.unidad_funcional||''}, ${f.proyecto||''}, ${f.elemento||''}, ${f.abs_inicial||''}, ${f.abs_final||''}, ${f.liberacion||''},
+        ${f.acta||''}, ${f.unidad_medida||''}, ${numOrNull(f.largo)}, ${numOrNull(f.espesor)}, ${numOrNull(f.fc)}, ${numOrNull(f.cantidad)},
+        ${f.observacion||''}, ${f.id_registro}, now(), '', '', ${f.descripcion||''}, ${f.abs_inicial||''}, ${f.abs_final||''}, '', '')
+      ON CONFLICT (obra_id, id_registro) DO NOTHING`;
+    n++;
+  }
+  return n;
+}
 
 function servirEstatico(res, urlPath){
   let p = urlPath.split('?')[0];
@@ -113,6 +145,10 @@ async function main(){
     if (!fs.existsSync(csv)){ console.error('No existe el CSV de subtramos: ' + csv); process.exit(2); }
     const n = await cargarBaseElementosCsv(sql, csv);
     console.log('· Subtramos: ' + n + ' filas reales cargadas de ' + path.relative(REPO, csv));
+    const csvItems = path.join(AQUI, 'base_items.real.csv');
+    if (fs.existsSync(csvItems)){ const ni = await cargarBaseItemsCsv(sql, csvItems); console.log('· Actividades (catálogo CC): ' + ni + ' cargadas'); }
+    const csvData = path.join(AQUI, 'data.real.csv');
+    if (fs.existsSync(csvData)){ const nd = await cargarDataCsv(sql, csvData); console.log('· DATA (muestra real): ' + nd + ' filas cargadas'); }
   }
 
   // 4. Worker real contra la BD + pantallas en el mismo puerto

@@ -58,7 +58,9 @@ window.onload = function(){
      `menu.html` la siguen llevando, y el portero de la pantalla no se toca. */
   const _tt=document.getElementById('tileTablero');
   if(_tt) _tt.style.display='flex';
-  // Grilla de catálogos (V3-08/D181): editores de la fuente única — jefe, admin, residente de tierras.
+  // Fuente única de edición (D181): revisión de DATA (lo principal) + grilla de catálogos BASE.
+  const _td=document.getElementById('tileData');
+  if(_td && (rol==='jefe' || rol==='admin' || rol==='residente')) _td.style.display='flex';
   const _tg=document.getElementById('tileGrilla');
   if(_tg && (rol==='jefe' || rol==='admin' || rol==='residente')) _tg.style.display='flex';
   // Fecha por defecto = HOY en zona horaria Colombia (D50), nunca toISOString().

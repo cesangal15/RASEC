@@ -139,6 +139,51 @@ module.exports = [
         cambios: [{ op: 'update', orden: odt.orden, if_version: odt.version, elemento: odt.elemento, abs_inicio: odt.abs_inicio, abs_fin: odt.abs_fin, uf: 'UF1', no_operativo: false }] });
       t.ok('el JEFE sí guarda (guardadas:1)', gj.ok === true && gj.guardadas === 1, gj); } },
 
+  /* ---------- revisión editable de DATA (V3-08b / D181) — endpoints DB-only del Worker ---------- */
+  { id: 'obra.data_grid.leer', modulo: 'obra', nombre: 'GET data_grid&desde&hasta → {ok, columnas, filas, actividades, subtramos, periodos}; trae la fila sembrada con version',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('data_grid es DB-only del Worker (4.01/D181)');
+      const r = await api.obra.get({ action: 'data_grid', desde: '2025-09-01', hasta: '2025-09-30', token: await api.sesion('admin') });
+      t.ok('forma', r.ok === true && esLista(r.columnas) && esLista(r.filas) && esLista(r.actividades) && esLista(r.periodos), r);
+      const f = (r.filas || []).filter(x => x.id_registro === 'seed-data-1')[0];
+      t.ok('fila sembrada con version y CC', !!f && f.version === 0 && f.centro_de_costo === '3701.02.05', f); } },
+
+  { id: 'obra.data_grid.alta_deriva', modulo: 'obra', escribe: true, nombre: 'POST data_grid_guardar alta: deriva CC/UF/abscisas/acta/cantidad de descripción+subtramo+fecha (V3-08b/D181)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('data_grid es DB-only del Worker (4.01/D181)');
+      const tok = await api.sesion('jefe'); const id = 'dg-' + api.uuid();
+      const g = await api.obra.post({ token: tok, action: 'data_grid_guardar', desde: '2025-09-01', hasta: '2025-09-30',
+        cambios: [{ op: 'alta', id_registro: id, fecha: '2025-09-20', descripcion: 'Terraplenes', elemento: 'tm2 pk 10+000 - 11+000', liberacion: 'CAMPO', largo: 200, espesor: 1, fc: 1.3 }] });
+      t.ok('alta ok', g.ok === true && g.guardadas === 1, g);
+      const f = (g.filas || []).filter(x => x.id_registro === id)[0];
+      t.ok('CC derivado de descripción+UF', !!f && f.centro_de_costo === '3701.02.07', f);
+      t.ok('UF del subtramo', f && f.unidad_funcional === 'UF1', f);
+      t.ok('abscisas del subtramo', f && f.abs_inicial === '10000' && f.abs_final === '11000', f);
+      t.ok('acta del periodo (12)', f && f.acta === '12', f);
+      t.ok('cantidad = largo×espesor÷fc', f && Math.abs(Number(f.cantidad) - 200 / 1.3) < 0.01, f && f.cantidad);
+      t.ok('grupo/capítulo/unidad derivados', f && f.grupo === 'TIERRAS' && f.capitulo === 'EXPLANACIONES' && f.unidad_medida === 'm3', f); } },
+
+  { id: 'obra.data_grid.version', modulo: 'obra', escribe: true, nombre: 'POST data_grid_guardar update: if_version bueno guarda y recalcula cantidad; viejo → conflicto (V3-08b/D181)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('data_grid es DB-only del Worker (4.01/D181)');
+      const tok = await api.sesion('jefe');
+      const r0 = await api.obra.get({ action: 'data_grid', desde: '2025-09-01', hasta: '2025-09-30', token: tok });
+      const f = (r0.filas || []).filter(x => x.id_registro === 'seed-data-1')[0];
+      t.ok('semilla presente', !!f, (r0.filas || []).map(x => x.id_registro));
+      if (!f) return;
+      const v0 = f.version;
+      const g1 = await api.obra.post({ token: tok, action: 'data_grid_guardar', desde: '2025-09-01', hasta: '2025-09-30',
+        cambios: [{ op: 'update', id_registro: 'seed-data-1', if_version: v0, fecha: f.fecha, descripcion: f.descripcion, elemento: f.elemento, liberacion: f.liberacion, largo: 260, espesor: 1, fc: 1.3 }] });
+      t.ok('update ok', g1.ok === true && g1.guardadas === 1, g1);
+      const n = (g1.filas || []).filter(x => x.id_registro === 'seed-data-1')[0];
+      t.ok('version subió y cantidad recalculó', !!n && n.version === v0 + 1 && Math.abs(Number(n.cantidad) - 260 / 1.3) < 0.01, n);
+      const g2 = await api.obra.post({ token: tok, action: 'data_grid_guardar', desde: '2025-09-01', hasta: '2025-09-30',
+        cambios: [{ op: 'update', id_registro: 'seed-data-1', if_version: v0, fecha: f.fecha, descripcion: f.descripcion, elemento: f.elemento, liberacion: f.liberacion, largo: 99, espesor: 1, fc: 1.3 }] });
+      t.ok('if_version viejo → {ok:false, error:"version"}', g2.ok === false && g2.error === 'version' && esLista(g2.conflictos), g2); } },
+
+  { id: 'obra.data_grid.rol', modulo: 'obra', escribe: true, nombre: 'data_grid_guardar: el capataz NO edita DATA; el jefe SÍ (D181)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('data_grid es DB-only del Worker (4.01/D181)');
+      const cap = await api.obra.post({ token: await api.sesion('capataz'), action: 'data_grid_guardar', desde: '2025-09-01', hasta: '2025-09-30',
+        cambios: [{ op: 'update', id_registro: 'seed-data-1', if_version: 0, fecha: '2025-09-20', descripcion: 'Terraplenes', elemento: 'tm2 pk 10+000 - 11+000', largo: 1, espesor: 1, fc: 1 }] });
+      t.ok('capataz rechazado (no toca la BD)', cap.ok === false && /no puede/i.test(String(cap.error)), cap); } },
+
   { id: 'obra.maquinas', modulo: 'obra', nombre: 'GET maquinas[&fecha] → {ok, fecha, fuente, maquinas[], equipos[], avisos} (D138/D171)',
     async run(api, t){ const r = await api.obra.get({ action: 'maquinas', fecha: api.hoy, token: await api.sesion('admin') });
       t.ok('forma', r.ok === true && esFecha(r.fecha) && tiene(r, ['fuente', 'maquinas', 'equipos', 'avisos']) && esLista(r.maquinas) && esLista(r.equipos), faltan(r, ['fuente', 'maquinas', 'equipos', 'avisos']));

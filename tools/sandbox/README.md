@@ -8,8 +8,9 @@ Cloudflare, ni Google, ni tus datos de obra). Todo corre en memoria y se borra a
   `003_grilla.sql`).
 - El **Worker real** (`worker/src/index.js`) contra esa base — el mismo código que corre en Cloudflare.
 - Las **pantallas reales** (login, menú, jefe, grilla…) servidas desde el mismo puerto.
-- Sembrado con **tus subtramos reales** (`base_elementos.real.csv`, 190 filas sacadas del Excel maestro:
-  la cadena, el solape real 35+885–36+050 y los dos «ajuste a origen») y usuarios de prueba.
+- Sembrado con **tus datos reales** del Excel maestro: **subtramos** (`base_elementos.real.csv`, 190 filas:
+  la cadena, el solape real 35+885–36+050 y los dos «ajuste a origen»), el **catálogo de 156 actividades**
+  (`base_items.real.csv`) y una **muestra de ~400 filas reales de DATA** (`data.real.csv`), más usuarios de prueba.
 
 ## Cómo se usa
 ```bash
@@ -18,13 +19,19 @@ cd ..
 node tools/sandbox/servidor.mjs
 ```
 Abre **http://127.0.0.1:8099**, entra con **`admin` / `1234`** (o **`jefe` / `clave-jefe`**, o
-**`residente` / `clave-res`**) y ve a **«Grilla de catálogos»** desde el menú (con `jefe` está en su panel).
+**`residente` / `clave-res`**). Desde el menú (o el panel del jefe) tienes dos herramientas:
 
-Prueba lo de siempre: editar una celda, seleccionar un rango (clic + `Shift`), **copiar/pegar** varias a la
-vez, **rellenar hacia abajo** (`Ctrl+D`), **＋ Fila**, y **Guardar**. Verás en vivo el **solape real**
-marcado, los dos **«ajuste a origen»** como no operativos, y el rechazo del servidor si intentas dejar un
-solape o si otra persona cambió una fila (control de versión `if_version`). `Ctrl+C` para cerrar; reinícialo
-cuando quieras volver al estado inicial.
+**1) Revisión de DATA** (lo principal) — el reporte diario **como tu hoja DATA**, editable al cierre.
+Elige un rango de fechas, corrige o **＋ añade** una actividad, y verás cómo el sistema **deriva solo**
+CC, grupo, capítulo, UF, abscisas, acta y **cantidad = largo × espesor ÷ FC**, igual que las fórmulas del
+Excel. Edición en celda, selección de rango (clic + `Shift`), copiar/pegar, rellenar hacia abajo (`Ctrl+D`),
+**Guardar** con control de versión por fila. La muestra real va de finales de agosto a mediados de sep-2026.
+
+**2) Grilla de catálogos (BASE)** — subtramos y centros de coste. Verás el **solape real** marcado, los dos
+**«ajuste a origen»** como no operativos, y el rechazo del servidor si dejas un solape o si otra persona
+cambió una fila. Es para altas/correcciones de subtramos, no el día a día.
+
+`Ctrl+C` para cerrar; reinícialo cuando quieras volver al estado inicial.
 
 ## Opciones
 - `--puerto=8099` — cambia el puerto.

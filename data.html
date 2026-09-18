@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revisión de DATA</title>
+<meta name="theme-color" content="#f5a623">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="entorno.js"></script>
+<link rel="stylesheet" href="tema.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="data.css">
+</head>
+<body>
+<div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
+  <div class="header-left">
+    <div class="label">Fuente única de edición · D181</div>
+    <h1>📋 Revisión de DATA</h1>
+  </div>
+  <div class="header-user">
+    <span id="userDisplay">—</span>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="intro" id="intro">
+    Revisa el reporte diario <b>como tu hoja DATA</b> y corrige o añade al cierre: eliges <b>descripción</b>
+    (actividad) y <b>subtramo</b>, y el sistema deriva CC, grupo, capítulo, UF, abscisas, acta y
+    <b>cantidad = largo × espesor ÷ FC</b> —igual que las fórmulas del Excel—. Las columnas en gris son
+    calculadas (se corrigen a mano solo si metes una actividad nueva que no está en el catálogo).
+    <span id="soloLectura" class="badge warn" data-estilo="display:none;">Tu rol entra en SOLO LECTURA</span>
+  </div>
+
+  <div class="toolbar">
+    <div class="f"><label>Desde</label><input type="date" id="desde"></div>
+    <div class="f"><label>Hasta</label><input type="date" id="hasta"></div>
+    <button class="btn primario" data-on-click="consultar()">Consultar →</button>
+    <div class="f grow"><label>Buscar</label><input type="text" id="q" placeholder="actividad, CC, subtramo…" data-on-input="pintar()"></div>
+    <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;">＋ Fila</button>
+    <button class="btn" id="btnFill" data-on-click="rellenarAbajo()" data-estilo="display:none;">Rellenar ↓</button>
+    <button class="btn" data-on-click="copiarSel(this)">📋 Copiar</button>
+    <button class="btn" data-on-click="recargar()">↻ Recargar</button>
+    <button class="btn primario" id="btnGuardar" data-on-click="guardar(this)" data-estilo="display:none;" disabled>💾 Guardar <span class="n" id="nDirty">0</span></button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="kFilas">0</div><div class="l">Filas</div></div>
+    <div class="kpi"><div class="v" id="kCant">0</div><div class="l">Σ Cantidad (filtradas)</div></div>
+    <div class="kpi warn"><div class="v" id="kSinCC">0</div><div class="l">Sin CC (revisar)</div></div>
+  </div>
+
+  <div class="tabla-wrap">
+    <table id="tabla">
+      <thead><tr id="cab"></tr></thead>
+      <tbody id="cuerpo"><tr><td class="vacio">Elige un rango y pulsa Consultar.</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="leyenda">
+    <span class="lg deriv">■ calculado (derivado)</span>
+    <span class="lg sincc">■ sin CC / actividad no reconocida</span>
+    <span class="lg dirty">■ sin guardar</span>
+    <span class="lg sel">■ selección</span>
+  </div>
+
+  <!-- listas para autocompletar (se llenan por JS) -->
+  <datalist id="dlDesc"></datalist>
+  <datalist id="dlElem"></datalist>
+</div>
+
+<script src="data.js"></script>
+</body>
+</html>

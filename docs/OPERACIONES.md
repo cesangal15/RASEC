@@ -343,6 +343,7 @@ antes de conmutar. Subir `AUTH_V` saca a todos (en el Worker y en los scripts qu
 # 1) migración de esquema (idempotente): volquetas surrogate, base_elementos, base_items ampliada
 psql "$DATABASE_URL" -f worker/sql/002_fases_3_4.sql          # o pegar en el editor SQL de Supabase
 psql "$DATABASE_URL" -f worker/sql/003_grilla.sql             # V3-08/D181: base_elementos.version + no_operativo
+psql "$DATABASE_URL" -f worker/sql/004_data_editable.sql      # V3-08b/D181: data.version/editado_* + tabla periodos
 
 # 2) backfill de obra (BANDEJA, DATA, MAQUINARIA, VOLQUETAS, OBSERVACIONES, TABLERO, USUARIOS, CUBICAJE, BASE)
 $env:DATABASE_URL = "postgres://…"
@@ -421,6 +422,29 @@ Pantalla `grilla.html`; se entra desde el **menú del admin** y desde el **Panel
   grilla de verdad (edición, solapes, `if_version`, roles). No toca Supabase ni Cloudflare; todo en memoria.
   Detalle en `tools/sandbox/README.md`. La pantalla habla con el Worker local porque `auth.js` apunta la API
   al mismo origen **solo en localhost** (en producción no se activa).
+
+### Revisión de DATA — la pantalla principal (4.01 · V3-08b · D181)
+
+Lo que de verdad se toca al cierre: `data.html` muestra el **reporte diario como la hoja DATA** y el
+jefe/residente **corrige o añade** filas (una actividad mal puesta, un valor que el residente se comió, o
+una actividad que los capataces no reportan). Entra desde el menú (admin) y el **Panel del Jefe**.
+
+- **El jefe teclea/elige:** FECHA, DESCRIPCIÓN (de un catálogo de 156 actividades, o texto libre para una
+  nueva), SUBTRAMO, LIBERACIÓN, LARGO, ESPESOR, FC, OBSERVACIÓN.
+- **El sistema deriva solo, idéntico a las fórmulas del Excel** (verificadas): UF ← subtramo; CC ←
+  descripción+UF; GRUPO/CAPÍTULO/UNIDAD/ORDEN/PROYECTO ← CC; ABS INICIAL/FINAL ← subtramo; ACTA ← fecha
+  (tabla `periodos`); **CANTIDAD = LARGO × ESPESOR ÷ FC**. Lo derivado se ve en gris; si la actividad no
+  está en el catálogo, esas celdas quedan libres para completarlas a mano.
+- **Carga por rango de fechas** (por defecto el periodo 16→15 en curso). Editar en celda, selección de
+  rango, copiar/pegar, rellenar hacia abajo (Ctrl+D), **＋Fila** y eliminar. Control de versión por fila
+  (`if_version`) + auditoría (`editado_por`/`editado_ts`). Guard D109: el **jefe SÍ edita**.
+- **Esquema:** migración `worker/sql/004_data_editable.sql` (data.version/editado_por/editado_ts + tabla
+  `periodos` con las 17 actas). Se aplica en la cadena `001 → 002 → 003 → 004 → backfills` (§12).
+- **Ojo:** un envío de capataz (`enviar_data`) reescribe el día por área; las correcciones del jefe se hacen
+  al **cierre**, cuando ya no llegan reportes de ese periodo (si un capataz reenvía ese día después, pisa la
+  corrección). El maestro lee esto en vivo por Power Query (§14): lo que el jefe corrige aquí es lo que ve el Excel.
+- **Probar sin tocar nada:** el sandbox local (`node tools/sandbox/servidor.mjs`) siembra el catálogo de
+  actividades y ~400 filas reales de DATA; entra como `jefe`/`clave-jefe` y úsala de verdad.
 
 ## 14. Maestro del reporte diario por CONEXIÓN VIVA (Power Query) — 4.01 · V3-09 · D181
 

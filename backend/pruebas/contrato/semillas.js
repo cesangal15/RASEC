@@ -32,6 +32,14 @@ function semillas(){
         ['ODT1-001',                '11012', '11012', 'UF1', 'ODT',   3],
         ['ajuste origen UF1',       '9800',  '29950', 'UF1', '',      4],
         ['ajuste origen UF2',       '30000', '39600', 'UF2', '',      5]],
+      // V3-08b/D181: catálogo de actividades (BASE A–H) para derivar CC/grupo/capítulo/unidad desde descripción+UF.
+      base_items: [['cc','descripcion','unidad','capitulo','grupo','uf','proyecto','orden'],
+        ['3701.02.05','Excavación en material común','m3','EXPLANACIONES','TIERRAS','UF1','3701',10],
+        ['3701.02.07','Terraplenes','m3','EXPLANACIONES','TIERRAS','UF1','3701',12],
+        ['3702.02.05','Excavación en material común','m3','EXPLANACIONES','TIERRAS','UF2','3702',210]],
+      // V3-08b/D181: una fila de DATA sembrada para probar lectura por rango, corrección y versión.
+      data: [['fecha','centro_de_costo','descripcion','unidad_funcional','proyecto','elemento','abs_inicial','abs_final','liberacion','acta','unidad_medida','grupo','capitulo','largo','espesor','fc','cantidad','id_registro'],
+        ['2025-09-20','3701.02.05','Excavación en material común','UF1','3701','tm2 pk 10+000 - 11+000','10000','11000','CAMPO','12','m3','TIERRAS','EXPLANACIONES',100,1,1.3,76.92,'seed-data-1']],
       PARTE_EQUIPOS: [['codigo','tipo','placa','proveedor','medidor','ultima_fecha','ultimo_final','activo'],
         ['VOL048','VOLQUETAS DOBLETROQUE','NNM180','ORTIZ','KM','2026-09-09',27120,'SI'],
         ['MO004','MOTONIVELADORAS','MC725594','ORTIZ','HOROMETRO','2026-09-09',2337,'SI'],
