@@ -10,7 +10,11 @@ Cloudflare, ni Google, ni tus datos de obra). Todo corre en memoria y se borra a
 - Las **pantallas reales** (login, menú, jefe, grilla…) servidas desde el mismo puerto.
 - Sembrado con **tus datos reales** del Excel maestro: **subtramos** (`base_elementos.real.csv`, 190 filas:
   la cadena, el solape real 35+885–36+050 y los dos «ajuste a origen»), el **catálogo de 156 actividades**
-  (`base_items.real.csv`) y una **muestra de ~400 filas reales de DATA** (`data.real.csv`), más usuarios de prueba.
+  (`base_items.real.csv`) y **la hoja DATA completa** (`data.real.csv`, **4468 filas reales**, ago-2025 a
+  sep-2026), más usuarios de prueba.
+
+  `data.real.csv` se genera desde el Excel maestro con `extraer_data_real.py` (ver «Regenerar la DATA» abajo);
+  la extracción se autoverifica fiel al Excel (mismos valores, fechas y textos).
 
 ## Cómo se usa
 ```bash
@@ -25,7 +29,8 @@ Abre **http://127.0.0.1:8099**, entra con **`admin` / `1234`** (o **`jefe` / `cl
 Elige un rango de fechas, corrige o **＋ añade** una actividad, y verás cómo el sistema **deriva solo**
 CC, grupo, capítulo, UF, abscisas, acta y **cantidad = largo × espesor ÷ FC**, igual que las fórmulas del
 Excel. Edición en celda, selección de rango (clic + `Shift`), copiar/pegar, rellenar hacia abajo (`Ctrl+D`),
-**Guardar** con control de versión por fila. La muestra real va de finales de agosto a mediados de sep-2026.
+**Guardar** con control de versión por fila. La DATA real va de ago-2025 a sep-2026 (elige el rango; por
+defecto abre el periodo 16→15 que contiene hoy).
 
 **2) Grilla de catálogos (BASE)** — subtramos y centros de coste. Verás el **solape real** marcado, los dos
 **«ajuste a origen»** como no operativos, y el rechazo del servidor si dejas un solape o si otra persona
@@ -38,6 +43,15 @@ cambió una fila. Es para altas/correcciones de subtramos, no el día a día.
 - `--base=<archivo.csv>` — usa otro CSV de subtramos (encabezados `elemento,abs_inicio,abs_fin,uf,tipo,orden`).
 - `--volcado=<carpeta *_obra>` — en vez del CSV, carga la BASE de un volcado real de obra (el mismo que usa
   `backfill_obra.js`).
+
+## Regenerar la DATA (cuando cambie el Excel maestro)
+```bash
+python3 tools/sandbox/extraer_data_real.py /ruta/a/TM2_SUR_REPORTE_nuevo.xlsx
+# reescribe tools/sandbox/data.real.csv y verifica que la extracción es fiel al Excel
+```
+Requiere `openpyxl` (`pip install openpyxl`). Recorta espacios al inicio/fin de los textos (normalización
+intencional, igual que el trim del tool al derivar CC); conserva los dobles espacios internos. Reinicia el
+sandbox para cargar el CSV nuevo.
 
 ## Cómo apunta la pantalla al Worker local
 `auth.js` detecta que la página se sirve desde `localhost`/`127.0.0.1` y manda la API al **mismo origen**
