@@ -92,6 +92,53 @@ module.exports = [
     async run(api, t){ const r = await api.obra.get({ action: 'tramos', token: await api.sesion('admin') });
       t.ok('forma', r.ok === true && esLista(r.tramos), r); } },
 
+  /* ---------- grilla editable de catálogos fundacionales (V3-08 / D181) — endpoints DB-only del Worker ---------- */
+  { id: 'obra.grid.leer', modulo: 'obra', nombre: 'GET grid&tabla=subtramos → {ok, columnas[], filas[], analisis}; cadena encadenada NO es solape; los dos «ajuste a origen» quedan no operativos',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('grid es DB-only del Worker (4.01/D181); no está en el .gs vm');
+      const r = await api.obra.get({ action: 'grid', tabla: 'subtramos', token: await api.sesion('admin') });
+      t.ok('forma', r.ok === true && esLista(r.columnas) && esLista(r.filas) && !!r.analisis, r);
+      t.ok('cada fila: orden, elemento, version, tipo, no_operativo', r.filas.length > 0 && tiene(r.filas[0], ['orden', 'elemento', 'version', 'tipo', 'no_operativo']), r.filas[0]);
+      t.ok('cadena (fin==inicio del siguiente) NO se marca como solape', esLista(r.analisis.overlaps) && r.analisis.overlaps.length === 0, r.analisis.overlaps);
+      t.ok('los dos «ajuste a origen» quedan no operativos', esLista(r.analisis.no_operativos) && r.analisis.no_operativos.length >= 2, r.analisis.no_operativos); } },
+
+  { id: 'obra.grid.version', modulo: 'obra', escribe: true, nombre: 'POST grid_guardar: update con if_version bueno guarda y sube version; con if_version viejo → conflicto (V3-08/D181)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('grid es DB-only del Worker (4.01/D181)');
+      const tok = await api.sesion('admin');
+      const r0 = await api.obra.get({ action: 'grid', tabla: 'subtramos', token: tok });
+      const fila = (r0.filas || []).filter(f => f.elemento === 'tm2 pk 10+000 - 11+000')[0];
+      t.ok('semilla presente', !!fila, (r0.filas || []).map(f => f.elemento));
+      if (!fila) return;
+      const v0 = fila.version;
+      const g1 = await api.obra.post({ token: tok, action: 'grid_guardar', tabla: 'subtramos',
+        cambios: [{ op: 'update', orden: fila.orden, if_version: v0, elemento: fila.elemento, abs_inicio: fila.abs_inicio, abs_fin: fila.abs_fin, uf: 'UF1', no_operativo: false }] });
+      t.ok('update ok, guardadas:1', g1.ok === true && g1.guardadas === 1, g1);
+      const nueva = (g1.filas || []).filter(f => f.orden === fila.orden)[0];
+      t.ok('version subió a v0+1', !!nueva && nueva.version === v0 + 1, nueva);
+      const g2 = await api.obra.post({ token: tok, action: 'grid_guardar', tabla: 'subtramos',
+        cambios: [{ op: 'update', orden: fila.orden, if_version: v0, elemento: fila.elemento, abs_inicio: fila.abs_inicio, abs_fin: fila.abs_fin, uf: 'UF2', no_operativo: false }] });
+      t.ok('if_version viejo → {ok:false, error:"version", conflictos[]}', g2.ok === false && g2.error === 'version' && esLista(g2.conflictos) && g2.conflictos.length >= 1, g2); } },
+
+  { id: 'obra.grid.solape', modulo: 'obra', escribe: true, nombre: 'POST grid_guardar: alta de un TRAMO que se pisa con otro → rechazo «solape» (D181: no se dejan los dos)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('grid es DB-only del Worker (4.01/D181)');
+      const tok = await api.sesion('admin');
+      const g = await api.obra.post({ token: tok, action: 'grid_guardar', tabla: 'subtramos',
+        cambios: [{ op: 'alta', elemento: 'tm2 pk 10+500 - 11+500', abs_inicio: '10500', abs_fin: '11500', uf: 'UF1', no_operativo: false }] });
+      t.ok('rechazo solape con lista de solapes', g.ok === false && g.error === 'solape' && esLista(g.solapes) && g.solapes.length >= 1, g); } },
+
+  { id: 'obra.grid.rol', modulo: 'obra', escribe: true, nombre: 'grid_guardar: el capataz NO edita; el JEFE SÍ (D181 le devuelve los catálogos, a diferencia de Maquinaria)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('grid es DB-only del Worker (4.01/D181)');
+      const cap = await api.obra.post({ token: await api.sesion('capataz'), action: 'grid_guardar', tabla: 'subtramos',
+        cambios: [{ op: 'update', orden: 3, if_version: 0, elemento: 'ODT1-001', abs_inicio: '11012', abs_fin: '11012', uf: 'UF1', no_operativo: false }] });
+      t.ok('capataz rechazado (no toca la BD)', cap.ok === false && /no puede/i.test(String(cap.error)), cap);
+      const tokJ = await api.sesion('jefe');
+      const r0 = await api.obra.get({ action: 'grid', tabla: 'subtramos', token: tokJ });
+      const odt = (r0.filas || []).filter(f => f.elemento === 'ODT1-001')[0];
+      t.ok('semilla ODT1-001 presente', !!odt, (r0.filas || []).map(f => f.elemento));
+      if (!odt) return;
+      const gj = await api.obra.post({ token: tokJ, action: 'grid_guardar', tabla: 'subtramos',
+        cambios: [{ op: 'update', orden: odt.orden, if_version: odt.version, elemento: odt.elemento, abs_inicio: odt.abs_inicio, abs_fin: odt.abs_fin, uf: 'UF1', no_operativo: false }] });
+      t.ok('el JEFE sí guarda (guardadas:1)', gj.ok === true && gj.guardadas === 1, gj); } },
+
   { id: 'obra.maquinas', modulo: 'obra', nombre: 'GET maquinas[&fecha] → {ok, fecha, fuente, maquinas[], equipos[], avisos} (D138/D171)',
     async run(api, t){ const r = await api.obra.get({ action: 'maquinas', fecha: api.hoy, token: await api.sesion('admin') });
       t.ok('forma', r.ok === true && esFecha(r.fecha) && tiene(r, ['fuente', 'maquinas', 'equipos', 'avisos']) && esLista(r.maquinas) && esLista(r.equipos), faltan(r, ['fuente', 'maquinas', 'equipos', 'avisos']));

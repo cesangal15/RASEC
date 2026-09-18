@@ -24,6 +24,14 @@ function semillas(){
         ['VOL048','Volqueta',10,'alquilada','2000-01-01','','','UF1-UF2'],
         ['MO004','Motoniveladora',10,'alquilada','2000-01-01','','','UF1-UF2']],
       TABLERO: [['orden','texto']],
+      // V3-08/D181: subtramos para la grilla editable. Dos TRAMO encadenados (comparten 11000/12000: NO
+      // es solape), un marcador ODT puntual y los DOS «ajuste a origen» (no operativos, corredor completo).
+      base_elementos: [['elemento','abs_inicio','abs_fin','uf','tipo','orden'],
+        ['tm2 pk 10+000 - 11+000', '10000', '11000', 'UF1', 'TRAMO', 1],
+        ['tm2 pk 11+000 - 12+000', '11000', '12000', 'UF1', 'TRAMO', 2],
+        ['ODT1-001',                '11012', '11012', 'UF1', 'ODT',   3],
+        ['ajuste origen UF1',       '9800',  '29950', 'UF1', '',      4],
+        ['ajuste origen UF2',       '30000', '39600', 'UF2', '',      5]],
       PARTE_EQUIPOS: [['codigo','tipo','placa','proveedor','medidor','ultima_fecha','ultimo_final','activo'],
         ['VOL048','VOLQUETAS DOBLETROQUE','NNM180','ORTIZ','KM','2026-09-09',27120,'SI'],
         ['MO004','MOTONIVELADORAS','MC725594','ORTIZ','HOROMETRO','2026-09-09',2337,'SI'],

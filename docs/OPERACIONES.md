@@ -342,6 +342,7 @@ antes de conmutar. Subir `AUTH_V` saca a todos (en el Worker y en los scripts qu
 ```
 # 1) migración de esquema (idempotente): volquetas surrogate, base_elementos, base_items ampliada
 psql "$DATABASE_URL" -f worker/sql/002_fases_3_4.sql          # o pegar en el editor SQL de Supabase
+psql "$DATABASE_URL" -f worker/sql/003_grilla.sql             # V3-08/D181: base_elementos.version + no_operativo
 
 # 2) backfill de obra (BANDEJA, DATA, MAQUINARIA, VOLQUETAS, OBSERVACIONES, TABLERO, USUARIOS, CUBICAJE, BASE)
 $env:DATABASE_URL = "postgres://…"
@@ -388,3 +389,74 @@ Contra la API real (cuando el módulo esté en `db`): `node backend/pruebas/cont
 
 **Lo que queda en el Sheet tras el corte:** solo el espejo BD→Sheet de la hoja DATA de obra (vista
 `data_maestro`, layout A–T verbatim) para el copy-paste A:S al Excel maestro. Todo lo demás vive en Supabase.
+
+## 13. Grilla de catálogos — edición tipo Excel de la BASE (4.01 · V3-08 · D181)
+
+Fuente única de edición (D181): los editores autorizados —**incluido el jefe**— corrigen los catálogos
+fundacionales **directamente en la base**, con una grilla tipo Excel, en vez de editar el Excel a mano.
+Pantalla `grilla.html`; se entra desde el **menú del admin** y desde el **Panel del Jefe** (`jefe.html`).
+
+- **Quién edita** (guard en el Worker, `permiso_`, no el cliente): roles `admin`, `jefe`, `residente` y el
+  usuario `jeisson`. Cualquier otro entra en **solo lectura**. A diferencia de Maquinaria, aquí el **jefe
+  SÍ escribe** (D181 le devuelve el control de los catálogos).
+- **Qué edita hoy:** la tabla `base_elementos` (**subtramos**: elemento · abscisa inicio/fin · UF · bandera
+  «no operativo»). Los **centros de coste** (`base_items`) se ven en una pestaña de **solo lectura** (la
+  edición de ese catálogo es el siguiente paso de V3-08).
+- **Validación server-side** (endpoint `POST ?action=grid_guardar`): **no-solapamiento** de subtramos
+  lineales (intervalo semiabierto, como las estancias de flota: dos que comparten extremo —cadena— no se
+  pisan), **control de versión por fila** (`if_version`: si otra persona editó la fila mientras tanto, se
+  rechaza y se recarga), **duplicados** de nombre (aviso) y los **dos «ajuste a origen»** (`ajuste origen
+  UF1/UF2`), que se marcan **no operativos** y quedan fuera del no-solapamiento y del cálculo de tope. La
+  **cascada** (recorrer los subtramos consiguientes al mover un límite) se **informa**, no se aplica sola:
+  el modo automático vs. revisión manual queda pendiente de cerrar con César (03_BACKLOG V3-08).
+- **Esquema:** la migración **`003_grilla.sql`** añade a `base_elementos` las columnas `version` (if_version)
+  y `no_operativo`. Es idempotente y se aplica en la misma cadena que el resto (`001 → 002 → 003 →
+  backfills`, §12). Los subtramos siguen editándose también desde el Table Editor de Supabase; la grilla es
+  la superficie cómoda para quien no debe entrar al Table Editor crudo.
+- **Lo que NO cambia:** editar un subtramo aquí afecta a los **envíos futuros** (la derivación BASE→DATA se
+  materializa al enviar, no reescribe filas de `data` ya guardadas), igual que hoy.
+
+## 14. Maestro del reporte diario por CONEXIÓN VIVA (Power Query) — 4.01 · V3-09 · D181
+
+Reemplaza el **copy-paste A:S** al Excel maestro por una **conexión directa** de Power Query a Supabase que
+lee la vista **`data_maestro`** (el ESPEJO de la hoja DATA, con los 20 encabezados A–T EXACTOS). Las tablas
+dinámicas del jefe se re-apuntan **una sola vez** a la nueva consulta y **refrescan solas**; el Excel queda
+como superficie de análisis/consulta y salida, **no de captura**.
+
+**Paso 1 — usuario de solo lectura.** Aplica una vez `worker/sql/roles_lectura_maestro.sql` en Supabase
+(SQL Editor), con una clave fuerte. Crea `tm2_lector_maestro`, que **solo** puede `SELECT` sobre
+`data_maestro` (ni escribe, ni ve otras tablas). Host, puerto y modo del pooler salen de Supabase →
+*Project Settings → Database* (pooler en modo sesión, puerto 5432; o transacción, 6543).
+
+**Paso 2 — conexión en Excel.** *Datos → Obtener datos → De una base de datos → PostgreSQL*. Servidor =
+`<host>:5432`, base = la del proyecto; credenciales = `tm2_lector_maestro` / la clave. En el navegador elige
+la vista **`data_maestro`**. O pega esta consulta M (Editor avanzado), que además **quita** la columna
+técnica `obra_id` y deja los encabezados del maestro en orden:
+
+```m
+let
+    Origen = PostgreSQL.Database("<host>:5432", "<base>"),
+    Maestro = Origen{[Schema="public", Item="data_maestro"]}[Data],
+    SinObra = Table.RemoveColumns(Maestro, {"obra_id"})
+in
+    SinObra
+```
+
+**Paso 3 — re-apuntar las dinámicas.** En cada tabla dinámica del maestro: *Cambiar origen de datos* → la
+nueva consulta `data_maestro`. Se conservan campos, formatos y segmentaciones. A partir de ahí, *Actualizar
+todo* (o *Actualizar al abrir*, en *Propiedades de la conexión*) trae lo último de la base sin reconstruir
+nada. Nadie edita el Excel a mano: si un dato está mal se corrige en la fuente (grilla / pantallas / Table
+Editor) y se refresca.
+
+**Paso 4 — verificación de PARIDAD de 30 días antes del corte** (informe 4.01 §7 punto 8). Antes de dejar
+de pegar A:S, corre en paralelo 30 días: exporta la vista y compáralas celda a celda contra el maestro
+pegado. Volcado de referencia de la vista, para diff:
+
+```bash
+# columnas A–T del maestro, un mes, en orden y con vacío='' (idéntico a lo que ve Power Query)
+psql "<cadena de tm2_lector_maestro>" -c "\copy (SELECT * FROM data_maestro WHERE \"FECHA\" BETWEEN '2026-08-16' AND '2026-09-15' ORDER BY \"FECHA\") TO 'maestro_vivo.csv' WITH CSV HEADER"
+```
+
+Cuando 30 días cuadren carácter a carácter, se deja de pegar A:S y el maestro pasa a conexión viva.
+**Toca / supersede parcialmente la D65** (hoy el maestro se alimenta por pegado desde la pantalla del jefe).
+El **Parte Digital de Maquinaria** queda fuera: no usa dinámicas; su traspaso por pantalla sigue igual.
