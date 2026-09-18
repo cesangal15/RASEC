@@ -74,7 +74,7 @@ function pintarBandeja(){
   // selección para «Día sin operación»: por defecto todos; se conserva lo desmarcado entre repintados
   const vivos={}; falt.forEach(q=>{ vivos[q.codigo]=1; if(!selFalt.hasOwnProperty(q.codigo)) selFalt[q.codigo]=true; });
   Object.keys(selFalt).forEach(c=>{ if(!vivos[c]) delete selFalt[c]; });
-  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt'+(selFalt[q.codigo]?' sel':'')+'"><input type="checkbox" aria-label="incluir '+esc(q.codigo)+'"'+(selFalt[q.codigo]?' checked':'')+' data-on-change="toggleFalt('+esc(JSON.stringify(q.codigo))+',this.checked)"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+(q.sin_ficha?' · <b title="Vigente en la flota pero sin ficha en PARTE_EQUIPOS: el QR no le abre el parte. Corrige la estancia en Maquinaria › Flota y guarda placa y medidor.">⚠ sin ficha</b>':'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  document.getElementById('faltantes').innerHTML = faltantesHTML(falt);
   document.getElementById('sinopBar').classList.toggle('hidden', !falt.length);
   pintarSel();
 }
@@ -99,6 +99,19 @@ function pintarFueraDeFlota(filas){
     +'<div class="chips-fuera">'+chips+'</div>'
     +'<button class="btn mini" data-on-click="irA(\'produccion-maquinaria.html#flota\')">Abrir Maquinaria › Flota →</button>'
     +'</div>';
+}
+// Una fila de «Equipos sin parte». D183: chip «Drenajes» cuando la máquina es de esa disciplina.
+function faltFilaHTML(q){
+  return '<div class="falt'+(selFalt[q.codigo]?' sel':'')+'"><input type="checkbox" aria-label="incluir '+esc(q.codigo)+'"'+(selFalt[q.codigo]?' checked':'')+' data-on-change="toggleFalt('+esc(JSON.stringify(q.codigo))+',this.checked)"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+(q.grupo==='drenajes'?' <span class="grchip-r">Drenajes</span>':'')+(q.sin_ficha?' · <b title="Vigente en la flota pero sin ficha en PARTE_EQUIPOS: el QR no le abre el parte. Corrige la estancia en Maquinaria › Flota y guarda placa y medidor.">⚠ sin ficha</b>':'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>';
+}
+// D183: si hay faltantes de drenajes Y de tierras, se separan en dos secciones; si no, lista plana (igual que antes).
+function faltantesHTML(falt){
+  if(!falt.length) return '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  const dren=falt.filter(q=>q.grupo==='drenajes'), tie=falt.filter(q=>q.grupo!=='drenajes');
+  if(dren.length && tie.length)
+    return '<div class="falt-grupo">Tierras <span>'+tie.length+'</span></div>'+tie.map(faltFilaHTML).join('')+
+           '<div class="falt-grupo">Drenajes <span>'+dren.length+'</span></div>'+dren.map(faltFilaHTML).join('');
+  return falt.map(faltFilaHTML).join('');
 }
 let selFalt={};   // codigo → true/false (incluido en «Día sin operación»)
 function faltSeleccionados(){ return (BAND.faltantes||[]).filter(q=>selFalt[q.codigo]); }

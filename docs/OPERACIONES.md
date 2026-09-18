@@ -244,13 +244,16 @@ siguen validando el token como siempre. Para volver al Worker se revierte la edi
 
 | Situación | Qué se hace |
 |---|---|
-| Llega un equipo (nuevo o alquilado) | **Dar de alta**: código del parte, tipo, frente, propiedad, ingreso, placa, medidor, proveedor. Crea la ficha si falta. Después `python3 tools/generar_qr.py --solo CODIGO`, imprimir y pegar el QR en cabina. |
+| Llega un equipo (nuevo o alquilado) | **Dar de alta**: código del parte, tipo, frente, **grupo** (tierras/drenajes, D183), propiedad, ingreso, placa, medidor, proveedor. Crea la ficha si falta. Tras guardar, el panel muestra el **QR de una vez** (verlo/descargarlo/copiar enlace, D182); para el vinilo, `python3 tools/generar_qr.py --solo CODIGO`, imprimir y pegar en cabina. |
+| Máquina de DRENAJES (p. ej. el turbo del ing. de drenajes) | En el alta, **Grupo = Drenajes** (D183). Sigue en UF1-UF2, pero revisión la muestra en la sección **Drenajes** de «Equipos sin parte», no mezclada con tierras. Para imprimir solo sus QR: `generar_qr.py --grupos drenajes` (con un `MAQUINAS.csv` exportado que traiga la columna `grupo`). |
 | Se vara y lo reemplazan uno o dos días | **Nada en la Flota.** La varada se cierra como «Taller» en «Equipos sin parte» (revisión); el reemplazo reporta por su QR de siempre y llega con la alerta `FUERA_DE_FLOTA`. |
 | Se va (devolución, taller largo, otra obra) | **Dar de baja** con el PRIMER día que ya no estuvo. Deja de esperarse; el histórico no se toca; el QR sigue abriendo con alerta. |
 | Vuelve | **Reingreso** desde «Ya no están en la obra»: fila nueva, mismo código, mismo QR. Nunca corregir la estancia vieja. |
 | Cambia de frente (UF1-UF2 ↔ UF3) | Baja en un frente y alta en el otro. |
 | Fecha o dato mal escrito | **Corregir** (solo para eso). |
 | Regenerar los QR | Exportar `MAQUINAS` y `PARTE_EQUIPOS`; `python3 tools/generar_qr.py --csv PARTE_EQUIPOS.csv --maquinas MAQUINAS.tsv --limpiar`. |
+
+**Una sola vez, antes de desplegar el Worker con la separación por grupo (D183):** aplicar la migración `worker/sql/003_grupo_flota.sql` en Supabase (editor SQL o `psql "$DATABASE_URL" -f worker/sql/003_grupo_flota.sql`). Es idempotente (solo añade la columna `grupo` a `maquinas`, DEFAULT `tierras`). La lectura de la flota tolera que aún no exista, pero el alta con grupo la necesita. Después, marca en la pestaña Flota (o en el Table Editor) las máquinas que sean de **drenajes**.
 
 **Personal — módulo Asistencias** (`resumen-asistencia.html` › gestión de personal; roles residente, admin, angie, duvan, residente_uf3, D84/D85/D119): alta con fecha de ingreso (retroactiva permitida), retiro con fecha = primer día no trabajado, mover entre cuadrillas. Un reingreso es un **alta nueva** con la fecha de reingreso, no «reactivar» (perdería el hueco). Personal eventual = `estado=eventual` (no se espera cada día, se marca desde «Completar faltantes»). Usuarios (logins) = fila en la hoja `USUARIOS` (D108).
 

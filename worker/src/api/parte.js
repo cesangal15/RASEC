@@ -633,10 +633,10 @@ export async function parteBandeja(c, params){
   const vigentes=await parteEquiposActivos_(c, fecha);
   const ultimos=await parteUltimosFinales_(c);
   const faltantes=vigentes.filter(function(q){ return !conParte[parteNormCod_(q.codigo)]; })
-    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q), sin_ficha:!!q.sin_ficha }; });
+    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras', ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q), sin_ficha:!!q.sin_ficha }; });
   return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes,
     flota_fuente: (await parteFlotaVigente_(c, fecha)) ? 'hoja' : 'activo',
-    listas:{ operadores:await parteOperadores_(c), cc:await parteCC_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor }; }) },
+    listas:{ operadores:await parteOperadores_(c), cc:await parteCC_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras' }; }) },
     topes:PARTE_TOPES });
 }
 

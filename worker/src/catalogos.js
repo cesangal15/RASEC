@@ -275,7 +275,7 @@ export const MAQ_FLOTA_ESPERADA = Object.keys(MAQ_CATALOGO);
 // D138: máquinas del respaldo que ENTRAN Y SALEN (finisher y su vibro de pareja): reportables, no esperadas.
 export const MAQ_INTERMITENTES = ['NG002','CR008'];
 
-export const MAQUINAS_HEADERS = ['id_maquina','tipo','horas_prog','propiedad','fecha_ingreso','fecha_retiro','notas','frente'];
+export const MAQUINAS_HEADERS = ['id_maquina','tipo','horas_prog','propiedad','fecha_ingreso','fecha_retiro','notas','frente','grupo'];
 // Tipos CON regla de producción (05_CATALOGO §4): panel de producción, chequeadora y `?action=maquinas`.
 export const MAQ_TIPOS_PRODUCCION = ['BULLDOZER','EXCAVADORA','MOTONIVELADORA','FINISHER','VIBROCOMPACTADOR',
                                      'MINICARGADOR','MINIBULDOZER','RETROEXCAVADORA'];
@@ -306,18 +306,41 @@ export function normMaqClave_(s){ return String(s==null?'':s).replace(/[^A-Za-z0
 // Frentes que atiende el Parte Digital (CodigoParte.gs / api/parte.js): solo UF1-UF2.
 export const PARTE_FRENTES = ['UF1-UF2'];
 
+// GRUPO / disciplina de la máquina (D183): tierras | drenajes. Dimensión ORTOGONAL a `frente` (UF): una
+// máquina puede ser UF1-UF2 y de drenajes a la vez. Es coarse a propósito (una máquina de drenajes sirve
+// ODT y ODL indistintamente), distinto del `area` odt/odl que se deriva del CC del trabajo. UF3 queda
+// fuera de esta separación (vive en `frente`). Vacío = tierras (DEFAULT de la columna).
+export const FLOTA_GRUPOS = ['tierras','drenajes'];
+export const FLOTA_GRUPO_DEFECTO = FLOTA_GRUPOS[0];
+export function normGrupo_(v){
+  const s=String(v==null?'':v).toLowerCase().replace(/\s+/g,'').replace(/[_/·]/g,'-').trim();
+  if(!s) return FLOTA_GRUPO_DEFECTO;
+  if(s==='tierras'||s==='tierra') return 'tierras';
+  // odt/odl (el área del trabajo) colapsan a la disciplina 'drenajes' si alguien los teclea.
+  if(s==='drenajes'||s==='drenaje'||s==='dren'||s==='odt'||s==='odl'||s==='odt-odl'||s==='odl-odt') return 'drenajes';
+  return s;   // desconocido: se conserva tal cual y se avisa (como normFrente_)
+}
+
 /* ---------- Codigo.gs L1639–L1664 getFlotaRows_ → tabla maquinas (memo 'maquinas') ----------
  * [{id, tipo, prog, propiedad, ing, ret, nota, frente, _row}] crudas, ORDER BY id_maquina, fecha_ingreso.
  * `_row` = ordinal + 2 (como si fuera la hoja con encabezado); fecha_ingreso/fecha_retiro llegan como
  * texto 'yyyy-MM-dd' (db.js) o null. */
 export async function flotaFilas_(c){
   return memo_(c, 'maquinas', async function(){
-    const filas=await c.sql`SELECT id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente
-      FROM maquinas WHERE obra_id=${OBRA_ID} ORDER BY id_maquina, fecha_ingreso`;
+    let filas;
+    try{
+      filas=await c.sql`SELECT id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente, grupo
+        FROM maquinas WHERE obra_id=${OBRA_ID} ORDER BY id_maquina, fecha_ingreso`;
+    }catch(err){
+      // D183: si la columna `grupo` aún no existe (migración 003 sin aplicar), no romper la flota:
+      // se relee sin `grupo` (queda '' → tierras). El alta con grupo sí necesita la columna.
+      filas=await c.sql`SELECT id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente
+        FROM maquinas WHERE obra_id=${OBRA_ID} ORDER BY id_maquina, fecha_ingreso`;
+    }
     return filas.map(function(r, i){
       return { id:r.id_maquina, tipo:r.tipo, prog:r.horas_prog, propiedad:r.propiedad,
                ing:r.fecha_ingreso, ret:(r.fecha_retiro==null ? '' : r.fecha_retiro), nota:r.notas,
-               frente:(r.frente==null ? '' : r.frente), _row:i+2 };
+               frente:(r.frente==null ? '' : r.frente), grupo:(r.grupo==null ? '' : r.grupo), _row:i+2 };
     });
   });
 }
@@ -348,6 +371,8 @@ export async function flotaEnFecha_(c, fecha, opts){
     const tipo=String(r.tipo==null?'':r.tipo).toUpperCase().trim();
     const frente=normFrente_(r.frente);
     if(frentes.indexOf(frente)<0) return;              // D173: otro frente (UF3): no es de esta flota
+    const grupo=normGrupo_(r.grupo);                   // D183: disciplina (tierras/drenajes), ortogonal al frente
+    if(opts.grupos && opts.grupos.length && opts.grupos.indexOf(grupo)<0) return;   // acota por grupo si se pide
     if(!tipo)                                  avisos.push(_estancia_(r)+': sin tipo; no lleva producción y solo sale en la flota del parte.');
     else if(MAQ_TIPOS_FLOTA.indexOf(tipo)<0)   avisos.push(_estancia_(r)+': tipo "'+tipo+'" no está en la lista conocida; no lleva producción y solo sale en la flota del parte.');
     // Sin `todos`: solo los tipos con regla de producción (panel del día, chequeadora, capataz).
@@ -357,14 +382,14 @@ export async function flotaEnFecha_(c, fecha, opts){
     // Varias estancias vigentes el mismo día (traslape): gana la última fila, y se avisa.
     if(catalogo[id]) avisos.push(_estancia_(r)+': hay dos estancias vigentes el '+f+'; se usa la última.');
     catalogo[id]={ tipo:tipo, prog:prog, propiedad:String(r.propiedad==null?'':r.propiedad).trim(),
-                   notas:String(r.nota==null?'':r.nota).trim(), frente:frente,
+                   notas:String(r.nota==null?'':r.nota).trim(), frente:frente, grupo:grupo,
                    produce_tipo: MAQ_TIPOS_PRODUCCION.indexOf(tipo)>=0 };
   });
   if(!validas){
     // Respaldo: la tabla está vacía o no tiene una sola fila utilizable.
     Object.keys(MAQ_CATALOGO).forEach(function(id){
       catalogo[id]={ tipo:MAQ_CATALOGO[id].tipo, prog:MAQ_CATALOGO[id].prog, propiedad:'', notas:'',
-                     frente:FLOTA_FRENTE_DEFECTO, produce_tipo:true };
+                     frente:FLOTA_FRENTE_DEFECTO, grupo:FLOTA_GRUPO_DEFECTO, produce_tipo:true };
     });
     return { fecha:f, fuente:'codigo', catalogo:catalogo, avisos:avisos,
              esperadas:Object.keys(catalogo).filter(function(id){ return MAQ_INTERMITENTES.indexOf(id)<0; }) };
@@ -386,7 +411,8 @@ export async function _flotaFilasNorm_(c){
              retCrudo:retCrudo, tipo:String(r.tipo==null?'':r.tipo).toUpperCase().trim(),
              prog:r.prog, propiedad:String(r.propiedad==null?'':r.propiedad).trim(),
              nota:String(r.nota==null?'':r.nota).trim(), frente:normFrente_(r.frente),
-             frenteCrudo:String(r.frente==null?'':r.frente).trim(), fila:r._row };
+             frenteCrudo:String(r.frente==null?'':r.frente).trim(),
+             grupo:normGrupo_(r.grupo), grupoCrudo:String(r.grupo==null?'':r.grupo).trim(), fila:r._row };
   }).filter(function(r){ return !!r.id; });   // fila en blanco: ni error ni aviso (D138)
 }
 
@@ -448,13 +474,14 @@ export async function parteEquiposActivos_(c, fecha){
   const m=await parteEquipos_(c), fl=await parteFlotaVigente_(c, fecha);
   let lista;
   if(!fl){
-    lista=Object.keys(m).map(function(k){ return m[k]; }).filter(function(q){ return q.activo; });
+    // Sin flota: las fichas de parte_equipos no llevan grupo → tierras por defecto (D183).
+    lista=Object.keys(m).map(function(k){ return Object.assign({ grupo:FLOTA_GRUPO_DEFECTO }, m[k]); }).filter(function(q){ return q.activo; });
   }else{
     lista=Object.keys(fl.catalogo).map(function(id){
       const x=fl.catalogo[id], q=m[normMaqClave_(id)];
-      if(q) return Object.assign({}, q, { activo:true, frente:x.frente, propiedad:x.propiedad, sin_ficha:false });
+      if(q) return Object.assign({}, q, { activo:true, frente:x.frente, grupo:x.grupo, propiedad:x.propiedad, sin_ficha:false });
       return { codigo:id, tipo:x.tipo, placa:'', proveedor:x.propiedad||'', medidor:'', medidor_crudo:'', activo:true,
-               ultimo_final_manual:null, ultima_fecha:'', frente:x.frente, propiedad:x.propiedad, sin_ficha:true };
+               ultimo_final_manual:null, ultima_fecha:'', frente:x.frente, grupo:x.grupo, propiedad:x.propiedad, sin_ficha:true };
     });
   }
   return lista.sort(function(a,b){ return a.codigo<b.codigo?-1:a.codigo>b.codigo?1:0; });

@@ -194,6 +194,10 @@
   }
   @media(max-width:480px){.maq-row{grid-template-columns:52px 1fr;}.edits{grid-column:1/-1;}.est-acts{margin-left:0;width:100%;}}
 
+  /* ===== Grupo/disciplina de la flota (tierras/drenajes), D183 ===== */
+  .grupo-chips{margin-top:-6px;}
+  .tr .cid .grchip{border:1px solid rgba(59,130,246,0.55);color:#3b82f6;border-radius:10px;padding:0 6px;font-size:9.5px;letter-spacing:.5px;margin-left:4px;font-weight:600;}
+
   /* ===== QR del parte digital, dentro de la app (sep-2026) ===== */
   .btn-mini.qr{border-color:var(--accent);color:var(--accent-txt);}
   .qr-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;

@@ -267,6 +267,7 @@ CREATE TABLE IF NOT EXISTS maquinas (
   fecha_retiro   date,
   notas          text NOT NULL DEFAULT '',
   frente         text NOT NULL DEFAULT '',            -- 'UF1-UF2' | 'UF3' … (D173: qué equipos espera el Parte)
+  grupo          text NOT NULL DEFAULT 'tierras',      -- 'tierras' | 'drenajes' (D183: disciplina/dueño de la máquina; ORTOGONAL a frente/UF)
   PRIMARY KEY (obra_id, id_maquina, fecha_ingreso),
   CHECK (fecha_retiro IS NULL OR fecha_retiro >= fecha_ingreso)
 );

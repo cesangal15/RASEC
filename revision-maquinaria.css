@@ -171,6 +171,12 @@
     .rp-fila input[type=text],.rp-fila input[placeholder=PR]{grid-column:1 / -1;}
   }
 
+  /* Secciones por grupo en «Equipos sin parte» (D183). */
+  .falt-grupo{font-family:'Syne',sans-serif;font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:10px 2px 4px;display:flex;align-items:center;gap:6px;}
+  .falt-grupo span{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:0 8px;font-size:10px;}
+  .falt-grupo:first-child{margin-top:0;}
+  .grchip-r{border:1px solid rgba(59,130,246,0.55);color:#3b82f6;border-radius:10px;padding:0 6px;font-size:9.5px;letter-spacing:.5px;font-weight:600;}
+
   /* Apartado «reportaron sin estar en la flota» (sep-2026). */
   .aviso-fuera{border-color:rgba(245,166,35,0.5);background:rgba(245,166,35,0.08);}
   .aviso-fuera .chips-fuera{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;margin-bottom:12px;line-height:1.6;}

@@ -92,10 +92,22 @@ def norm_frente(v):
     return s
 
 
-def leer_vigentes(ruta, fecha, frentes):
+def norm_grupo(v):
+    """Grupo/disciplina de la máquina (D183): tierras | drenajes. Vacío = tierras (DEFAULT de la columna).
+    Igual que normGrupo_ del Worker: odt/odl colapsan a 'drenajes'."""
+    s = (v or "").strip().lower().replace(" ", "")
+    if s in ("", "tierras", "tierra"):
+        return "tierras"
+    if s in ("drenajes", "drenaje", "dren", "odt", "odl", "odt-odl", "odl-odt"):
+        return "drenajes"
+    return s
+
+
+def leer_vigentes(ruta, fecha, frentes, grupos=None):
     """Estancias de la hoja MAQUINAS (TSV o CSV, por nombre de columna) vigentes en `fecha`:
     ventana semiabierta [fecha_ingreso, fecha_retiro) y frente en `frentes` (vacío = UF1-UF2).
-    Devuelve {codigo_normalizado: frente}. Sin archivo → None (se cae al criterio `activo`)."""
+    Con `grupos` (D183) además acota por disciplina (tierras/drenajes); sin la columna `grupo`
+    todo cuenta como 'tierras'. Devuelve {codigo_normalizado: frente}. Sin archivo → None."""
     if not ruta or not os.path.exists(ruta):
         return None
     with open(ruta, newline="", encoding="utf-8-sig") as f:
@@ -108,7 +120,10 @@ def leer_vigentes(ruta, fecha, frentes):
         ing = (r.get("fecha_ingreso") or "").strip()[:10]
         ret = (r.get("fecha_retiro") or "").strip()[:10]
         fr = norm_frente(r.get("frente"))
+        gr = norm_grupo(r.get("grupo"))
         if not cod or not ing:
+            continue
+        if grupos and gr not in grupos:
             continue
         if ing <= fecha and (not ret or fecha < ret) and fr in frentes:
             vig[cod] = fr
@@ -314,14 +329,17 @@ def main():
     ap.add_argument("--maquinas", default=MAQUINAS_DEFECTO, help="hoja MAQUINAS (TSV/CSV, estancias con fechas y frente). Vacío = usar solo `activo` de PARTE_EQUIPOS")
     ap.add_argument("--fecha", default="", help="día para el que se calcula la flota vigente (yyyy-mm-dd; default hoy, hora de Bogotá)")
     ap.add_argument("--frentes", default=FRENTES_DEFECTO, help="frentes cuyos equipos espera el parte, separados por coma (default UF1-UF2)")
+    ap.add_argument("--grupos", default="", help="D183: acota por grupo/disciplina (tierras,drenajes) leyendo la columna `grupo` de MAQUINAS; vacío = todos los grupos")
     ap.add_argument("--limpiar", action="store_true", help="borra de la carpeta de salida los <codigo>.png que ya no correspondan a un equipo con QR")
     args = ap.parse_args()
 
     solo = {s.strip().upper() for s in args.solo.split(",") if s.strip()} or None
     fecha = args.fecha.strip() or _hoy_bogota()
     frentes = {norm_frente(x) for x in args.frentes.split(",") if x.strip()} or {"UF1-UF2"}
-    vigentes = leer_vigentes(args.maquinas.strip(), fecha, frentes) if args.maquinas.strip() else None
-    criterio = (f"vigentes el {fecha} en la flota (`{os.path.relpath(os.path.abspath(args.maquinas), os.path.join(AQUI, '..'))}`, frente {' · '.join(sorted(frentes))})"
+    grupos = {norm_grupo(x) for x in args.grupos.split(",") if x.strip()} or None   # None = todos los grupos
+    vigentes = leer_vigentes(args.maquinas.strip(), fecha, frentes, grupos) if args.maquinas.strip() else None
+    criterio = (f"vigentes el {fecha} en la flota (`{os.path.relpath(os.path.abspath(args.maquinas), os.path.join(AQUI, '..'))}`, frente {' · '.join(sorted(frentes))}"
+                + (f", grupo {' · '.join(sorted(grupos))}" if grupos else "") + ")"
                 if vigentes is not None else "con `activo=SI` en PARTE_EQUIPOS")
     equipos, excluidos = leer_equipos(args.csv, solo, vigentes)
     if not equipos:

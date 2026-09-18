@@ -67,7 +67,11 @@ Lo que hay que resolver **antes** de cargar cada hoja (queda para la fase que la
 - **TABLERO**: no se carga por CSV (trozos); se vuelve a publicar desde la pantalla.
 - **LOG**: no se migra (retención 30 días); se carga solo si se quiere conservar el histórico.
 
-`esquema_version` lleva el número del último archivo aplicado; el siguiente cambio de esquema es `002_….sql`.
+`esquema_version` lleva el número del último archivo aplicado. Cambios de esquema posteriores a `001`:
+`002_fases_3_4.sql` (Fases 3–4) y **`003_grupo_flota.sql`** (D183: columna `grupo` en `maquinas` = disciplina
+tierras/drenajes, ortogonal a `frente`; idempotente, `ADD COLUMN IF NOT EXISTS`). El Worker tolera que `grupo`
+aún no exista (la lectura de flota cae a un SELECT sin `grupo`), pero **aplica `003` antes de desplegar** el Worker
+que escribe `grupo` en el alta.
 
 ## Backfill del Parte con el script (Fase 2)
 
@@ -142,7 +146,7 @@ ediciones hechas desde Flota o el Table Editor). El volcado de asistencias sale 
 
 ### Orden de carga para el corte
 
-1. `001_esquema.sql` y `002_fases_3_4.sql` (editor SQL de Supabase o `psql -f`), en ese orden.
+1. `001_esquema.sql`, `002_fases_3_4.sql` y `003_grupo_flota.sql` (editor SQL de Supabase o `psql -f`), en ese orden. `003` es idempotente y aplica también a la BD viva (solo añade la columna `grupo` a `maquinas`).
 2. `backfill_parte.js` (si la BD es nueva; en la BD de producción ya está hecho y NO se repite).
 3. `backfill_obra.js` con el ÚLTIMO volcado `*_obra` (siempre `--simular` primero).
 4. `backfill_asistencias.js` con el ÚLTIMO volcado `*_asistencias`.

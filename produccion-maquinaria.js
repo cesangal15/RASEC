@@ -359,21 +359,25 @@ const TIPOS_RESPALDO=['BULLDOZER','EXCAVADORA','MOTONIVELADORA','FINISHER','VIBR
                       'MINICARGADOR','MINIBULDOZER','RETROEXCAVADORA'];
 const TIPOS_FLOTA_RESPALDO=TIPOS_RESPALDO.concat(['VOLQUETA','CAMABAJA','TRACTOCAMION','CARROTANQUE','CAMION','TURBO','CISTERNA','LUMINARIA']);
 const FRENTES_RESPALDO=['UF1-UF2','UF3'];
+const GRUPOS_RESPALDO=['tierras','drenajes'];   // D183: disciplina de la máquina (ortogonal al frente/UF)
 let FLOTA={ cargada:false, fecha:'', estancias:[], avisos:[], tipos:[], tiposProd:[], orden:[], fuente:'', historico:0,
-            frentes:[], frenteDef:'UF1-UF2', frentesParte:['UF1-UF2'] };
+            frentes:[], frenteDef:'UF1-UF2', frentesParte:['UF1-UF2'], grupos:[], grupoDef:'tierras' };
 // Formulario abierto (uno a la vez) + sus valores. Se guardan en el estado, no en el DOM: la lista se
 // vuelve a pintar entera después de cada cambio, como en el resto de la pantalla.
 // `q` = filtro del buscador · `pleg` = qué bloques plegados están abiertos · `hist` = qué máquinas
 // muestran sus estancias anteriores. Nada de esto viaja al servidor: es solo cómo se está mirando.
-let FL={ op:'', clave:null, vals:{}, hist:{}, pleg:{fuera:false}, q:'', frente:'todos', msg:null, guardando:false };
+let FL={ op:'', clave:null, vals:{}, hist:{}, pleg:{fuera:false}, q:'', frente:'todos', grupo:'todos', msg:null, guardando:false };
 
 function hoyCol(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
 function flTipos(){ return (FLOTA.tipos&&FLOTA.tipos.length)?FLOTA.tipos:TIPOS_FLOTA_RESPALDO; }
 function flOrden(){ return (FLOTA.orden&&FLOTA.orden.length)?FLOTA.orden:TIPOS_FLOTA_RESPALDO; }
 function flTiposProd(){ return (FLOTA.tiposProd&&FLOTA.tiposProd.length)?FLOTA.tiposProd:TIPOS_RESPALDO; }
 function flFrentes(){ return (FLOTA.frentes&&FLOTA.frentes.length)?FLOTA.frentes:FRENTES_RESPALDO; }
+function flListaGrupos(){ return (FLOTA.grupos&&FLOTA.grupos.length)?FLOTA.grupos:GRUPOS_RESPALDO; }   // D183
 function flEsProd(tipo){ return flTiposProd().indexOf(String(tipo||'').toUpperCase())>=0; }
 function flFrenteDe(e){ return e.frente || FLOTA.frenteDef || 'UF1-UF2'; }
+function flGrupoDe(e){ return e.grupo || FLOTA.grupoDef || 'tierras'; }   // D183: disciplina de la máquina
+function flGrupoLabel(g){ return g==='drenajes' ? 'Drenajes' : 'Tierras'; }
 
 async function cargarFlota(){
   const cont=document.getElementById('flotaCont');
@@ -397,6 +401,7 @@ function aplicarFlota(d){
   FLOTA.avisos=d.avisos||[]; FLOTA.tipos=d.tipos||[]; FLOTA.orden=d.orden_tipo||[];
   FLOTA.tiposProd=d.tipos_produccion||[]; FLOTA.frentes=d.frentes||[]; FLOTA.frenteDef=d.frente_defecto||'UF1-UF2';
   FLOTA.frentesParte=d.frentes_parte||[FLOTA.frenteDef];
+  FLOTA.grupos=d.grupos||[]; FLOTA.grupoDef=d.grupo_defecto||'tierras';   // D183
   FLOTA.fuente=d.fuente||''; FLOTA.historico=d.historico_maquinaria||0;
   renderFlota();
 }
@@ -432,16 +437,17 @@ function flAbrir(op, id, ing){
   FL.op=(op==='reingreso'?'alta':op); FL.msg=null;
   FL.clave = (op==='corregir'||op==='baja') ? { id_maquina:e.id_maquina, fecha_ingreso:e.fecha_ingreso } : null;
   const fr=(FL.frente!=='todos' && FL.frente) ? FL.frente : (FLOTA.frenteDef||'UF1-UF2');
+  const gr=(FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras');   // D183: hereda el filtro de grupo activo
   if(op==='alta')      FL.vals={ id_maquina:'', tipo:'', propiedad:'propia', fecha_ingreso:hoyCol(), horas_prog:'', notas:'',
-                                 frente:fr, placa:'', proveedor:'', medidor:'' };
+                                 frente:fr, grupo:gr, placa:'', proveedor:'', medidor:'' };
   if(op==='reingreso') FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
                                  fecha_ingreso:hoyCol(), horas_prog:e.horas_prog===''?'':String(e.horas_prog), notas:'',
-                                 frente:flFrenteDe(e), placa:e.placa||'', proveedor:e.proveedor||'', medidor:e.medidor||'' };
+                                 frente:flFrenteDe(e), grupo:flGrupoDe(e), placa:e.placa||'', proveedor:e.proveedor||'', medidor:e.medidor||'' };
   if(op==='baja')      FL.vals={ fecha_retiro:hoyCol() };
   if(op==='corregir')  FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
                                  fecha_ingreso:e.fecha_ingreso, fecha_retiro:e.fecha_retiro||'',
                                  horas_prog:e.horas_prog===''?'':String(e.horas_prog), notas:e.notas||'',
-                                 frente:flFrenteDe(e), placa:e.placa||'', proveedor:e.proveedor||'', medidor:e.medidor||'' };
+                                 frente:flFrenteDe(e), grupo:flGrupoDe(e), placa:e.placa||'', proveedor:e.proveedor||'', medidor:e.medidor||'' };
   renderFlota();
 }
 function flCerrar(){ FL.op=''; FL.clave=null; FL.vals={}; renderFlota(); }
@@ -458,6 +464,11 @@ function flSelTipo(){
 function flSelFrente(){
   return '<select data-on-change="flSet(\'frente\',this.value)">'+
     flFrentes().map(function(f){ return '<option value="'+esc(f)+'"'+(f===FL.vals.frente?' selected':'')+'>'+esc(f)+'</option>'; }).join('')+
+    '</select>';
+}
+function flSelGrupo(){   // D183: disciplina de la máquina (tierras/drenajes)
+  return '<select data-on-change="flSet(\'grupo\',this.value)">'+
+    flListaGrupos().map(function(g){ return '<option value="'+esc(g)+'"'+(g===FL.vals.grupo?' selected':'')+'>'+esc(flGrupoLabel(g))+'</option>'; }).join('')+
     '</select>';
 }
 function flSelMedidor(){
@@ -478,6 +489,7 @@ function flFormDatos(titulo){
       'data-on-input="flSet(\'id_maquina\',this.value)" placeholder="EXC015" autocapitalize="characters"></div>'+
     '<div class="f wide"><label>Tipo</label>'+flSelTipo()+'</div>'+
     '<div class="f"><label>Frente</label>'+flSelFrente()+'</div>'+
+    '<div class="f"><label>Grupo</label>'+flSelGrupo()+'</div>'+
     '<div class="f"><label>Propiedad</label>'+flSelProp()+'</div>'+
     '<div class="f"><label>Ingreso</label><input type="date" value="'+esc(FL.vals.fecha_ingreso||'')+'" data-on-input="flSet(\'fecha_ingreso\',this.value)"></div>'+
     (esCorregir ? '<div class="f"><label>Retiro</label><input type="date" value="'+esc(FL.vals.fecha_retiro||'')+'" data-on-input="flSet(\'fecha_retiro\',this.value)"></div>' : '')+
@@ -489,7 +501,7 @@ function flFormDatos(titulo){
     '<div class="f wide"><label>Notas</label><input type="text" value="'+esc(FL.vals.notas||'')+'" data-on-input="flSet(\'notas\',this.value)"></div>'+
     '</div>'+
     '<div class="fhint"><b>Frente</b>: a qué proyecto atiende (el Parte Digital espera cada día a los de <b>'+esc((FLOTA.frentesParte||[]).join(' · '))+'</b>). '+
-      'Ojo: hoy la flota <b>no separa tierras de drenajes</b> — una máquina de drenajes (p. ej. el turbo del ing. de drenajes) puesta en UF1-UF2 se pedirá a diario en el parte de tierras. Si no debe pedirse a diario, avísalo (separar por grupo está pendiente). '+
+      '<b>Grupo</b>: la disciplina de la máquina (tierras o drenajes). El parte agrupa «Equipos sin parte» por grupo, así una máquina de drenajes (p. ej. el turbo del ing. de drenajes) no se mezcla con las de tierras. UF3 va por el <b>Frente</b>, no por aquí. '+
       '<b>Placa · medidor · proveedor</b> son la ficha del equipo en <code>PARTE_EQUIPOS</code>: si no existe se crea con el alta (sin ficha el QR no abre el parte); si ya existe, solo se rellena lo que esté en blanco. '+
       'Horas programadas en blanco = se deducen de la propiedad: <b>5 h</b> alquilada · <b>6.4 h</b> propia (D10); solo cuentan para los tipos que producen. '+
       'El código es el del <b>parte</b> (MO003, CR008, VOL048, RT-02 con guion): si no se reconoce, se avisa antes de guardar.'+
@@ -539,13 +551,13 @@ async function flEnviar(payload){
     }
     if(d && d.ok){
       const m=d.mensaje||'Flota actualizada.';
-      const esAlta=(payload.op==='alta'), altaCod=d.id_maquina||payload.id_maquina, altaFrente=payload.frente||'';
+      const esAlta=(payload.op==='alta'), altaCod=d.id_maquina||payload.id_maquina, altaFrente=payload.frente||'', altaGrupo=payload.grupo||'tierras';
       FL.op=''; FL.clave=null; FL.vals={};
       aplicarFlota(d);                       // la respuesta ya trae la hoja releída
       FL.msg={ tipo:'ok', txt:'✓ '+m };
       renderFlota();
       // Tras un alta/reingreso: «¿incluir en el parte diario?» → se muestra el QR de una vez para imprimirlo.
-      if(esAlta && altaCod) flAbrirQR(altaCod, { frente:altaFrente, enParte:(FLOTA.frentesParte||[]).indexOf(altaFrente)>=0 });
+      if(esAlta && altaCod) flAbrirQR(altaCod, { frente:altaFrente, grupo:altaGrupo, enParte:(FLOTA.frentesParte||[]).indexOf(altaFrente)>=0 });
       return;
     }
     FL.msg={ tipo:'err', txt:(d&&d.error)||'Respuesta inesperada del servidor.' };
@@ -567,6 +579,7 @@ function flGrupos(){
   const q=String(FL.q||'').trim().toUpperCase();
   const pasa=function(e){
     if(FL.frente && FL.frente!=='todos' && flFrenteDe(e)!==FL.frente) return false;
+    if(FL.grupo && FL.grupo!=='todos' && flGrupoDe(e)!==FL.grupo) return false;   // D183
     return !q || (e.id_maquina+' '+(e.tipo||'')+' '+(e.notas||'')+' '+(e.placa||'')+' '+(e.proveedor||'')).toUpperCase().indexOf(q)>=0;
   };
   const porMaq=flPorMaquina();
@@ -596,6 +609,7 @@ function flGrupos(){
 function renderFlota(){ renderFlotaCabecera(); renderFlotaLista(); }
 function flFiltro(v){ FL.q=v; renderFlotaLista(); }
 function flFrente(f){ FL.frente=f||'todos'; renderFlota(); }
+function flFiltroGrupo(g){ FL.grupo=g||'todos'; renderFlota(); }   // D183
 
 function renderFlotaCabecera(){
   const cont=document.getElementById('flotaCont'), puede=PUEDE_FLOTA;
@@ -610,6 +624,12 @@ function renderFlotaCabecera(){
           '<button class="fchip'+(FL.frente==='todos'?' on':'')+'" data-on-click="flFrente(\'todos\')">Toda la obra</button>'+
           frs.map(function(f){ return '<button class="fchip'+(FL.frente===f?' on':'')+'" data-on-click="flFrente('+JSON.stringify(f).replace(/"/g,'&quot;')+')">'+esc(f)+
                  ((FLOTA.frentesParte||[]).indexOf(f)>=0?' <span class="fparte" title="El Parte Digital espera a estos equipos cada día">· parte</span>':'')+'</button>'; }).join('')+
+        '</div>';
+  // D183: chips de GRUPO (disciplina). Ortogonal al frente; filtra la lista y la etiqueta por fila.
+  const grs=flListaGrupos();
+  html+='<div class="frente-chips grupo-chips">'+
+          '<button class="fchip'+(FL.grupo==='todos'?' on':'')+'" data-on-click="flFiltroGrupo(\'todos\')">Todos los grupos</button>'+
+          grs.map(function(g){ return '<button class="fchip'+(FL.grupo===g?' on':'')+'" data-on-click="flFiltroGrupo('+JSON.stringify(g).replace(/"/g,'&quot;')+')">'+esc(flGrupoLabel(g))+'</button>'; }).join('')+
         '</div>';
 
   if(FL.msg) html+='<div class="msg-box '+FL.msg.tipo+'" data-estilo="display:block;margin:0 0 16px">'+esc(FL.msg.txt)+'</div>';
@@ -742,18 +762,19 @@ function flInfoMaquina(cod){
   const ls=(FLOTA.estancias||[]).filter(function(e){ return e.id_maquina===cod; });
   return ls.filter(function(e){ return e.vigente; })[0] || ls.filter(function(e){ return e.valida; })[0] || ls[0] || null;
 }
-// modoAlta: null (botón QR normal) | {frente, enParte} (tras un alta/reingreso: confirma la inclusión en el parte).
+// modoAlta: null (botón QR normal) | {frente, grupo, enParte} (tras un alta/reingreso: confirma la inclusión en el parte).
 function flAbrirQR(codigo, modoAlta){
   const cod=String(codigo||'').trim(); if(!cod) return;
   const info=flInfoMaquina(cod), url=parteLinkDe(cod);
   const enParte = modoAlta ? modoAlta.enParte : ((FLOTA.frentesParte||[]).indexOf(info?flFrenteDe(info):'')>=0);
+  const grupo = (modoAlta && modoAlta.grupo) || (info?flGrupoDe(info):'tierras');   // D183
   const sinFicha = info && info.con_ficha===false;
   let html='';
   if(modoAlta){
-    html+='<div class="qr-ok">✓ <b>'+esc(cod)+'</b> quedó en la flota'+(modoAlta.frente?(' · frente '+esc(modoAlta.frente)):'')+'.</div>';
+    html+='<div class="qr-ok">✓ <b>'+esc(cod)+'</b> quedó en la flota'+(modoAlta.frente?(' · frente '+esc(modoAlta.frente)):'')+' · grupo <b>'+esc(flGrupoLabel(grupo))+'</b>.</div>';
     html+= enParte
-      ? '<div class="qr-inc">Desde hoy el <b>Parte Digital la espera cada día</b>: ya puede reportar por su QR. Imprímelo y pégalo en la cabina.</div>'
-      : '<div class="qr-inc warn">El frente <b>'+esc(modoAlta.frente||'')+'</b> no entra al parte diario de tierras (UF1-UF2). La máquina queda en la flota; su QR abre igual, pero no se le pedirá parte a diario.</div>';
+      ? '<div class="qr-inc">Desde hoy el <b>Parte Digital la espera cada día</b> en el grupo <b>'+esc(flGrupoLabel(grupo))+'</b>: ya puede reportar por su QR. Imprímelo y pégalo en la cabina.</div>'
+      : '<div class="qr-inc warn">El frente <b>'+esc(modoAlta.frente||'')+'</b> no entra al parte diario (UF1-UF2). La máquina queda en la flota; su QR abre igual, pero no se le pedirá parte a diario.</div>';
   }
   html+='<div class="qr-tit">▦ QR del parte · <b>'+esc(cod)+'</b>'+(info&&info.tipo?' <span class="qr-tipo">'+esc(info.tipo)+'</span>':'')+'</div>';
   html+='<div class="qr-lienzo" id="qrLienzo"></div>';
@@ -828,10 +849,11 @@ function flFila(e, puede, modo, ls){
   const marca = '';   // la regla de producción nula es por TIPO: se dice en el separador, no por fila
   // D173: ficha (placa · medidor) bajo el código; frente cuando se mira toda la obra; aviso sin ficha.
   const ficha=[e.placa, (e.medidor==='KM'?'km':(e.medidor?'horóm.':''))].filter(Boolean).join(' · ');
-  const fr=flFrenteDe(e);
+  const fr=flFrenteDe(e), grp=flGrupoDe(e);
   const sub='<small class="csub">'+
               (e.con_ficha===false ? '<span class="sinficha" title="Sin ficha en PARTE_EQUIPOS: el QR no abre el parte. Corrige la estancia y guarda placa/medidor.">⚠ sin ficha</span>' : esc(ficha||(e.proveedor||'')))+
               ((FL.frente==='todos' && fr!==(FLOTA.frenteDef||'UF1-UF2')) ? ' <span class="frchip">'+esc(fr)+'</span>' : '')+
+              (grp==='drenajes' ? ' <span class="grchip">Drenajes</span>' : '')+
             '</small>';
   const prog = flEsProd(e.tipo) ? esc(e.prog)+' h' : '—';
   let html='<div class="tr'+(modo==='fuera'?' fuera-fila':'')+'">'+

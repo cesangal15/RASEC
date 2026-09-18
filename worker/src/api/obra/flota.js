@@ -44,9 +44,9 @@
 import { OBRA_ID, json, fdate, fdateValida_, hoyBogota, permiso_, logMarcar_ } from '../../comun.js';
 import {
   flotaEnFecha_, flotaFilas_, equiposCapataz_, esTipoSinProduccion,
-  normMaqId, normMaqClave_, normFrente_, progPorPropiedad_,
+  normMaqId, normMaqClave_, normFrente_, normGrupo_, progPorPropiedad_,
   MAQ_ORDEN_TIPO, MAQ_TIPOS_FLOTA, MAQ_TIPOS_PRODUCCION,
-  FLOTA_FRENTES, FLOTA_FRENTE_DEFECTO, PARTE_FRENTES,
+  FLOTA_FRENTES, FLOTA_FRENTE_DEFECTO, PARTE_FRENTES, FLOTA_GRUPOS, FLOTA_GRUPO_DEFECTO,
   _flotaFilasNorm_, _flotaTraslapa_, idsMaquinariaHistorico_, fichasParte_, invalidarMemo_
 } from '../../catalogos.js';
 
@@ -125,10 +125,11 @@ export async function flotaEstancias_(c, fecha){
     if(!r.tipo) avisos.push(_est_(r)+': sin tipo; no lleva producción y solo sale en la flota del parte.');
     else if(MAQ_TIPOS_FLOTA.indexOf(r.tipo)<0) avisos.push(_est_(r)+': tipo "'+r.tipo+'" no está en la lista conocida; no lleva producción y solo sale en la flota del parte.');
     if(FLOTA_FRENTES.indexOf(r.frente)<0) avisos.push(_est_(r)+': frente "'+r.frenteCrudo+'" no se reconoce ('+FLOTA_FRENTES.join(' · ')+'); ese equipo no lo espera ningún parte.');
+    if(FLOTA_GRUPOS.indexOf(r.grupo)<0) avisos.push(_est_(r)+': grupo "'+r.grupoCrudo+'" no se reconoce ('+FLOTA_GRUPOS.join(' · ')+'); se trata como tierras.');
     const ficha=fichas[normMaqClave_(r.id)]||null;
     const progHoja=parseFloat(r.prog);
     const e={ id_maquina:r.id, tipo:r.tipo, propiedad:r.propiedad, notas:r.nota, fila:r.fila,
-              frente:r.frente, produce_tipo: MAQ_TIPOS_PRODUCCION.indexOf(r.tipo)>=0,
+              frente:r.frente, grupo:r.grupo, produce_tipo: MAQ_TIPOS_PRODUCCION.indexOf(r.tipo)>=0,
               placa:ficha?ficha.placa:'', proveedor:ficha?ficha.proveedor:'', medidor:ficha?ficha.medidor:'', con_ficha:!!ficha,
               horas_prog:(isNaN(progHoja)||progHoja<=0) ? '' : progHoja,
               prog:(isNaN(progHoja)||progHoja<=0) ? progPorPropiedad_(r.propiedad) : progHoja,
@@ -174,6 +175,7 @@ export async function flotaPayload_(c, fecha){
            tipos:MAQ_TIPOS_FLOTA, tipos_produccion:MAQ_TIPOS_PRODUCCION, orden_tipo:MAQ_ORDEN_TIPO,
            frentes:FLOTA_FRENTES, frente_defecto:FLOTA_FRENTE_DEFECTO,
            frentes_parte:PARTE_FRENTES,
+           grupos:FLOTA_GRUPOS, grupo_defecto:FLOTA_GRUPO_DEFECTO,
            historico_maquinaria: (await idsMaquinariaHistorico_(c)).n };
 }
 
@@ -278,6 +280,8 @@ export async function flotaGuardar(c, body, ses){
     ? ('El tipo «'+tipo+'» no está en la lista conocida: se guardó igual, sin regla de producción (solo flota y parte).') : '';
   const frente=normFrente_(body.frente);
   if(FLOTA_FRENTES.indexOf(frente)<0) return json(c, { ok:false, error:'El frente "'+(body.frente||'')+'" no se reconoce. Opciones: '+FLOTA_FRENTES.join(' · ')+'.' });
+  const grupo=normGrupo_(body.grupo);   // D183: disciplina (tierras/drenajes), ortogonal al frente
+  if(FLOTA_GRUPOS.indexOf(grupo)<0) return json(c, { ok:false, error:'El grupo "'+(body.grupo||'')+'" no se reconoce. Opciones: '+FLOTA_GRUPOS.join(' · ')+'.' });
   const ficha={ placa:String(body.placa==null?'':body.placa).trim().toUpperCase(),
                 proveedor:String(body.proveedor==null?'':body.proveedor).trim(),
                 medidor:String(body.medidor==null?'':body.medidor).trim().toUpperCase() };
@@ -342,11 +346,11 @@ export async function flotaGuardar(c, body, ses){
     if(op==='corregir'){
       // Puede cambiar id_maquina o fecha_ingreso (columnas de la PK): se actualizan en la transacción.
       await sql`UPDATE maquinas SET id_maquina=${id}, tipo=${tipo}, horas_prog=${prog===''?null:prog}, propiedad=${propiedad},
-        fecha_ingreso=${ing}, fecha_retiro=${ret||null}, notas=${notas}, frente=${frente}
+        fecha_ingreso=${ing}, fecha_retiro=${ret||null}, notas=${notas}, frente=${frente}, grupo=${grupo}
         WHERE obra_id=${OBRA_ID} AND id_maquina=${cid} AND fecha_ingreso=${cing}`;
     }else{
-      await sql`INSERT INTO maquinas (obra_id, id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente)
-        VALUES (${OBRA_ID}, ${id}, ${tipo}, ${prog===''?null:prog}, ${propiedad}, ${ing}, ${ret||null}, ${notas}, ${frente})`;
+      await sql`INSERT INTO maquinas (obra_id, id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente, grupo)
+        VALUES (${OBRA_ID}, ${id}, ${tipo}, ${prog===''?null:prog}, ${propiedad}, ${ing}, ${ret||null}, ${notas}, ${frente}, ${grupo})`;
     }
   });
 
