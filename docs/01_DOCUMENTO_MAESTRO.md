@@ -25,7 +25,7 @@ Digitalizar la información diaria de la obra vial TM2 Sur (UF1/UF2), reemplazan
 - **TIERRAS** (Explanaciones + Bases/Subbases) y **ESTRUCTURAS/MSR** (GRUPO = TIERRAS, D66).
 - **DRENAJES** por áreas (D70): **ODT** (CC `37xx.06.*`) y **ODL** (CC `37xx.07.*`). El área se deriva del CC (`deriveArea`).
 - Ítems puntuales fuera de esos capítulos (D71): **Riego de imprimación** 04.01 (tierras) y **Demolición de estructuras** 01.02 (drenajes).
-- La app captura hasta **LARGO**; ESPESOR, FC, CANTIDAD, ACTA y ORDEN se gestionan en el Excel maestro.
+- La app captura hasta **LARGO**. Desde D184 la base completa el resto de la fila: el Worker (al enviar a DATA y en la Revisión de DATA) y `007_data_completa.sql` ponen la **ACTA** del periodo 16→15 de la fecha, **ESPESOR** 1, el **FC** de la actividad (tabla `fc_actividad`; sin fila, 1) y **CANTIDAD** = LARGO × ESPESOR ÷ FC. El **ORDEN** sigue en el Excel maestro mientras dure el copiado A:O, que manda ORDEN y ACTA vacías para no pisar sus fórmulas.
 
 **Excluidos:**
 - Transporte m³-km en DATA. El transporte se pre-llena aparte para la digitadora (D83).
@@ -164,7 +164,9 @@ Responsable de cuadrilla ──> asistencia.html ──> ASISTENCIA ──> resu
 
 **DATA:**
 - Columnas A–T en el orden del maestro; se pega **A:S**.
-- Internas de trazabilidad después de T, más `area` (D71) y `clima` (D37). Estas no viajan al maestro.
+- Internas de trazabilidad después de T, más `area` (D71) y `clima` (D37). Estas no viajan al maestro, salvo
+  el `clima`: desde D182 es el clima del día, lo edita la Revisión de DATA y viaja como columna `CLIMA` de la
+  vista `data_maestro` (que ya no lleva ORDEN, PROYECTO, LIBERACIÓN ni Columna1).
 
 **Notas del día (D103):**
 - La nota por actividad sale en el WhatsApp.

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grilla de catálogos</title>
+<meta name="theme-color" content="#f5a623">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="entorno.js"></script>
+<link rel="stylesheet" href="tema.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="grilla.css">
+</head>
+<body>
+<div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
+  <div class="header-left">
+    <div class="label">Fuente única de edición · D181</div>
+    <h1>🧮 Grilla de catálogos</h1>
+  </div>
+  <div class="header-user">
+    <span id="userDisplay">—</span>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab on" id="tabSub"  data-on-click="verTabla('subtramos')">Subtramos (BASE)</button>
+    <button class="tab"     id="tabCC"   data-on-click="verTabla('centros_costo')">Centros de coste</button>
+  </div>
+
+  <div class="intro" id="intro">
+    Edición tipo Excel <b>directa contra la base</b> (D181): filtra, ordena, edita en la celda, selecciona un
+    rango (clic + <kbd>Shift</kbd>+clic), <b>copia/pega</b> varias a la vez y <b>rellena hacia abajo</b>
+    (<kbd>Ctrl</kbd>+<kbd>D</kbd>). Cada guardado valida en el servidor —<b>no-solapamiento</b> de subtramos,
+    <b>duplicados</b> y los dos <b>«ajuste a origen»</b>— y lleva control de versión por fila.
+    <span id="soloLectura" class="badge warn" data-estilo="display:none;">Tu rol entra en SOLO LECTURA</span>
+  </div>
+
+  <div class="toolbar">
+    <div class="f grow"><label>Buscar</label><input type="text" id="q" placeholder="elemento, abscisa, CC…" data-on-input="pintar()"></div>
+    <div class="f" id="fUFbox"><label>UF</label><select id="fUF" data-on-change="pintar()"><option value="">Todas</option><option value="UF1">UF1</option><option value="UF2">UF2</option></select></div>
+    <label class="chk" id="fNoOpBox"><input type="checkbox" id="fNoOp" checked data-on-change="pintar()"> Ver «no operativos»</label>
+    <div class="f grow"></div>
+    <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;">＋ Fila</button>
+    <button class="btn" id="btnFill" data-on-click="rellenarAbajo()" data-estilo="display:none;">Rellenar ↓</button>
+    <button class="btn" data-on-click="copiarSel(this)">📋 Copiar</button>
+    <button class="btn" data-on-click="recargar()">↻ Recargar</button>
+    <button class="btn primario" id="btnGuardar" data-on-click="guardar(this)" data-estilo="display:none;" disabled>💾 Guardar cambios <span class="n" id="nDirty">0</span></button>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v" id="kFilas">0</div><div class="l">Filas</div></div>
+    <div class="kpi warn"><div class="v" id="kSolape">0</div><div class="l">Solapes</div></div>
+    <div class="kpi"><div class="v" id="kDup">0</div><div class="l">Nombres repetidos</div></div>
+    <div class="kpi"><div class="v" id="kTope">—</div><div class="l">Tope UF1 · UF2 (m)</div></div>
+  </div>
+
+  <div id="avisos" class="avisos" data-estilo="display:none;"></div>
+
+  <div class="tabla-wrap">
+    <table id="tabla">
+      <thead><tr id="cab"></tr></thead>
+      <tbody id="cuerpo"><tr><td class="vacio">Cargando…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="leyenda">
+    <span class="lg solape">■ solape</span>
+    <span class="lg dup">■ nombre repetido</span>
+    <span class="lg noop">■ no operativo (fuera del cálculo de tope)</span>
+    <span class="lg dirty">■ sin guardar</span>
+    <span class="lg sel">■ selección</span>
+  </div>
+</div>
+
+<script src="grilla.js"></script>
+</body>
+</html>

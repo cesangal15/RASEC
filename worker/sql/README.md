@@ -10,7 +10,7 @@ Es idempotente (`CREATE … IF NOT EXISTS`); se aplica desde el editor SQL de Su
 | Sheet | Hoja | Tabla | Clave primaria | Índices |
 |---|---|---|---|---|
 | obra | BANDEJA | `bandeja` | `(obra_id, id_registro)` | `(fecha)`, `(fecha, area)`, `(fecha, proyecto)` |
-| obra | DATA | `data` (+ vista `data_maestro` con los encabezados exactos A–T) | `(obra_id, id_registro)` | `(fecha)`, `(fecha, area)`, `(centro_de_costo, fecha)` |
+| obra | DATA | `data` (A–T + internas) + vista `data_maestro`: en `001`, los encabezados exactos A–T; desde `005` (D182), las 17 columnas del maestro (sin ORDEN/PROYECTO/LIBERACION/Columna1, con CLIMA del día) | `(obra_id, id_registro)` | `(fecha)`, `(fecha, area)`, `(centro_de_costo, fecha)` |
 | obra | MAQUINARIA | `maquinaria` | `(obra_id, app_id_registro)` | `(fecha)`, `(fecha, id_maquina)`, `(id_cantidad)`, `(id_maquina, fecha)` |
 | obra | VOLQUETAS | `volquetas` | `(obra_id, id_registro)` | `(fecha)` |
 | obra | OBSERVACIONES | `observaciones` | `(obra_id, id_registro)` | `(fecha)` |
@@ -67,7 +67,8 @@ Lo que hay que resolver **antes** de cargar cada hoja (queda para la fase que la
 - **TABLERO**: no se carga por CSV (trozos); se vuelve a publicar desde la pantalla.
 - **LOG**: no se migra (retención 30 días); se carga solo si se quiere conservar el histórico.
 
-`esquema_version` lleva el número del último archivo aplicado; el siguiente cambio de esquema es `002_….sql`.
+`esquema_version` lleva el número del último archivo aplicado. Hoy van de `001` a `008` (ver «003 · 004 · 005», «006»,
+«007» y «008» abajo); el siguiente cambio de esquema es `009_….sql`.
 
 ## Backfill del Parte con el script (Fase 2)
 
@@ -108,7 +109,8 @@ y ANTES de cualquier backfill de obra/asistencias:
 
 Los catálogos (`cubicaje`, `base_*`, `usuarios`, `cuadrillas`, `config`, `festivos`, `turnos`, `cat_*`, `*_usados`,
 `parte_*`) se editan desde 4.01 en Supabase (Table Editor), no en el Sheet: **no hay pull Sheet→BD**; el backfill es la
-carga inicial y `importado_ts` pasa a significar «última carga». El único espejo BD→Sheet es la vista `data_maestro`.
+carga inicial y `importado_ts` pasa a significar «última carga». No hay espejo BD→Sheet: la vista `data_maestro` es la
+superficie de solo lectura que leerá Power Query (V3-09), con el layout D182 desde `005_data_clima.sql`.
 
 ### Los tres scripts
 
@@ -152,3 +154,94 @@ ediciones hechas desde Flota o el Table Editor). El volcado de asistencias sale 
 Una fila con fecha/número/timestamp que no se entienda **no se carga** y sale como aviso (D106); el resto de la tabla
 sí. `worker/pruebas/contrato_local.js` aplica los mismos `0*.sql`, los tres backfills y las semillas del arnés
 (`worker/pruebas/semillas_sql.js`) contra PGlite para el banco local.
+
+## 003 · 004 · 005 — grilla, DATA editable y CLIMA del día (V3-08 · V3-08b · D182)
+
+Van en cadena después de `002`: `001 → 002 → 003 → 004 → backfills → 005`. Las tres son idempotentes: correrlas
+dos veces no cambia nada.
+
+| Archivo | Qué hace | Cuándo |
+|---|---|---|
+| `003_grilla.sql` (V3-08/D181) | `base_elementos.version` (if_version) y `no_operativo` (los dos «ajuste a origen») | antes de los backfills |
+| `004_data_editable.sql` (V3-08b/D181) | `data.version`/`editado_por`/`editado_ts` y la tabla `periodos` con las 17 actas (ACTA ← FECHA) | antes de los backfills |
+| `005_data_clima.sql` (D182) | (1) mueve el sello `[Clima: X]` de la OBSERVACIÓN a `data.clima` donde el clima estaba vacío; (2) limpia la observación (regex de `CLIMA_SELLO_RE`) con `version+1`; (3) `DROP` + `CREATE` de `data_maestro` sin ORDEN/PROYECTO/LIBERACION/Columna1 y con `"CLIMA"` del día (el de la fila o el primero no vacío de la fecha por `"timestamp"` NULLS LAST, `id_registro`) antes de `"OBSERVACION"`; (4) re-otorga el `SELECT` a `tm2_lector_maestro` si el rol existe | **con la DATA ya cargada**, porque mueve datos. En producción, una vez después del `wrangler deploy` de D182 |
+
+Las columnas `orden`/`proyecto`/`liberacion`/`columna1` **siguen en la tabla** `data`: `005` solo las saca de la
+vista, y el copiado del jefe al Excel actual las usa (desde D184, ORDEN y ACTA viajan siempre vacías en ese copiado para
+que «Omitir blancos» respete las fórmulas del Excel). **Ojo:** volver a correr `001` sobre una BD con `005` falla
+en su `CREATE OR REPLACE VIEW data_maestro`, porque no puede renombrar columnas, y no aplica nada. Antes hay que
+hacer `DROP VIEW data_maestro;` y, después de `001`, volver a correr `005`. El banco (`contrato_local.js`) y el
+sandbox (`tools/sandbox/servidor.mjs`) vuelven a aplicar `005` después de cargar los datos, igual que en Supabase.
+`worker/pruebas/casos_sql.js` comprueba el sello movido, la idempotencia y los encabezados de la vista.
+
+## 006 — Proyección editable en Galca (V3-11 Fase A · D183)
+
+`006_proyeccion.sql` va después de `005` (`… → backfills → 005 → 006`); no transforma datos, así que el banco y el
+sandbox la aplican una sola vez con el resto de `0*.sql`. Idempotente: `CREATE … IF NOT EXISTS`, `CREATE OR REPLACE VIEW`
+y semillas que solo entran si la obra no tiene ninguna fila en esa tabla (re-aplicarla no pisa lo editado ni resucita
+una fila borrada).
+
+| Objeto | Qué es |
+|---|---|
+| `proy_plan` | plan mensual en m³ compactos por periodo 16→15 (`periodo` = día 1 del mes de CIERRE = ACTA), 5 partidas + `formulas` jsonb; 17 filas de CALCULOS A3:J19 |
+| `proy_contrato` | programado y producción de la línea base por partida × UF (préstamo sin UF); 9 filas de MAPEO I8:M16 |
+| `proy_rendimiento` | rendimiento compacto por equipo-día (850/450/350/470, MAPEO J27:N27) |
+| `proy_parametros` | FC único (1.3) y acta base (22 → corte 2026-08-16, derivado de `periodos`) |
+| `proy_plan_version_seq` | secuencia de las versiones del plan: el alta y cada corrección toman `nextval` (no 0 / `version+1`), así un periodo borrado y vuelto a crear nunca repite versión (sin ABA) |
+| `proyeccion_{plan,contrato,rendimiento,parametros}_maestro` | vistas espejo para Power Query con los encabezados literales del Excel |
+
+Las 4 tablas llevan RLS (sin políticas, como las de producción) y `version`/`editado_por`/`editado_ts`. Un bloque `DO`
+da `SELECT` de las 4 vistas a `tm2_lector_maestro` si existe y quita todo a `anon`/`authenticated` si existen (una vista
+corre como su dueño y saltaría el RLS): las 4 tablas, las 4 vistas, la secuencia y también **`data_maestro`**, que ni
+`001` ni `005` cerraban (`005` la recrea y los permisos por defecto de Supabase se la vuelven a dar; si se re-corre `005`,
+re-correr `006` después). `roles_lectura_maestro.sql` da los mismos `GRANT` si las vistas ya existen.
+**Regla (D183):** toda migración que recree una vista `*_maestro` repite su bloque `DO` de permisos.
+`worker/pruebas/verificar_d183_proyeccion.mjs` comprueba encabezados, valores, idempotencia y permisos.
+
+## 007 — DATA completa: ACTA de la fecha y FC por actividad (D184)
+
+`007_data_completa.sql` va después de `006` y, como `005`, **con la DATA ya cargada** (`… → backfills → 005 → 006 → 007`):
+rellena datos. El banco (`contrato_local.js`) y el sandbox (`tools/sandbox/servidor.mjs`) la vuelven a pasar después de
+cargar la DATA (`MIGRACIONES_DE_DATOS`), igual que `005`. En producción se pasa **dos veces** en el despliegue de D184:
+una **antes** del front y del `wrangler deploy`, para que el Worker nuevo ya encuentre `fc_actividad` (sin la tabla
+trataría todo como FC 1, y ese FC escrito `007` ya no lo rellena), y otra después, tras `005` y `006`, para completar lo
+que el Worker viejo mandó entre medias (con él la primera pasada es inocua: no lee `fc_actividad`). Tras cualquier
+backfill de DATA se repiten `005`, `006` y `007`, en ese orden: `006` vuelve a quitar a `anon`/`authenticated` el
+acceso a `data_maestro` que `005` recrea (desde D185 se añade `008` al final: ver «008»). Idempotente: la segunda pasada no encuentra nada que rellenar y no re-siembra. Registra `esquema_version` 7.
+
+| Objeto | Qué es |
+|---|---|
+| `fc_actividad` | FC (suelto→compacto) por DESCRIPCIÓN de actividad, el más usado en el histórico de DATA del Excel. Tabla **propia** (un backfill de `base_items` no la borra); sin fila = FC 1. Semillas: las 7 descripciones con 1.3 (terraplén, aprovechable, no aprovechable, préstamo, subbase, base estabilizada, conformación), verbatim de la BASE, con el conteo en `nota`. RLS y `REVOKE` a `anon`/`authenticated` si existen. `version`/`editado_por`/`editado_ts` |
+| relleno de `data` | **solo donde falta, nunca pisa un valor**, salvo la regla [O] de la fila siguiente (obra `tm2sur`): `acta` `''` → la del periodo 16→15 de la fecha (`periodos` o la fórmula `(año_cierre − 2025)·12 + mes_cierre + 2`; `< 1` → `''`); con `largo`: `espesor` NULL → 1, `fc` NULL → `fc_actividad` por descripción normalizada (como `normTexto`) o 1, `cantidad` NULL → `round(largo·espesor/fc, 6)`; `version+1` una sola vez por fila tocada |
+| regla [O] (D185, enmienda D184) | en las filas cuyo `elemento` es un subtramo **no operativo** (los dos «ajuste origen UF1/UF2»: bandera `no_operativo` de `003` por elemento normalizado, o nombre `^ajuste origen`): `fc` NULL con `largo` → **1** y `fc` ≠ 1 → **1** con `cantidad = round(largo·espesor, 6)`. Es la única corrección que **pisa** un valor, y va en el mismo `UPDATE`, con `version+1` una sola vez. Idempotente: una vez en 1, no vuelve a tocar la fila. Con la DATA real, 35 filas |
+
+Las semillas entran solo la primera vez (guarda: `esquema_version` sin la 7) y fila a fila si no existen: re-aplicar `007`
+no pisa un FC editado ni resucita una fila borrada, ni vaciando la tabla entera (más estricta que la guarda «tabla vacía»
+de `006`). Las mismas reglas usan el Worker (`api/obra/periodos.js` · `actaDeFecha`, `catalogos.js` · `fcActividad_`) en
+`enviar_data` y en la Revisión de DATA. `worker/pruebas/casos_sql.js` comprueba semillas, relleno, idempotencia, permisos,
+que no resucita y que la ACTA de 007 = `actaDeFecha` = la de `proyeccion_plan_maestro` (D183) mes a mes.
+`fc_actividad` se edita por ahora en el Table Editor de Supabase (guía en `docs/OPERACIONES.md` §13, «Cambiar un FC»); un
+cambio vale para los envíos y correcciones siguientes y no reescribe las filas de `data` que ya tienen FC.
+
+## 008 — Tablero en vivo desde la DATA (V3-11 Fases B+C · D185)
+
+`008_tablero_vivo.sql` va después de `007` (`… → backfills → 005 → 006 → 007 → 008`). **No transforma datos**, así que el
+banco y el sandbox la aplican una sola vez con el resto de `0*.sql`, sin re-aplicarla tras cargar la DATA. En producción va
+**una vez antes del front y del `wrangler deploy` de D185**, justo después de la primera pasada de `007`. Con el Worker
+viejo es inocua, y el Worker nuevo la encuentra ya. Tras un backfill de DATA se puede repetir al final de `005 → 006 → 007`,
+y no cambia nada. Sin `008`, `GET ?action=tablero_vivo` responde `ok:false` con «falta aplicar
+worker/sql/008_tablero_vivo.sql» y el Tablero enseña la foto publicada. Guía: `docs/OPERACIONES.md` §16.
+
+| Objeto | Qué es |
+|---|---|
+| `tablero_mapeo` | MAPEO A2:C10 del Excel del jefe: qué DESCRIPCIÓN de DATA (texto verbatim de la BASE) va a qué campo del Tablero, por UF. `apr`/`pre`/`nap` (aprovechable, préstamo, no aprovechable) con UF `*`; `ter`/`sub`/`bas` (terraplén, subbase, base estabilizada) con UF1 y UF2. PK `(obra_id, descripcion, uf)`. Cruce por descripción normalizada (la misma expresión que `normTexto` y `007`); una fila con UF concreta gana a la de `*`. 9 semillas, solo la primera vez (guarda: `esquema_version` sin la 8) y fila a fila si no existen: re-aplicar no pisa un mapeo editado ni resucita uno borrado. `version`/`editado_por`/`editado_ts` |
+| `tablero_horas` | una fila por obra con la salida cruda de `leerHoras` del libro de partes (`{partes, cc, corte, descartadas, negativas}`: códigos de máquina, tipos, UF, CC y horas; **sin nombres de personas**), que admin/jefe suben con `POST tablero_horas_guardar`. Se guarda **comprimida** `{z:<gzip base64>}`, como la foto de `tablero` (la real pesa ~340 KB y comprimida ~20 KB). `archivo`, `cargado_por` (no sale en la lectura pública), `cargado_ts` y `version` |
+| vista `tablero_data_campo` | cada fila de `data` con su **CANTIDAD compacta** (la de la fila; si está vacía, `largo · coalesce(espesor,1) / coalesce(nullif(fc,0),1)`) y el **campo** que le da `tablero_mapeo` (NULL = no cuenta para el Tablero). Es el único cruce DATA → Tablero, y la lee el pliegue del Worker (`api/obra/pliegue.js`, sumas en numeric por fecha y campo) |
+| permisos | RLS en las dos tablas (sin políticas: el Worker entra como dueño) y `REVOKE ALL` a `anon`/`authenticated`, si existen, de las tablas **y de la vista**, porque una vista corre como su dueño y se saltaría el RLS. No es una vista `*_maestro`: `tm2_lector_maestro` no la ve y `roles_lectura_maestro.sql` no cambia |
+
+Registra `esquema_version` 8. `worker/pruebas/casos_sql.js` comprueba el esquema y las semillas (`obra.sql.008.esquema`),
+que el pliegue por fecha × campo = Σ CANTIDAD calculado aparte en JS (`obra.sql.008.pliegue`) y que re-aplicarla no cambia
+nada (`obra.sql.008.idempotente`); la regla [O] de `007` la comprueba `obra.sql.007.ajuste_origen_d185`.
+`worker/pruebas/verificar_d185_tablero_vivo.mjs` comprueba lo mismo contra la DATA del sandbox o contra la hoja DATA de una
+copia del Excel (`--excel=`). `tablero_mapeo` se edita en el Table Editor de Supabase. Si la BASE cambia el texto de
+una de esas descripciones, hay que cambiarlo aquí también, o esa actividad deja de contar en el Tablero.

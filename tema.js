@@ -146,6 +146,17 @@ function esc(s){
     }catch(e){}
   }
 
+  // Un cambio de tema hecho en OTRO documento del mismo origen (otra pestaña, o el
+  // Hub que embebe esta pantalla en un iframe) llega por el evento 'storage'. Lo
+  // re-aplicamos en vivo para que el modo claro/oscuro del Hub alcance a las
+  // pantallas embebidas SIN tener que recargarlas.
+  try{
+    window.addEventListener('storage', function(ev){
+      if(ev && ev.key && ev.key !== LLAVE) return;
+      aplicar(leer()); pintar();
+    });
+  }catch(e){}
+
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montar);
   else montar();
 })();

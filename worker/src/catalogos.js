@@ -232,6 +232,62 @@ export async function baseRows_(c){
 }
 export const baseElementos_ = baseRows_;   // mismo lector, nombre del mapa de la migración
 
+/* ---------- D184 · FC por ACTIVIDAD (tabla fc_actividad, 007_data_completa.sql) ----------
+ * El FC (factor suelto→compacto) depende de la actividad: el MÁS USADO en el histórico de DATA del Excel
+ * (lo que no cuadra son errores de digitación). La tabla trae solo las que NO son 1 (hoy 7 descripciones con
+ * 1.3); sin fila = FC 1. Es una tabla PROPIA (no una columna de base_items) para que un backfill del catálogo
+ * BASE no la borre. El cruce es por DESCRIPCIÓN normalizada con normTexto (mayúsculas, sin tildes, espacios
+ * colapsados): la misma normalización que usa 007 en SQL para rellenar DATA.
+ *   fcActividad_(c) → { [normTexto(descripcion)]: fc }   (una consulta por PETICIÓN, memo_ como la BASE;
+ *                      sin la tabla —BD sin 007— devuelve {} y todo queda en FC 1; por eso, en producción,
+ *                      007 se pasa ANTES del `wrangler deploy` de D184: docs/OPERACIONES.md §12)
+ *   fcDeActividad(mapa, descripcion) → fc de la actividad o 1. */
+export async function fcActividad_(c){
+  return memo_(c, 'fc_actividad', async function(){
+    const out={};
+    let filas=[];
+    try{ filas=await c.sql`SELECT descripcion, fc FROM fc_actividad WHERE obra_id=${OBRA_ID} ORDER BY descripcion`; }
+    catch(err){ filas=[]; }
+    filas.forEach(function(r){
+      const k=normTexto(r.descripcion), n=Number(r.fc);
+      if(k && isFinite(n) && n>0 && !(k in out)) out[k]=n;   // dos filas que normalizan igual: gana la primera por descripción (como DISTINCT ON en 007)
+    });
+    return out;
+  });
+}
+export function fcDeActividad(mapa, descripcion){
+  const v=(mapa || {})[normTexto(descripcion)];
+  return (typeof v==='number' && v>0) ? v : 1;
+}
+
+/* ---------- D185 [O] (enmienda de D184, 18-sep-2026) · FC 1 en los «AJUSTE ORIGEN» ----------
+ * Las filas cuyo ELEMENTO es un subtramo NO OPERATIVO de base_elementos (los dos «ajuste origen UF1/UF2»,
+ * bandera no_operativo de 003_grilla.sql; respaldo por nombre ^ajuste origen, como esNoOperativo_ de grilla.js)
+ * son la acomodación directa con el origen y YA están en compacto: su FC por defecto es SIEMPRE 1, no el de la
+ * actividad. Lo aplican enviar_data (completarD184_), la Revisión de DATA (derivar_) y el relleno de 007.
+ *   noOperativos_(c) → { [normTexto(elemento)]: true } de los subtramos con la bandera (memo_ por petición;
+ *                      sin la columna o sin la tabla → {} y queda solo el respaldo por nombre)
+ *   esNoOperativo(mapa, elemento) → true si la bandera o el nombre lo dicen
+ *   fcDeFila(fcMap, noOp, descripcion, elemento) → 1 en un ajuste origen; si no, el FC de la actividad. */
+export const RE_AJUSTE_ORIGEN = /^\s*ajuste\s*origen/i;
+export async function noOperativos_(c){
+  return memo_(c, 'no_operativos', async function(){
+    const out={};
+    let filas=[];
+    try{ filas=await c.sql`SELECT elemento FROM base_elementos WHERE obra_id=${OBRA_ID} AND no_operativo`; }
+    catch(err){ filas=[]; }
+    filas.forEach(function(r){ const k=normTexto(r.elemento); if(k) out[k]=true; });
+    return out;
+  });
+}
+export function esNoOperativo(mapa, elemento){
+  const e=String(elemento==null?'':elemento);
+  return RE_AJUSTE_ORIGEN.test(e) || !!(mapa || {})[normTexto(e)];
+}
+export function fcDeFila(fcMap, noOp, descripcion, elemento){
+  return esNoOperativo(noOp, elemento) ? 1 : fcDeActividad(fcMap, descripcion);
+}
+
 /* ======================================================================================================
  * Codigo.gs L984–L1012 — CUBICAJE: cubicaje real por placa (D53 / 2.10) → tabla cubicaje
  * ====================================================================================================== */

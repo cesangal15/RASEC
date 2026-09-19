@@ -36,30 +36,14 @@
   </div>
 
   <div>
+    <!-- D185 · V3-11 B+C: el Tablero se calcula EN VIVO con la DATA de Galca al abrir (sin «Actualizar»
+         ni Excel de producción). Admin y jefe solo cargan el libro de partes de maquinaria, una vez,
+         cuando llega uno nuevo; segunRol() quita el botón al resto. -->
     <div class="fuente">
       <div class="est" id="estado">—</div>
-      <button type="button" id="btnAct">Actualizar</button>
-      <button type="button" id="btnArch">Elegir archivos</button>
-      <button type="button" id="btnCfg">Enlaces</button>
+      <button type="button" id="btnPartes" title="Elige el libro de partes diarios (hoja BASE MAQUINARIA): se lee aquí y se guarda en Galca para todos">Cargar partes de maquinaria</button>
     </div>
-    <div class="cfg" id="cfg" hidden>
-      <div>
-        <label for="urlProd">Enlace del Excel de producción (TM2_SUR_REPORTE_DIARIO_OBRA)</label>
-        <input type="url" id="urlProd" placeholder="https://…/TM2_SUR_REPORTE_DIARIO_OBRA.xlsx">
-      </div>
-      <div>
-        <label for="urlMaq">Enlace del Excel de maquinaria (partes diarios)</label>
-        <input type="url" id="urlMaq" placeholder="https://…/Partes_Diarios_de_Maquinaria.xlsx">
-      </div>
-      <div class="fila">
-        <button type="button" id="btnGuardar">Guardar enlaces</button>
-        <span class="u-nota-cfg">Deben ser enlaces de DESCARGA DIRECTA
-        y del mismo servidor o uno que permita CORS. Si el servidor los bloquea, usa
-        «Elegir archivos»: el resultado es idéntico.</span>
-      </div>
-    </div>
-    <input type="file" id="filProd" accept=".xlsx,.xlsm" hidden>
-    <input type="file" id="filMaq" accept=".xlsx,.xlsm" hidden>
+    <input type="file" id="filPartes" accept=".xlsx,.xlsm" hidden>
   </div>
 
   <div class="blk">

@@ -1,5 +1,7 @@
 // D170: aplica los data-estilo del marcado ANTES de que corra la lógica de la pantalla (ver tema.js).
 if(window.TM2Estilos) TM2Estilos.aplicar();
+// Modo EMBED (dentro del Hub del Jefe, V3-10): oculta la cabecera propia y los tiles. Sin ?embed=1 no cambia nada.
+try{ if(new URLSearchParams(location.search).get('embed')==='1') document.documentElement.classList.add('embed'); }catch(e){}
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 
 // Estado de la consulta. `cols` trae los índices de columna que informa el backend (con fallback al
@@ -12,7 +14,7 @@ let STATE = { filas:[], cols:{}, desde:'', hasta:'', clima:{} };
 // (D113). No viaja al maestro y no entra en el copiado (COPY_END sigue en 15). Con un backend anterior
 // al despliegue de D113 la fila llega con 20 celdas y esta viene `undefined`: el desglose cae solo al
 // respaldo por DESCRIPCION, así que la pantalla nunca se rompe.
-const COLS_DEFAULT = { FECHA:0, GRUPO:2, CC:3, DESCRIPCION:5, UF:6, ELEMENTO:8, ABS_INI:9, ABS_FIN:10, UNIDAD:13, LARGO:14, OBSERVACION:18, ACTIVIDAD:20, COPY_END:15 };
+const COLS_DEFAULT = { FECHA:0, ORDEN:1, GRUPO:2, CC:3, DESCRIPCION:5, UF:6, ELEMENTO:8, ABS_INI:9, ABS_FIN:10, ACTA:12, UNIDAD:13, LARGO:14, OBSERVACION:18, ACTIVIDAD:20, COPY_END:15 };   // D184: ORDEN/ACTA (van vacías en el copiado)
 
 // Área derivada del CC en CLIENTE (espejo de deriveArea del backend, D70) — el esquema A–T de
 // consolidado no cambia: capítulo 06 → ODT, 07 → ODL, resto → tierras.
@@ -58,11 +60,23 @@ window.onload = function(){
      `menu.html` la siguen llevando, y el portero de la pantalla no se toca. */
   const _tt=document.getElementById('tileTablero');
   if(_tt) _tt.style.display='flex';
+  // Fuente única de edición (D181): panel unificado (Hub) + revisión de DATA + grilla de catálogos BASE.
+  const _th=document.getElementById('tileHub');
+  if(_th && (rol==='jefe' || rol==='admin' || rol==='residente')) _th.style.display='flex';
+  const _td=document.getElementById('tileData');
+  if(_td && (rol==='jefe' || rol==='admin' || rol==='residente')) _td.style.display='flex';
+  const _tg=document.getElementById('tileGrilla');
+  if(_tg && (rol==='jefe' || rol==='admin' || rol==='residente')) _tg.style.display='flex';
+  // V3-11 / D183: Proyección — la ven admin, jefe y residente (el residente en solo lectura).
+  const _tp=document.getElementById('tileProyeccion');
+  if(_tp && (rol==='jefe' || rol==='admin' || rol==='residente')) _tp.style.display='flex';
   // Fecha por defecto = HOY en zona horaria Colombia (D50), nunca toISOString().
   const hoy=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
-  document.getElementById('desde').value=hoy;
-  document.getElementById('hasta').value=hoy;
+  let uDesde=null, uHasta=null; try{ const u=new URLSearchParams(location.search); uDesde=u.get('desde'); uHasta=u.get('hasta'); }catch(e){}
+  document.getElementById('desde').value=uDesde||hoy;
+  document.getElementById('hasta').value=uHasta||uDesde||hoy;
   syncRango();
+  if(uDesde && typeof consultar==='function') consultar();   // embebido con rango → muestra el consolidado de una vez
 };
 function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('rol'); localStorage.removeItem('tm2_token'); window.location.href='index.html'; }
 
@@ -340,14 +354,18 @@ function bloqueCopiado(){
  * tiene clima, hasta S con el sello en la primera fila (D131, ver arriba). CRÍTICO: las celdas vacías
  * (ORDEN, ACTA, ESPESOR/FC/CANTIDAD y la S de las demás filas) viajan como cadena vacía REAL entre tabs
  * (...\t\t...), nunca se colapsan ni se omiten, para que "Pegado especial → Omitir blancos" respete las
- * fórmulas del maestro. Todas las filas del bloque salen con el MISMO número de columnas. */
+ * fórmulas del maestro. Todas las filas del bloque salen con el MISMO número de columnas.
+ * D184: ORDEN (col B) y ACTA (col M) viajan SIEMPRE vacías, aunque la fila de DATA ya las traiga llenas
+ * (desde D184 el Worker escribe la ACTA de la fecha): así "Omitir blancos" sigue respetando las fórmulas
+ * del Excel, como promete la guía de arriba («con ORDEN y ACTA vacías»). El resto del copiado no cambia. */
 function copiarDia(fecha, btn){
   const cF=col('FECHA'), end=col('COPY_END')||15, cObs=col('OBSERVACION');
+  const cOrd=col('ORDEN'), cActa=col('ACTA');   // D184: B y M siempre vacías
   const rows=filasArea().filter(r=>String(r[cF]||'')===fecha); // respeta el filtro de Área (D70)
   const sello=climaSello(fecha);
   const text=rows.map((r,idx)=>{
     const cells=[];
-    for(let j=0;j<end;j++){ cells.push(celdaCopia(r[j])); }
+    for(let j=0;j<end;j++){ cells.push((j===cOrd || j===cActa) ? '' : celdaCopia(r[j])); }
     if(sello && cObs>=end){
       for(let j=end;j<cObs;j++){ cells.push(''); }   // ESPESOR/FC/CANTIDAD: vacías (fórmula del maestro)
       cells.push(idx===0 ? sello : '');              // el clima es del DÍA: una sola fila lo lleva

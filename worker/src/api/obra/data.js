@@ -11,9 +11,15 @@
  *   lookupElemento / lookupMarcadorODT / lookupTramoPorNombre / lookupDescripcion (L615–L961)  cruzan
  *                                                    contra la BASE (baseRows_/baseItems_ de catalogos.js).
  *   anclaCruce / numOrNull (L868–L887)               ancla del cruce por abscisa (D104).
- *   sellarClimaEnObservacion_ (L2436–L2442)          estampa '[Clima: X]' en la OBSERVACION de la 1ª fila.
  *   enviarData (L2450–L2518)                         POST enviar_data: pisa el día del área y reescribe.
+ *                                                    D182: ya NO estampa '[Clima: X]' en la OBSERVACION
+ *                                                    (sellarClimaEnObservacion_ L2436–L2442 se retiró del
+ *                                                    Worker; el .gs de vuelta atrás la conserva) y su clima
+ *                                                    pasa a las filas de otras áreas que ya tenían uno.
  *   drenajesCatalogo / tramosCatalogo (L813–L983)    catálogos de la BASE para las pantallas estáticas.
+ *   completarD184_ (D184, sin par en el .gs)          ACTA de la fecha + ESPESOR 1 / FC de la actividad /
+ *                                                    CANTIDAD en cada fila armada (el .gs las deja vacías
+ *                                                    para las fórmulas del Excel; el .gs no se toca).
  *
  * Qué cambia respecto al .gs y por qué (decisiones 3, 9 del port):
  *   · `getBaseRows()` / `getBaseItems()` (memos de ejecución) → baseRows_(c) / baseItems_(c) de
@@ -30,16 +36,16 @@
  * Contexto `c` = { sql, env, secreto, authV, pet:{t0, log}, memo }. Lo arma src/index.js por petición.
  */
 import { OBRA_ID, json, toDate, fdate, fdateValida_, normTexto, ccCorto, textoArrayPg_ } from '../../comun.js';
-import { baseItems_, baseRows_, pkMeters, pkFmt, buildElemento, baseSetFor, BASE_TOL_M } from '../../catalogos.js';
+import { baseItems_, baseRows_, pkMeters, pkFmt, buildElemento, baseSetFor, BASE_TOL_M, fcActividad_, noOperativos_, fcDeFila } from '../../catalogos.js';
 import { areaDeFila } from './areas.js';
+import { periodos_, actaDeFecha } from './periodos.js';   // D184: la regla única de ACTA
 
 /* ---------- helpers privados de la capa de datos ---------- */
 // ERROR_FECHA de Codigo.gs L253–L255 (const privada del .gs, no exportada): se copia verbatim aquí.
 const ERROR_FECHA = 'La fecha del reporte llegó vacía o con un formato que no se entiende. '
   + 'Vuelve a elegir el día en el campo "Fecha" y envía otra vez. '
   + 'No se guardó nada a propósito: una fila sin fecha no aparece en la bandeja ni en el maestro.';
-// Índice de la OBSERVACION en la fila de 29 celdas (Codigo.gs `const C = { FECHA:0, LARGO:14, OBS:18 }`).
-const IDX_OBS = 18;
+// (D182: IDX_OBS —índice de la OBSERVACION en la fila de 29 celdas— se fue con sellarClimaEnObservacion_.)
 // text NOT NULL DEFAULT '' → nunca NULL; number → su texto (metros del PK en ABS INICIAL/FINAL, D68).
 function txt_(v){ return String(v==null?'':v); }
 // numeric → Number o NULL ('' del .gs = celda vacía de la hoja).
@@ -135,10 +141,11 @@ export async function buildDataRow(c, ln, fecha, ts, reporta, rol, idC){
   // área tierras — las de drenajes salieron por buildDataRowDrenajes arriba y conservan su GRUPO.
   let grupo = ln.grupo||'';
   if(/estructura/i.test(grupo)) grupo='TIERRAS';
-  return [ toDate(fecha), '', grupo, cc, ln.capitulo||'', desc,
+  // D184: ACTA/ESPESOR/FC/CANTIDAD ya no salen vacías (las ponía la fórmula del Excel): completarD184_.
+  return completarD184_(c, [ toDate(fecha), '', grupo, cc, ln.capitulo||'', desc,
     uf, proy, elem, absIni, absFin,
     ln.liberacion||'CAMPO', '', ln.unidad||'', (ln.largo!=null?ln.largo:''), '', '', '', ln.observacion||'', '',
-    idC, ts, reporta||'', rol||'', ln.actividad||'', ln.pk_inicial||'', ln.pk_final||'', 'tierras', ln.clima||'' ];
+    idC, ts, reporta||'', rol||'', ln.actividad||'', ln.pk_inicial||'', ln.pk_final||'', 'tierras', ln.clima||'' ], fecha);
 }
 
 /* ---------- Codigo.gs L567–L612 — DATA para DRENAJES (ODT / ODL), D69 ----------
@@ -187,10 +194,35 @@ export async function buildDataRowDrenajes(c, ln, fecha, ts, reporta, rol, idC, 
   // ln.capitulo SOLO cuando NO es el "DRENAJE …" por defecto (red de seguridad para frontends viejos).
   const capDefault = (area==='odt') ? 'DRENAJE TRANSVERSAL' : 'DRENAJE LONGITUDINAL';
   const capitulo = (ln.capitulo && !/^\s*drenaje/i.test(String(ln.capitulo))) ? ln.capitulo : capDefault;
-  return [ toDate(fecha), '', 'DRENAJES Y ESTRUCTURAS', cc, capitulo, desc,
+  // D184: ACTA/ESPESOR/FC/CANTIDAD con la misma regla que tierras (completarD184_).
+  return completarD184_(c, [ toDate(fecha), '', 'DRENAJES Y ESTRUCTURAS', cc, capitulo, desc,
     uf, proy, elem, absIni, absFin,
     ln.liberacion||'CAMPO', '', ln.unidad||'', (ln.largo!=null?ln.largo:''), '', '', '', ln.observacion||'', '',
-    idC, ts, reporta||'', rol||'', ln.actividad||'', ln.pk_inicial||'', ln.pk_final||'', area, ln.clima||'' ];
+    idC, ts, reporta||'', rol||'', ln.actividad||'', ln.pk_inicial||'', ln.pk_final||'', area, ln.clima||'' ], fecha);
+}
+
+/* ---------- D184 (sep-2026) — DATA completa desde el envío ----------
+ * El .gs (vuelta atrás) deja ACTA (col M) y ESPESOR/FC/CANTIDAD (P/Q/R) VACÍAS porque las ponían las
+ * fórmulas de la hoja DATA del Excel. Con la DATA viva en la BD (Power Query lee data_maestro) nadie las
+ * calcula, así que el Worker las escribe al armar la fila (tierras Y drenajes), con las mismas reglas que la
+ * Revisión de DATA (datagrid.js) y que el relleno de 007_data_completa.sql:
+ *   · ACTA     = la del periodo 16→15 de la FECHA (actaDeFecha, periodos.js: tabla periodos o fórmula).
+ *   · con LARGO: ESPESOR = 1 (la app no captura espesor), FC = el de la ACTIVIDAD (fc_actividad por la
+ *     DESCRIPCIÓN ya verbatim de la BASE; sin fila = 1) y CANTIDAD = round6(LARGO × ESPESOR ÷ FC).
+ *   · sin LARGO: ESPESOR/FC/CANTIDAD quedan vacías (como antes).
+ *   · D185 [O] (enmienda de D184): si el ELEMENTO es un subtramo NO OPERATIVO (los «ajuste origen UF1/UF2»:
+ *     bandera no_operativo de base_elementos o el nombre), FC = 1 SIEMPRE (ya está en compacto), no el de la
+ *     actividad: fcDeFila de catalogos.js, la misma regla que la Revisión de DATA y el relleno de 007.
+ * Una sola consulta a periodos, otra a fc_actividad y otra a los no operativos por envío (memo_ de la petición, como la BASE). Es la
+ * diferencia deliberada (D184) con las 29 celdas del .gs, que no se toca. */
+async function completarD184_(c, fila, fecha){
+  fila[12] = actaDeFecha(await periodos_(c), fecha);
+  const largo = numNulo_(fila[14]);
+  if(largo!=null){
+    const esp = 1, fc = fcDeFila(await fcActividad_(c), await noOperativos_(c), fila[5], fila[8]);   // D185 [O]: fila[8] = ELEMENTO
+    fila[15] = esp; fila[16] = fc; fila[17] = Math.round(largo*esp/fc*1e6)/1e6;
+  }
+  return fila;
 }
 
 /* ---------- Codigo.gs L615–L623 — marcador ODT de la BASE por su nombre ----------
@@ -330,18 +362,13 @@ export async function tramosCatalogo(c){
 }
 
 /* ======================================================================================================
- * Codigo.gs L2436–L2442 — sello '[Clima: X]' en la OBSERVACION de la PRIMERA fila del día (D130).
- * Idempotente (CLIMA_SELLO_RE quita un sello previo). Al principio, no al final; una sola fila. `rows`
- * son las 29 celdas de buildDataRow (rows[0][IDX_OBS] = col S OBSERVACION). ATENCIÓN: CLIMA_SELLO_PREFIJO
- * es el contrato con la fórmula del Excel; cambiarlo obliga a cambiar la fórmula del maestro.
+ * D182 (sep-2026) — Codigo.gs L2436–L2442 (sellarClimaEnObservacion_, el sello '[Clima: X]' en la
+ * OBSERVACION de la primera fila del día, D130) YA NO se porta: la hoja DATOS del Excel, que leía el clima de
+ * ese sello, se elimina. El clima del día vive en data.clima y viaja al maestro por la columna "CLIMA" de
+ * data_maestro (005_data_clima.sql, que además movió los sellos históricos a la columna y limpió la
+ * observación con la misma regex /\[Clima:\s*[^\]]*\]\s*(?:·\s*)?/gi). El copiado del jefe (jefe.js, D131)
+ * sigue armando su sello desde climaPorDia hasta el corte de Power Query; el .gs de vuelta atrás sigue sellando.
  * ====================================================================================================== */
-const CLIMA_SELLO_PREFIJO = '[Clima: ';
-const CLIMA_SELLO_RE = /\[Clima:\s*[^\]]*\]\s*(?:·\s*)?/gi;   // sello previo (reenvío) — se reemplaza
-export function sellarClimaEnObservacion_(rows, clima){
-  if(!rows || !rows.length || !clima) return;
-  const previa = String(rows[0][IDX_OBS]==null ? '' : rows[0][IDX_OBS]).replace(CLIMA_SELLO_RE, '').trim();
-  rows[0][IDX_OBS] = CLIMA_SELLO_PREFIJO + clima + ']' + (previa ? ' · ' + previa : '');
-}
 
 /* ======================================================================================================
  * Codigo.gs L2953 — esquema D166 del envío a DATA. Lo importa api/obra.js (validarPayloadObra_).
@@ -373,14 +400,15 @@ export async function enviarData(c, body, ses){
   if(!fecha) return json(c, {ok:false, error:ERROR_FECHA});
   const aB=String(body.area||'').trim().toLowerCase();
   const area=(aB==='odt'||aB==='odl'||aB==='tierras') ? aB : 'tierras';
-  // D37 → D130: clima del día que elige el encargado (mismo string en todas las filas del envío). Se
-  // sella en la columna interna `clima` de DATA (no viaja al maestro) y ADEMÁS en la OBSERVACION de la
-  // primera fila del día, que sí viaja (col S del paste A:S).
+  // D37 → D130 → D182: clima del día que elige el encargado (mismo string en todas las filas del envío). Se
+  // guarda SOLO en la columna `clima` de DATA, que viaja al maestro como "CLIMA" de data_maestro (el clima
+  // del día en cada fila). Desde D182 ya no se estampa '[Clima: X]' en la OBSERVACION, y el envío lo lleva
+  // también a las filas de otras áreas que ya guardaban un clima (abajo, tras el INSERT).
   const clima=String(body.clima||'').trim();
-  /* D130 — el clima es OBLIGATORIO en tierras: una tabla del Excel maestro lo lee del sello de la
-   * observación, así que un día sin clima llega incompleto. Se rechaza ANTES del pisado de D03, así que
+  /* D130 (sigue vigente con D182) — el clima es OBLIGATORIO en tierras: el maestro lo lee de la columna
+   * CLIMA, así que un día sin clima llega incompleto. Se rechaza ANTES del pisado de D03, así que
    * un envío rechazado deja el día tal como estaba. DRENAJES queda fuera (residente-drenajes.html no
-   * captura clima, D70). */
+   * captura clima, D70): sus filas llegan con '' y toman el clima del día al leerse. */
   if(area==='tierras' && !clima){
     return json(c, {ok:false, error:'Falta el clima del día. No se envió nada a DATA (el día quedó como estaba). '
       + 'Elige el clima en el panel y vuelve a enviar; si no ves el selector, recarga la pantalla.'});
@@ -397,7 +425,7 @@ export async function enviarData(c, body, ses){
     const idC = ln.id_registro || crypto.randomUUID();
     rows.push(await buildDataRow(c, ln, fecha, ts, ln.reporta||'(encargado)', ln.rol||'encargado', idC));
   }
-  sellarClimaEnObservacion_(rows, clima);            // D130: el clima viaja al maestro por la col S
+  // D182: aquí iba sellarClimaEnObservacion_(rows, clima) (D130); el clima ya viaja en data.clima.
   const ids=rows.map(function(r){ return r[20]; });  // id_registro conservado de cada fila que entra
   // inc = TODAS las cantidades del envío con id (incluidas las no_data): decide incluido/descartado en BANDEJA.
   const inc={}; incluidas.forEach(function(ln){ if(ln.id_registro) inc[ln.id_registro]=1; });
@@ -414,6 +442,12 @@ export async function enviarData(c, body, ses){
     else
       await sql`DELETE FROM data WHERE obra_id=${OBRA_ID} AND fecha=${fecha} AND area=${area}`;
     for(const r of rows) await insertarDataFila_(sql, r, fecha);
+    // D182: el clima es DEL DÍA. Las filas de OTRAS áreas que guardan uno distinto (se lo escribió la Revisión
+    // de DATA al propagarlo) toman el del envío, con version+1 para que una grilla abierta choque; así el día
+    // no queda con dos climas. Las que están en '' (drenajes, D70) siguen así y lo leen del día.
+    if(clima)
+      await sql`UPDATE data SET clima=${clima}, version=version+1
+        WHERE obra_id=${OBRA_ID} AND fecha=${fecha} AND area<>${area} AND btrim(clima)<>'' AND clima<>${clima}`;
     // 2) BANDEJA: marcar incluido / descartado SOLO las filas del día de esa área (L2513–L2516).
     const ban=await sql`SELECT id_registro, area, centro_costo FROM bandeja WHERE obra_id=${OBRA_ID} AND fecha=${fecha}`;
     const idsInc=[], idsDesc=[];

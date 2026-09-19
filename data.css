@@ -1,0 +1,118 @@
+  /* ============================================================================
+   * REVISIÓN DE DATA (V3-08b / D181) — edición tipo Excel de la hoja DATA, con
+   * derivaciones (descripción/subtramo/fecha) directas contra Supabase.
+   * Solo tokens de tema.css → claro/oscuro. CSP D170: sin inline.
+   * ==========================================================================*/
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;gap:10px;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:1480px;margin:0 auto;width:100%;padding:14px 16px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  .intro,.toolbar,.filtros,.kpis,.leyenda{flex:0 0 auto;}
+
+  .intro{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .intro b{color:var(--text);}
+
+  label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:4px;letter-spacing:0.5px;text-transform:uppercase;}
+  select,input[type="text"],input[type="date"]{width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;outline:none;appearance:none;-webkit-appearance:none;}
+  select{background-image:var(--flecha);background-repeat:no-repeat;background-position:right 10px center;padding-right:32px;cursor:pointer;}
+  select option{background:var(--surface);}
+  select:focus,input:focus{border-color:var(--accent);}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;}
+  .toolbar .f{min-width:130px;}
+  .toolbar .f.grow{flex:1;min-width:180px;}
+  /* Fila de filtros de la vista: acta, grupo, capítulo, UF, actividad + buscar. */
+  .filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+  .filtros .f{min-width:96px;}
+  .filtros .f.grow{flex:1;min-width:170px;}
+  .filtros select,.filtros input{font-size:13px;padding:7px 10px;}
+  .filtros select{padding-right:30px;}
+  #btnLimpiar{min-height:38px;align-self:flex-end;}
+  .btn{padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;white-space:nowrap;min-height:40px;}
+  .btn:hover{border-color:var(--accent);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .btn.primario{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:var(--btn-txt);}
+  .btn.copied{border-color:var(--success);color:var(--success-txt);}
+  .btn .n{display:inline-block;margin-left:6px;background:rgba(0,0,0,.18);border-radius:20px;padding:1px 8px;font-size:11px;font-family:'DM Sans',sans-serif;}
+  .badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted);}
+  .badge.warn{border-color:var(--warn);color:var(--accent-txt);}
+
+  .kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px;min-width:130px;}
+  .kpi .v{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;}
+  .kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .kpi.warn .v{color:var(--accent-txt);}
+
+  kbd{font-family:'DM Sans',sans-serif;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text);}
+  .tabla-wrap{overflow:auto;flex:1 1 auto;min-height:220px;border:1px solid var(--border);border-radius:12px;background:var(--surface);outline:none;}
+  .tabla-wrap:focus{box-shadow:inset 0 0 0 2px rgba(245,166,35,.35);}
+  table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:12.5px;table-layout:fixed;}
+  thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;z-index:3;}
+  /* agarradera para arrastrar el ancho de la columna (borde derecho del encabezado) */
+  thead th .rz{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:5;}
+  thead th .rz:hover{background:linear-gradient(90deg,transparent,var(--accent));opacity:.6;}
+  body.rz-activo{cursor:col-resize;user-select:none;}
+  body.rz-activo .tabla-wrap{cursor:col-resize;}
+  thead th.rownum,tbody td.rownum{width:44px;min-width:44px;text-align:center;color:var(--muted);cursor:default;background:var(--surface2);position:sticky;left:0;z-index:1;}
+  thead th.rownum{z-index:4;}
+  tbody td.rownum.acc{left:auto;position:static;background:transparent;}
+  tbody td{padding:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);vertical-align:middle;}
+  /* zebra + columnas calculadas en gris, para distinguir a simple vista */
+  tbody tr:nth-child(even) td{background:rgba(127,127,127,.06);}
+  tbody td.deriv{background:rgba(127,127,127,.11);}
+  tbody tr:nth-child(even) td.deriv{background:rgba(127,127,127,.16);}
+  /* la columna # es fija (sticky) al desplazarse a la derecha —donde quedan Clima y Observación, D182—:
+   * el cebreado la volvía translúcida en las filas pares y el texto de detrás se leía encima */
+  tbody tr:nth-child(even) td.rownum:not(.acc){background:var(--surface2);}
+  tbody td.cell{cursor:cell;}
+  /* Filas compactas tipo Excel: una sola línea con «…», relleno mínimo → caben muchas más. */
+tbody td.cell .cv{padding:3px 8px;min-height:22px;line-height:16px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  tbody td.deriv .cv{color:var(--muted);}
+  tbody td.cell.num .cv{text-align:right;font-variant-numeric:tabular-nums;}
+  /* selección y celda activa (como Excel) */
+  tbody td.cell.sel{background:rgba(245,166,35,.14)!important;}
+  tbody td.cell.activa{box-shadow:inset 0 0 0 2px var(--accent);}
+  /* editor que aparece SOLO al editar */
+  .editor{width:100%;border:none;background:var(--input-bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;padding:3px 8px;outline:none;min-height:22px;box-shadow:inset 0 0 0 2px var(--accent);}
+  .editor.num{text-align:right;}
+  select.editor{appearance:none;-webkit-appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;}
+  /* Los anchos de columna los pone un <colgroup> desde JS (por defecto + lo que arrastres, guardado
+   * en el navegador). El texto NO se ajusta: una línea con «…»; el completo se ve al pasar el ratón (title).
+   * En modo «Amplio» (alto de fila) sí se ajusta para leer descripciones largas. */
+  #tabla.alto-normal tbody td.cell .cv,#tabla.alto-normal .editor{min-height:30px;padding:6px 8px;}
+  #tabla.alto-amplio  tbody td.cell .cv{min-height:46px;padding:9px 8px;white-space:normal;line-height:18px;}
+  #tabla.alto-amplio  .editor{min-height:46px;padding:9px 8px;}
+  tbody tr.dirty td.rownum{border-left:3px solid var(--info);}
+  tbody tr.sincc td.col-centro_de_costo{background:rgba(239,106,92,.14);}
+  tbody tr.sincc td.col-centro_de_costo .cv{color:var(--error-txt);}
+  .xbtn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:4px 7px;}
+  .xbtn:hover{border-color:var(--error);color:var(--error-txt);}
+  td.vacio{padding:26px;text-align:center;color:var(--muted);}
+
+  .leyenda{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:11.5px;color:var(--muted);}
+  .lg::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+  .lg.deriv::before{background:var(--muted);}
+  .lg.sincc::before{background:var(--error);}
+  .lg.dirty::before{background:var(--info);}
+  .lg.sel::before{background:transparent;border:2px solid var(--accent);}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--success);color:var(--text);padding:11px 18px;border-radius:10px;font-size:13px;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.35);display:none;max-width:92vw;}
+  .toast.err{border-color:var(--error);}
+
+  @media(max-width:640px){ .header{padding:12px 16px;} .container{padding:14px 12px;} }
+
+  /* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera propia; la tabla ocupa TODA la altura.
+   * El rango de fechas lo manda el Hub arriba a la derecha, así que aquí se ocultan Desde/Hasta/Consultar
+   * (no repetir el mismo control en cada pestaña). */
+  html.embed .header{display:none;}
+  html.embed .intro{display:none;}
+  html.embed .leyenda{display:none;}
+  html.embed .fecha-local{display:none;}
+  html.embed .container{max-width:none;padding:8px 12px;}
