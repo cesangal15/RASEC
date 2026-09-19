@@ -885,8 +885,55 @@ module.exports = [
       const c2 = filaDe(u2, id);
       t.ok('un FC escrito por el jefe (1.3) en un ajuste origen se respeta (la regla [O] es el valor POR DEFECTO)', !!c2 && c2.fc === 1.3 && c2.cantidad === 100, c2 || u2);
       const l = await api.obra.post(Object.assign({ token: tok, action: 'data_grid_guardar', cambios: [{ op: 'baja', id_registro: id, if_version: (c2 || b2 || a).version }] }, rango));
-      t.ok('limpieza: la fila dada de baja', l.ok === true && !filaDe(l, id), l); } }
+      t.ok('limpieza: la fila dada de baja', l.ok === true && !filaDe(l, id), l); } },
+
+  /* ---------- D187: la DATA (y la Proyección) en CSV para el Excel maestro por Power Query «Desde la Web» ---------- */
+  { id: 'obra.data_csv', modulo: 'obra', nombre: 'GET data_csv / proyeccion_csv (D187): CSV con CLAVE DE LECTURA, antes de la puerta de token — sin clave o mala → 401 texto plano; buena → text/csv UTF-8 con BOM, las 17 cabeceras de data_maestro, RFC 4180, números con punto, FECHA YYYY-MM-DD; las 4 tablas de la Proyección',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('data_csv es DB-only del Worker (D187); no está en el .gs vm');
+      const clave = String(process.env.CLAVE_LECTURA_EXCEL || '');
+      if (!clave) return t.omitir('falta la variable de entorno CLAVE_LECTURA_EXCEL (la clave de lectura del destino; contrato_local.js la pone)');
+      const pedir = async (qs) => { const r = await fetch(api.urls.obra + '?' + new URLSearchParams(qs).toString());
+        const b = Buffer.from(await r.arrayBuffer()); return { st: r.status, ct: r.headers.get('Content-Type') || '', b, tx: b.toString('utf8') }; };
+      const s0 = await pedir({ action: 'data_csv' });
+      t.ok('sin clave → 401 en TEXTO PLANO (no el JSON {auth:false} del filtro de token)', s0.st === 401 && /^text\/plain/.test(s0.ct) && !/^\s*\{/.test(s0.tx), [s0.st, s0.ct, s0.tx.slice(0, 120)]);
+      const s1 = await pedir({ action: 'data_csv', clave: clave + '-mala' });
+      t.ok('clave mala → 401 texto', s1.st === 401 && /^text\/plain/.test(s1.ct), [s1.st, s1.tx.slice(0, 120)]);
+      const r = await pedir({ action: 'data_csv', clave });
+      t.ok('clave buena → 200 text/csv; charset=utf-8 con BOM (EF BB BF)', r.st === 200 && /^text\/csv; charset=utf-8/i.test(r.ct) && r.b[0] === 0xEF && r.b[1] === 0xBB && r.b[2] === 0xBF, [r.st, r.ct, r.tx.slice(0, 120)]);
+      const { filas, err } = csvRfc4180(r.tx.replace(/^﻿/, ''));
+      const cab = filas.shift() || [];
+      t.ok('RFC 4180 sin errores y cabecera = las 17 de data_maestro en su orden', !err && JSON.stringify(cab) === JSON.stringify(CSV_COLS_D187), [err, cab]);
+      t.ok('cada fila con 17 celdas; FECHA YYYY-MM-DD en orden; LARGO/ESPESOR/FC/CANTIDAD vacías o con punto decimal (sin miles ni exponente)', filas.length > 0
+        && filas.every((f, i) => f.length === 17 && /^\d{4}-\d{2}-\d{2}$/.test(f[0]) && (i === 0 || filas[i - 1][0] <= f[0]) && [11, 12, 13, 14].every(j => f[j] === '' || /^-?\d+(\.\d+)?$/.test(f[j]))),
+        filas.filter(f => f.length !== 17 || !/^\d{4}-\d{2}-\d{2}$/.test(f[0])).slice(0, 2));
+      for (const tabla of ['plan', 'contrato', 'rendimiento', 'parametros']){
+        const p = await pedir({ action: 'proyeccion_csv', tabla, clave });
+        const x = csvRfc4180(p.tx.replace(/^﻿/, ''));
+        t.ok('proyeccion_csv ' + tabla + ' → 200 text/csv con BOM, cabecera ' + CSV_PROY_D187[tabla].join(' | ') + ' y filas', p.st === 200 && /^text\/csv/.test(p.ct) && p.b[0] === 0xEF && !x.err
+          && JSON.stringify(x.filas[0]) === JSON.stringify(CSV_PROY_D187[tabla]) && x.filas.length > 1 && x.filas.every(f => f.length === CSV_PROY_D187[tabla].length), [p.st, x.err, x.filas[0]]);
+      }
+      const pm = await pedir({ action: 'proyeccion_csv', tabla: 'otra', clave });
+      t.ok('proyeccion_csv con tabla inválida → 400 texto', pm.st === 400 && /^text\/plain/.test(pm.ct), [pm.st, pm.tx.slice(0, 120)]); } }
 ];
+
+/* ---------- D187: columnas del CSV y un parser RFC 4180 mínimo (comillas, "" y saltos de línea dentro de comillas) ---------- */
+const CSV_COLS_D187 = ['FECHA', 'GRUPO', 'CENTRO DE COSTO', 'CAPITULO', 'DESCRIPCION', 'UNIDAD FUNCIONAL', 'ELEMENTO', 'ABS INICIAL', 'ABS FINAL',
+  'ACTA', 'UNIDAD MEDIDA', 'LARGO', 'ESPESOR', 'FC', 'CANTIDAD', 'CLIMA', 'OBSERVACION'];
+const CSV_PROY_D187 = { plan: ['periodo', 'EXCAVACION', 'TERRAPLEN', 'SUBBASE', 'BASE', 'NO APROV', 'ACTA'],
+  contrato: ['PARTIDA', 'Programado UF1', 'Programado UF2', 'Programado', 'Produccion UF1', 'Produccion UF2', 'Produccion'],
+  rendimiento: ['concepto', 'EXCAVACION', 'TERRAPLEN', 'SUBBASE', 'BASE'], parametros: ['FC', 'ACTA BASE', 'CORTE BASE'] };
+function csvRfc4180(s){
+  const filas = []; let fila = [], c = '', q = false, err = '';
+  for (let i = 0; i < s.length; i++){ const ch = s[i];
+    if (q){ if (ch === '"'){ if (s[i + 1] === '"'){ c += '"'; i++; } else q = false; } else c += ch; continue; }
+    if (ch === '"'){ if (c !== '') err = err || 'comilla suelta'; q = true; }
+    else if (ch === ','){ fila.push(c); c = ''; }
+    else if (ch === '\r' || ch === '\n'){ if (ch === '\r' && s[i + 1] === '\n') i++; fila.push(c); c = ''; filas.push(fila); fila = []; }
+    else c += ch; }
+  if (q) err = err || 'comillas sin cerrar';
+  if (c !== '' || fila.length){ fila.push(c); filas.push(fila); }
+  return { filas, err };
+}
 
 /* ---------- D185: ayudas de los casos del Tablero en vivo (declaradas después del array; solo se usan en run()) ---------- */
 const D185_F = '2020-07-09';   // fecha de BANCO libre para los envíos de [O] (semillas.js usa el 07 y el 08)

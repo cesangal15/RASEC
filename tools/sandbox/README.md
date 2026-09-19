@@ -170,6 +170,19 @@ MAPEO, constantes del código) y compara las dos salidas del Tablero campo a cam
 no pudo comparar. Para partir un comando en varias líneas: en PowerShell termina cada línea con un acento grave
 `` ` ``; en bash, con `\`.
 
+## Probar la DATA para el Excel maestro (Power Query «Desde la Web» · D187)
+El sandbox pone la clave de lectura **`clave-excel-sandbox`** (secreto `CLAVE_LECTURA_EXCEL` del Worker local), así
+que puedes pedir la DATA en CSV tal como la leerá el Excel:
+```
+http://127.0.0.1:8099/obra?action=data_csv&clave=clave-excel-sandbox
+http://127.0.0.1:8099/obra?action=proyeccion_csv&tabla=plan&clave=clave-excel-sandbox        # contrato | rendimiento | parametros
+```
+Sale `text/csv` UTF-8 con BOM, las 17 columnas de `data_maestro`, RFC 4180. Sin clave o con otra → 401 en texto.
+Para probar la **consulta M** de `docs/OPERACIONES.md` §14 contra el sandbox, cambia en ella
+`"https://api.galca.app/obra"` por `"http://127.0.0.1:8099/obra"` y la clave por `clave-excel-sandbox` (el Excel
+tiene que estar en el mismo PC). La verificación completa (fila a fila contra `data_maestro`, caché, rotación de la
+clave) es `node worker/pruebas/verificar_d187_data_csv.mjs`.
+
 ## Opciones
 - `--puerto=8099` — cambia el puerto.
 - `--base=<archivo.csv>` — usa otro CSV de subtramos (encabezados `elemento,abs_inicio,abs_fin,uf,tipo,orden`).

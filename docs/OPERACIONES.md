@@ -377,6 +377,9 @@ entera y comprobar `esquema_version` 8. El banco (`worker/pruebas/contrato_local
 (`tools/sandbox/servidor.mjs`) aplican la cadena entera y, con la DATA ya cargada, re-aplican `005` y `007`, que son
 las que mueven datos. No tienen los roles de Supabase, así que no necesitan `006`. `008` no hace falta
 re-aplicarla porque no depende de lo cargado.
+**Carga única de la DATA del Excel maestro (D186):** es un «backfill de DATA» más, pero sale del libro del jefe y
+no del volcado. Se hace con `worker/sql/importar_maestro.js`, que respalda, reemplaza hasta la fecha de corte,
+re-aplica ella misma `005 → 008` y verifica por mes. Pasos y comandos en §14, «Paso 0».
 
 **`005_data_clima.sql` (D182)** hace cuatro cosas: (1) mueve el sello `[Clima: X]` de la OBSERVACIÓN a
 `data.clima` en las filas donde el clima estaba vacío; (2) quita el sello de la observación y sube `version`
@@ -610,12 +613,20 @@ una actividad que los capataces no reportan). Entra desde el menú (admin) y el 
   actividades y la DATA real completa (4468 filas). Al arrancar, `005` les quita los sellos de clima y `007`
   completa lo que falte (con la muestra real, 2 filas). Entra como `jefe`/`clave-jefe` y úsala de verdad.
 
-## 14. Maestro del reporte diario por CONEXIÓN VIVA (Power Query) — 4.01 · V3-09 · D181 · D182 · D184
+## 14. Maestro del reporte diario por CONEXIÓN VIVA (Power Query) — 4.01 · V3-09 · D181 · D182 · D184 · D186 · D187
 
-Reemplaza el **copy-paste A:S** al Excel maestro por una **conexión directa** de Power Query a Supabase que
-lee la vista **`data_maestro`**, el ESPEJO de la hoja DATA. Las tablas dinámicas del jefe se re-apuntan
-**una sola vez** a la nueva consulta y **refrescan solas**; el Excel queda como superficie de análisis/consulta
-y salida, **no de captura**.
+Reemplaza el **copy-paste A:S** al Excel maestro por una **consulta de Power Query** que lee la vista
+**`data_maestro`**, el ESPEJO de la hoja DATA. Las tablas dinámicas del jefe se re-apuntan **una sola vez** a la
+nueva consulta y **refrescan solas**; el Excel queda como superficie de análisis/consulta y salida, **no de
+captura**.
+
+**Camino principal (D187): «Desde la Web», sin instalar nada.** El Excel lee un CSV que sirve el Worker en
+`https://api.galca.app/obra?action=data_csv&clave=<CLAVE>`, protegido con una **clave de lectura** compartida
+que va escrita en la consulta. Usa solo `Web.Contents` + `Csv.Document`, que vienen con cualquier Excel de
+escritorio: **no hay que instalar nada ni ser administrador**, así que funciona para cualquiera que abra el
+libro. La vía anterior (conector PostgreSQL con el usuario `tm2_lector_maestro`) exige instalar **Npgsql con
+permisos de administrador** y queda como **alternativa** para Power BI o equipos con admin (al final de esta
+sección).
 
 **Encabezados de `data_maestro`** (layout D182, `005_data_clima.sql`). Van con estos nombres exactos y en este
 orden: `obra_id` · **FECHA · GRUPO · CENTRO DE COSTO · CAPITULO · DESCRIPCION · UNIDAD FUNCIONAL · ELEMENTO ·
@@ -627,18 +638,172 @@ de la fila o, si está vacío, el **del día**: el primer clima no vacío de esa
 **no** están ORDEN, PROYECTO, LIBERACION ni Columna1. Siguen en la tabla `data` porque el copiado actual del
 jefe las usa, y la vista se puede ampliar si algún día hacen falta.
 
-**Paso 1 — usuario de solo lectura.** Aplica una vez `worker/sql/roles_lectura_maestro.sql` en Supabase
-(SQL Editor), con una clave fuerte. Crea `tm2_lector_maestro`, que **solo** puede `SELECT` sobre
-`data_maestro` (ni escribe, ni ve otras tablas). Host, puerto y modo del pooler salen de Supabase →
-*Project Settings → Database* (pooler en modo sesión, puerto 5432; o transacción, 6543). Da igual aplicarlo antes
-o después de `005`: el `DROP VIEW` de `005` borra el permiso, pero la misma `005` vuelve a dar el `SELECT` si el
-rol ya existe. Si la vista se recrea por otra vía, vuelve a correr este archivo. Desde D183 el mismo rol lee
-también las 4 vistas de la **Proyección** (`proyeccion_*_maestro`); sus encabezados y sus consultas M están en §15.
+**Paso 0 — cargar la DATA del Excel a Galca (D186), una sola vez y antes del Paso 1.** La tabla `data` de
+producción solo tiene lo que mandó la app desde el 17-jun-2026 (1.103 filas), y la hoja DATA del Excel tiene
+4.476 desde el 1-ago-2025, con lo que el jefe agrega o corrige a mano, los drenajes y los «ajuste origen» (el
+14-jul, por ejemplo: 47 filas en el Excel, 17 en Galca). **Hasta la fecha de corte manda el Excel**: se
+reemplaza lo que haya en Galca en esas fechas, también lo del 17-jun en adelante. Desde el corte todo se edita
+en Galca (Revisión de DATA), los capataces siguen enviando por la app y **se deja de usar «Copiar»** al Excel.
+1. Elige el corte (el último día que el jefe dejó revisado en el Excel) y **copia** el libro. La herramienta
+   solo lee la copia y nunca escribe en un `.xlsx`, pero el original puede estar abierto.
+2. Simula. No escribe nada: compara Excel y Galca mes a mes (filas, Σ LARGO, Σ CANTIDAD) y dice cuántas
+   borraría e insertaría, cuántas filas del Excel son posteriores al corte (se ignoran) y los avisos: filas sin
+   fecha, fechas raras (anteriores a 2025 o futuras), celdas fuera de A:T y días ≤ corte que Galca tiene y el
+   Excel no (quedarían vacíos).
+3. Carga. En una sola transacción exige `esquema_version` ≥ 8, **respalda** en CSV (UTF-8 con BOM, `;`) todas
+   las filas de `data` con fecha ≤ corte, las borra e inserta las del Excel. Después re-aplica
+   `005 → 006 → 007 → 008` (§12) y verifica mes a mes que filas y Σ LARGO de Galca hasta el corte sean las del
+   Excel. Sale con código 1 si no cuadra.
 
-**Paso 2 — conexión en Excel.** *Datos → Obtener datos → De una base de datos → PostgreSQL*. Servidor =
-`<host>:5432`, base = la del proyecto; credenciales = `tm2_lector_maestro` / la clave. En el navegador elige
-la vista **`data_maestro`**. O pega esta consulta M (Editor avanzado), que además **quita** la columna
-técnica `obra_id` y deja los encabezados del maestro en orden:
+```powershell
+$env:DATABASE_URL = "postgres://…"          # o --conexion-archivo=<ruta fuera del repo>
+node worker/sql/importar_maestro.js --excel="C:\Galca\copia\TM2_SUR_REPORTE.xlsx" --hasta=2026-09-17 --simular
+node worker/sql/importar_maestro.js --excel="C:\Galca\copia\TM2_SUR_REPORTE.xlsx" --hasta=2026-09-17 --respaldo="C:\Galca\respaldos"
+```
+
+**Qué revisar:** en la simulación, que los días que quedarían vacíos (si sale ese aviso) sean de verdad días sin
+DATA, y que las filas posteriores al corte ya estén en Galca por la app. En la carga: la línea «respaldo: N
+fila(s)… escritas y releídas» (guarda ese CSV), «borradas» = ese N, «insertadas» = las del Excel hasta el corte,
+lo que hizo cada migración (`005`: sellos `[Clima:]` → 0; `007`: filas por completar → 0 y «ajuste origen» con
+FC ≠ 1 → 0) y todo ✓ en la verificación por mes. Si algo falla antes del «COMMIT ✓», Galca queda como estaba.
+Relanzarla con el mismo libro y el mismo corte da los mismos ids (`mae-…`, uuid determinista de fecha, nº de
+fila y contenido), sin duplicados. Para volver atrás: el CSV de respaldo tiene todas las columnas de `data`.
+Probado en banco: `node worker/pruebas/verificar_d186_importar_maestro.mjs --excel="<copia>.xlsx"`.
+
+**Paso 1 — la clave de lectura (una vez; quien despliega el Worker).** Crea una clave aleatoria en
+PowerShell, **sin admin**: 32 bytes del generador criptográfico de Windows en base64url (sin `+`, `/` ni `=`,
+así va tal cual en la URL):
+
+```powershell
+$b = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+$clave = [Convert]::ToBase64String($b).TrimEnd('=').Replace('+','-').Replace('/','_')
+$clave                                        # cópiala: es la que va en la consulta del Excel
+cd worker; npx wrangler secret put CLAVE_LECTURA_EXCEL      # pega la clave cuando la pida
+```
+
+(Vale también un GUID: `[guid]::NewGuid().ToString('N')`, aunque es más corta.) Para el entorno de prueba
+(`/prueba/obra`) se puede poner otra con `npx wrangler secret put CLAVE_LECTURA_EXCEL_PRUEBA`; si no existe, usa la
+de producción, como los demás `*_PRUEBA` (§11). Guárdala donde guardas las otras claves del proyecto (no en el
+repo). Hasta que exista el secreto, el enlace responde **503** «falta configurar CLAVE_LECTURA_EXCEL».
+La clave **solo lee** la DATA y la Proyección (las mismas vistas que el lector de Power Query); quien tiene el
+Excel ya ve esos datos. No da acceso a escribir, a otras tablas ni a la app.
+
+Compruébala en el navegador: `https://api.galca.app/obra?action=data_csv&clave=<CLAVE>` descarga
+`DATA.csv` (17 columnas, primera línea `FECHA,GRUPO,…,OBSERVACION`); con otra clave sale «Galca: clave de lectura
+incorrecta.» (401).
+
+**Paso 2 — la consulta en Excel (cualquiera que abra el libro, en el Excel de escritorio).**
+1. *Datos → Obtener datos → De otras fuentes → Consulta en blanco*. Se abre el Editor de Power Query.
+2. *Inicio → Editor avanzado*, borra lo que haya y **pega esta consulta** (cambia solo `<CLAVE>`):
+
+```m
+let
+    Clave = "<CLAVE>",
+    Origen = Csv.Document(
+        Web.Contents("https://api.galca.app/obra", [Query = [action = "data_csv", clave = Clave]]),
+        [Delimiter = ",", Columns = 17, Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+    Encabezados = Table.PromoteHeaders(Origen, [PromoteAllScalars = true]),
+    Vacias = Table.ReplaceValue(Encabezados, "", null, Replacer.ReplaceValue, Table.ColumnNames(Encabezados)),
+    Tipos = Table.TransformColumnTypes(Vacias, {
+        {"FECHA", type date}, {"GRUPO", type text}, {"CENTRO DE COSTO", type text}, {"CAPITULO", type text},
+        {"DESCRIPCION", type text}, {"UNIDAD FUNCIONAL", type text}, {"ELEMENTO", type text},
+        {"UNIDAD MEDIDA", type text}, {"LARGO", type number}, {"ESPESOR", type number}, {"FC", type number},
+        {"CANTIDAD", type number}, {"CLIMA", type text}, {"OBSERVACION", type text}}, "en-US"),
+    Numeros = Table.TransformColumns(Tipos, {
+        {"ACTA", each try Number.FromText(_, "en-US") otherwise _},
+        {"ABS INICIAL", each try Number.FromText(_, "en-US") otherwise _},
+        {"ABS FINAL", each try Number.FromText(_, "en-US") otherwise _}})
+in
+    Numeros
+```
+
+   Qué hace: `Encoding = 65001` lee el UTF-8 (tildes, «ñ»); `QuoteStyle.Csv` respeta comas, comillas y saltos
+   de línea dentro de una OBSERVACION; la celda vacía pasa a `null`; la cultura `"en-US"` lee el **punto**
+   decimal que manda Galca aunque Windows esté en español. ACTA, ABS INICIAL y ABS FINAL pasan a número; si
+   vienen vacías quedan `null` y si traen un texto que no es número (un acta tipo `B06`) se conserva el texto en
+   vez de dar error.
+3. En el panel derecho, *Propiedades → Nombre*: **`DATA_VIVA`**.
+4. *Inicio → Cerrar y cargar*. **La primera vez** Excel pregunta cómo acceder al contenido web: elige
+   **Anónimo** (la clave ya va en la consulta), en «nivel» selecciona **`https://api.galca.app/`** y pulsa
+   **Conectar**. Si pregunta el **nivel de privacidad**, elige **Organizativo**. Cada PC lo pregunta una sola vez.
+5. *Datos → Consultas y conexiones* → clic derecho en `DATA_VIVA` → *Propiedades* → marca **Actualizar al
+   abrir el archivo** (y, si se quiere, *Actualizar cada N minutos*). El Worker guarda la respuesta **60 s**:
+   dos actualizaciones dentro del mismo minuto traen lo mismo.
+
+**Paso 3 — re-apuntar las dinámicas.** En cada tabla dinámica del maestro: *Cambiar origen de datos* → la
+tabla que cargó `DATA_VIVA`. Se conservan campos, formatos y segmentaciones. A partir de ahí, *Actualizar todo*
+(o *Actualizar al abrir*, del paso anterior) trae lo último de la base sin reconstruir nada. Nadie edita el Excel
+a mano: si un dato está mal se corrige en la fuente (Revisión de DATA / grilla / pantallas) y se refresca.
+**Cambio en 'X TRAMOS' (D182):** sus 2 dinámicas usan **PROYECTO** como campo de fila y la vista ya no lo
+trae. Al re-apuntarlas, cambia PROYECTO por **UNIDAD FUNCIONAL**. Ninguna otra fórmula ni dinámica del
+maestro usa ORDEN, PROYECTO ni LIBERACIÓN. La hoja **DATOS se elimina**: el clima llega en la columna CLIMA.
+~~Pero no todavía (D183): el Tablero sigue leyendo DATOS y antes hay que congelar su histórico.~~ **Cerrado
+por D185:** el Tablero se calcula en vivo con la DATA (§16) y nada lee DATOS, así que se puede borrar después
+del despliegue de D185, sin congelar su histórico. Mientras siga en el libro, su columna X ya no importa.
+
+**La Proyección por la misma vía (D187).** Las 4 vistas `proyeccion_*_maestro` de §15 salen igual, sin
+`obra_id`, en `?action=proyeccion_csv&tabla=plan|contrato|rendimiento|parametros&clave=<CLAVE>`. Una consulta en
+blanco por tabla, con este texto; cambia solo `tabla = "plan"` y el nombre (**`PROY_PLAN`**,
+**`PROY_CONTRATO`**, **`PROY_RENDIMIENTO`**, **`PROY_PARAMETROS`**):
+
+```m
+let
+    Clave = "<CLAVE>",
+    Origen = Csv.Document(
+        Web.Contents("https://api.galca.app/obra", [Query = [action = "proyeccion_csv", tabla = "plan", clave = Clave]]),
+        [Delimiter = ",", Encoding = 65001, QuoteStyle = QuoteStyle.Csv]),
+    Encabezados = Table.PromoteHeaders(Origen, [PromoteAllScalars = true]),
+    Vacias = Table.ReplaceValue(Encabezados, "", null, Replacer.ReplaceValue, Table.ColumnNames(Encabezados)),
+    Tipos = Table.TransformColumns(Vacias, List.Transform(Table.ColumnNames(Vacias), (c) => {c, each
+        if _ = null then null
+        else if Text.Length(_) = 10 and Text.At(_, 4) = "-" and Text.At(_, 7) = "-" then Date.FromText(_)
+        else try Number.FromText(_, "en-US") otherwise _}))
+in
+    Tipos
+```
+
+Las fechas (`periodo`, `CORTE BASE`) salen `yyyy-MM-dd` y pasan a fecha; los números (punto decimal) a número;
+PARTIDA, `concepto` y un ACTA no numérica quedan como texto; la celda vacía (plan sin valor) es `null`. Las
+columnas y sus nombres son los de la tabla de §15. Los mismos pasos 4 y 5 de arriba (Anónimo, Actualizar al abrir).
+
+**Rotar la clave** (si sale de la obra alguien que la tenía, o una vez al año): crea otra con el Paso 1 y
+`npx wrangler secret put CLAVE_LECTURA_EXCEL` (reemplaza la anterior al instante: la vieja da 401 aunque la
+respuesta esté en la caché, porque la caché solo se lee **después** de validar la clave). Luego, en el Excel,
+*Datos → Consultas y conexiones* → cada consulta (`DATA_VIVA` y las `PROY_*`) → *Editar* → *Editor avanzado* →
+cambia la línea `Clave = "…"` → *Cerrar y cargar*, y guarda el libro. Quien abra una copia vieja del Excel verá el
+error de la clave hasta tener el libro nuevo.
+
+**Si falla la actualización.**
+- «No se pudo autenticar con las credenciales proporcionadas» / *Acceso denegado*: el Worker devolvió **401**
+  (clave vacía o mala; Excel lo muestra como problema de credenciales, no con el texto). Revisa la línea `Clave`.
+  Si Excel guardó otras credenciales para el sitio: *Datos → Obtener datos → Configuración de origen de datos* →
+  `https://api.galca.app/` → *Editar permisos* → **Anónimo**.
+- 429 «demasiados intentos»: más de 10 claves malas en un minuto desde esa red. Espera un minuto.
+- 503: falta el secreto `CLAVE_LECTURA_EXCEL` en el Worker (Paso 1) u `/obra` no está en `db` (§12).
+- Para ver el mensaje exacto, abre el enlace del Paso 1 en el navegador.
+
+**Límites.** Funciona en el **Excel de escritorio** (Microsoft 365 / 2016 o posterior en Windows), para
+cualquiera que abra el libro, sin instalar nada. **Excel para la web** no crea ni edita consultas de Power Query
+y no garantiza actualizar una consulta Web: el libro se actualiza al abrirlo en el escritorio; en la web se ve
+lo último que se guardó. En **Mac**, Power Query «Desde la Web» existe en Microsoft 365 recientes, pero no está
+probado aquí. La clave queda **escrita en el libro** (cualquiera que lo tenga la puede leer en el Editor
+avanzado): es a propósito, porque solo lee lo que ese libro ya enseña; por eso se rota si el libro sale de la obra.
+
+**Alternativa (solo con permisos de administrador / Power BI): conector PostgreSQL.** Para Power BI Desktop o
+un equipo donde alguien con admin haya instalado **Npgsql** (el proveedor que exige *De una base de datos →
+PostgreSQL*). No hace falta para el maestro.
+1. **Usuario de solo lectura.** Aplica una vez `worker/sql/roles_lectura_maestro.sql` en Supabase (SQL Editor),
+   con una clave fuerte. Crea `tm2_lector_maestro`, que **solo** puede `SELECT` sobre `data_maestro` (ni
+   escribe, ni ve otras tablas). Host, puerto y modo del pooler salen de Supabase → *Project Settings →
+   Database* (pooler en modo sesión, puerto 5432; o transacción, 6543). Da igual aplicarlo antes o después de
+   `005`: el `DROP VIEW` de `005` borra el permiso, pero la misma `005` vuelve a dar el `SELECT` si el rol ya
+   existe. Si la vista se recrea por otra vía, vuelve a correr este archivo. Desde D183 el mismo rol lee también
+   las 4 vistas de la **Proyección** (`proyeccion_*_maestro`); sus consultas M por PostgreSQL están en §15.
+2. **Conexión.** *Datos → Obtener datos → De una base de datos → PostgreSQL*. Servidor = `<host>:5432`, base =
+   la del proyecto; credenciales = `tm2_lector_maestro` / la clave. En el navegador elige la vista
+   **`data_maestro`**. O pega esta consulta M (Editor avanzado), que además **quita** la columna técnica
+   `obra_id` y deja los encabezados del maestro en orden:
 
 ```m
 let
@@ -649,17 +814,7 @@ in
     SinObra
 ```
 
-**Paso 3 — re-apuntar las dinámicas.** En cada tabla dinámica del maestro: *Cambiar origen de datos* → la
-nueva consulta `data_maestro`. Se conservan campos, formatos y segmentaciones. A partir de ahí, *Actualizar
-todo* (o *Actualizar al abrir*, en *Propiedades de la conexión*) trae lo último de la base sin reconstruir
-nada. Nadie edita el Excel a mano: si un dato está mal se corrige en la fuente (grilla / pantallas / Table
-Editor) y se refresca.
-**Cambio en 'X TRAMOS' (D182):** sus 2 dinámicas usan **PROYECTO** como campo de fila y la vista ya no lo
-trae. Al re-apuntarlas, cambia PROYECTO por **UNIDAD FUNCIONAL**. Ninguna otra fórmula ni dinámica del
-maestro usa ORDEN, PROYECTO ni LIBERACIÓN. La hoja **DATOS se elimina**: el clima llega en la columna CLIMA.
-~~Pero no todavía (D183): el Tablero sigue leyendo DATOS y antes hay que congelar su histórico.~~ **Cerrado
-por D185:** el Tablero se calcula en vivo con la DATA (§16) y nada lee DATOS, así que se puede borrar después
-del despliegue de D185, sin congelar su histórico. Mientras siga en el libro, su columna X ya no importa.
+3. Re-apuntar las dinámicas igual que en el Paso 3 (a esta consulta en vez de a `DATA_VIVA`).
 
 **Paso 4 — verificación de PARIDAD de 30 días antes del corte** (informe 4.01 §7 punto 8). Antes de dejar
 de pegar A:S, corre en paralelo 30 días: exporta la vista y compárala contra el maestro pegado, **sobre el
@@ -693,6 +848,9 @@ Volcado de referencia de la vista, para diff:
 # layout D182 (17 columnas del maestro + internas), un mes, en orden y con vacío='' (idéntico a lo que ve Power Query)
 psql "<cadena de tm2_lector_maestro>" -c "\copy (SELECT * FROM data_maestro WHERE \"FECHA\" BETWEEN '2026-08-16' AND '2026-09-15' ORDER BY \"FECHA\") TO 'maestro_vivo.csv' WITH CSV HEADER"
 ```
+
+Sin `psql` ni el rol (D187): el mismo CSV que lee el Excel, entero (17 columnas, UTF-8 con BOM, en orden de FECHA):
+`curl -o maestro_vivo.csv "https://api.galca.app/obra?action=data_csv&clave=<CLAVE>"`, y se filtra el mes al comparar.
 
 Cuando 30 días cuadren (celda a celda en las columnas comparadas, la CANTIDAD a 6 decimales y el CLIMA por
 día, con la OBSERVACIÓN fuera y cada diferencia de ESPESOR/FC explicada y resuelta), se deja de pegar A:S y el
@@ -791,7 +949,9 @@ la ruta de archivos del motor.
 PARTIDA lleva las etiquetas de MAPEO: `Excavacion comun`, `Terraplen`, `Subbase`, `BTC` y `Excavacion
 Prestamos`. En el plan, una celda vacía sale como `null`.
 
-La conexión es la de §14, Paso 2, con el mismo usuario `tm2_lector_maestro`. Hace falta una consulta por
+**Camino principal (D187): «Desde la Web», sin instalar nada**, con la clave de lectura: la consulta M
+`PROY_*` de §14 («La Proyección por la misma vía»), una por tabla, ya sin `obra_id`. **Alternativa (solo con
+admin / Power BI)**, por el conector PostgreSQL de §14 con el usuario `tm2_lector_maestro`: una consulta por
 vista; cada una quita la columna técnica `obra_id` (Editor avanzado):
 
 ```m

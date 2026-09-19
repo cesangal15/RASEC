@@ -55,6 +55,7 @@ const REPO = path.resolve(AQUI, '..', '..');
 const SQL_DIR = path.join(AQUI, '..', 'sql');
 const { apiVm, SECRETO_BANCO, correrCasos } = require(path.join(REPO, 'backend', 'pruebas', 'contrato', 'arnes.js'));
 const { semillas } = require(path.join(REPO, 'backend', 'pruebas', 'contrato', 'semillas.js'));
+const CLAVE_EXCEL_BANCO = 'clave-excel-banco';   // D187: la CLAVE_LECTURA_EXCEL del banco (el caso obra.data_csv la recibe por env)
 
 // D182: migraciones que transforman DATOS (no solo esquema): se re-aplican después del backfill y las semillas.
 // D184: 007_data_completa.sql también (rellena ACTA/ESPESOR/FC/CANTIDAD donde faltan), después de 005.
@@ -129,14 +130,16 @@ async function main(){
     BACKEND_OBRA: 'db', BACKEND_ASISTENCIAS: 'db', BACKEND_PARTE: 'db',
     BACKEND_OBRA_PRUEBA: 'db', BACKEND_ASISTENCIAS_PRUEBA: 'db', BACKEND_PARTE_PRUEBA: 'db',
     AUTH_SECRETO: SECRETO_BANCO, AUTH_V: '1', RATE_LIMIT_POR_MIN: '100000', __dbPrueba: () => sql,
-    __cachePrueba: cacheBanco() };   // D185: la Cache API del Tablero en vivo (en Node no hay caches.default)
+    __cachePrueba: cacheBanco(),     // D185: la Cache API del Tablero en vivo (en Node no hay caches.default)
+    CLAVE_LECTURA_EXCEL: CLAVE_EXCEL_BANCO };   // D187: la clave de lectura del CSV del Excel maestro
   const ctx = { waitUntil: (p) => { Promise.resolve(p).catch(() => {}); } };
   const VM = { '/obra': 'obra', '/asistencias': 'asistencias', '/prueba/obra': 'obra', '/prueba/asistencias': 'asistencias' };
   const puerto = Number(args.puerto || 8788);
   const servidor = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://127.0.0.1:' + puerto);
-    // D185: X-Tablero-Cache (HIT/MISS/BYPASS) pasa tal cual, para que el caso de la caché la vea.
-    const responder = (status, obj, texto, xc) => { res.writeHead(status, Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' }, xc ? { 'X-Tablero-Cache': xc } : {})); res.end(texto !== undefined ? texto : JSON.stringify(obj)); };
+    // D185: X-Tablero-Cache (HIT/MISS/BYPASS) pasa tal cual, para que el caso de la caché la vea. D187: el Content-Type
+    // del Worker también (text/csv, text/plain) y el cuerpo en BYTES (el BOM del CSV no se pierde).
+    const responder = (status, obj, texto, xc, ct) => { res.writeHead(status, Object.assign({ 'Content-Type': ct || 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' }, xc ? { 'X-Tablero-Cache': xc } : {})); res.end(texto !== undefined ? texto : JSON.stringify(obj)); };
     if (req.method === 'OPTIONS'){ res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'GET,POST' }); return res.end(); }
     let cuerpo = ''; req.on('data', d => { cuerpo += d; }); req.on('end', async () => {
       const esParte = (u.searchParams.get('mod') || '').toLowerCase() === 'parte' || /"mod"\s*:\s*"parte"/i.test(cuerpo);
@@ -154,7 +157,7 @@ async function main(){
       if (req.method === 'POST') { init.body = cuerpo; init.headers['Content-Length'] = String(Buffer.byteLength(cuerpo)); }
       try {
         const r = await manejar(new Request(u.toString(), init), envWorker, ctx);
-        responder(r.status, null, await r.text(), r.headers.get('X-Tablero-Cache'));
+        responder(r.status, null, Buffer.from(await r.arrayBuffer()), r.headers.get('X-Tablero-Cache'), r.headers.get('Content-Type'));
       } catch (e) { responder(500, { ok: false, error: 'worker: ' + String(e && e.stack || e) }); }
     });
   });
@@ -180,7 +183,7 @@ async function main(){
     '--solo=' + (args.solo || 'obra,asistencias,parte'), '--escribir', '--usuario=admin', '--clave=1234'];
   Object.keys(PERFILES).forEach(p => cli.push('--perfil.' + p + '=' + PERFILES[p]));
   if (args.verboso) cli.push('--verboso'); if (args.caso) cli.push('--caso=' + args.caso);
-  const hijo = spawn(process.execPath, cli, { stdio: 'inherit' });
+  const hijo = spawn(process.execPath, cli, { stdio: 'inherit', env: Object.assign({}, process.env, { CLAVE_LECTURA_EXCEL: CLAVE_EXCEL_BANCO }) });   // D187
   const codigo = await new Promise(r => hijo.on('exit', r));
   servidor.close();
   if (fallosSql) console.log('\n✗ ' + fallosSql + ' fallo(s) en los casos SQL (arriba, antes del arnés)');
