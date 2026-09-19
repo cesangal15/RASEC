@@ -1,7 +1,9 @@
 /* ============================================================================
  * HUB DEL JEFE (V3-10 / D181) — un panel con pestañas que montan las pantallas
  * existentes en un iframe del mismo origen (?embed=1), sin fusionar su código:
- *   Resumen (jefe.html) · Revisión de DATA (data.html) · Catálogos BASE (grilla.html)
+ *   Resumen (jefe.html) · Revisión de DATA (data.html) · Catálogos BASE (grilla.html) ·
+ *   Proyección (proyeccion.html, V3-11 / D183: plan, contrato, rendimientos y FC; editan admin
+ *   y jefe, el residente la ve en solo lectura)
  * + enlace al Tablero. Los iframes se crean perezosamente y se conservan vivos
  * (cambiar de pestaña NO pierde lo editado). Rango de fechas común para Resumen y
  * DATA. CSP D170: eventos por data-on-* (tema.js), funciones globales.
@@ -25,9 +27,11 @@ const TABS = [
   { id:'resumen', label:'Resumen',           page:'jefe.html',   fecha:true,  ver:true },
   { id:'data',    label:'Revisión de DATA',  page:'data.html',   fecha:true,  ver:PUEDE_EDITAR },
   { id:'base',    label:'Catálogos BASE',    page:'grilla.html', fecha:false, ver:PUEDE_EDITAR },
+  // V3-11 / D183: la ven admin, jefe y residente (el mismo portero que proyeccion.html); quién edita lo decide el servidor.
+  { id:'proyeccion', label:'Proyección',     page:'proyeccion.html', fecha:false, ver:['admin','jefe','residente'].indexOf(rol)>=0 },
 ];
 const EXT = [ { id:'tablero', label:'Tablero ↗', href:'tablero-produccion.html' } ];
-const PAGE2TAB = { data:'data', grilla:'base' };
+const PAGE2TAB = { data:'data', grilla:'base', proyeccion:'proyeccion' };
 
 let desde='', hasta='', actTab='', frames={}, dirtyByTab={}, stale={};
 

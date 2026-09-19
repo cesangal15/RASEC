@@ -68,6 +68,9 @@
   tbody tr:nth-child(even) td{background:rgba(127,127,127,.06);}
   tbody td.deriv{background:rgba(127,127,127,.11);}
   tbody tr:nth-child(even) td.deriv{background:rgba(127,127,127,.16);}
+  /* la columna # es fija (sticky) al desplazarse a la derecha —donde quedan Clima y Observación, D182—:
+   * el cebreado la volvía translúcida en las filas pares y el texto de detrás se leía encima */
+  tbody tr:nth-child(even) td.rownum:not(.acc){background:var(--surface2);}
   tbody td.cell{cursor:cell;}
   /* Filas compactas tipo Excel: una sola línea con «…», relleno mínimo → caben muchas más. */
 tbody td.cell .cv{padding:3px 8px;min-height:22px;line-height:16px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

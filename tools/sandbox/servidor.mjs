@@ -3,7 +3,9 @@
  * tools/sandbox/servidor.mjs — SANDBOX 100% LOCAL de la grilla (V3-08 / D181).
  *
  * Levanta, en tu PC y sin tocar nada real, TODO lo necesario para probar la grilla como si fuera la app:
- *   · Postgres EN MEMORIA (PGlite) con el esquema real (todos los worker/sql/0*.sql, incluida 003_grilla).
+ *   · Postgres EN MEMORIA (PGlite) con el esquema real (todos los worker/sql/0*.sql, incluida 003_grilla; la
+ *     005_data_clima de D182 y la 007_data_completa de D184 se vuelven a pasar DESPUÉS de cargar la DATA,
+ *     porque mueven/rellenan datos).
  *   · El WORKER REAL (worker/src/index.js) contra esa base — el MISMO código que corre en Cloudflare.
  *   · Las PANTALLAS reales (index.html, menu.html, jefe.html, grilla.html…) servidas desde el mismo puerto.
  *   · Sembrado con TUS SUBTRAMOS REALES (tools/sandbox/base_elementos.real.csv, sacados del Excel maestro)
@@ -41,6 +43,16 @@ const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(AQUI, '..', '..');
 const SQL_DIR = path.join(REPO, 'worker', 'sql');
 const { semillas } = require(path.join(REPO, 'backend', 'pruebas', 'contrato', 'semillas.js'));
+// D182: migraciones que transforman DATOS (no solo esquema): se re-aplican después de cargar la DATA (paso 3b).
+// D184: 007_data_completa.sql también (ACTA de la fecha, espesor 1, FC de la actividad y cantidad donde faltan).
+const MIGRACIONES_DE_DATOS = ['005_data_clima.sql', '007_data_completa.sql'];
+// Qué cuenta cada una antes y después de re-aplicarse (solo para el mensaje de la consola).
+const CUENTA_MIGRACION = {
+  '005_data_clima.sql': { q: `SELECT count(*)::int AS n FROM data WHERE observacion ~* '\\[Clima:\\s*[^\\]]*\\]'`,
+    txt: 'filas con sello «[Clima: …]» en la observación' },
+  '007_data_completa.sql': { q: `SELECT count(*)::int AS n FROM data WHERE obra_id = 'tm2sur' AND (btrim(acta) = '' OR (largo IS NOT NULL AND (espesor IS NULL OR fc IS NULL OR cantidad IS NULL)))`,
+    txt: 'filas con ACTA vacía o ESPESOR/FC/CANTIDAD por completar (las fechas de banco de 2020 se quedan sin acta)' }
+};
 
 const args = {}; process.argv.slice(2).forEach(a => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const PUERTO = Number(args.puerto || 8099);
@@ -149,6 +161,18 @@ async function main(){
     if (fs.existsSync(csvItems)){ const ni = await cargarBaseItemsCsv(sql, csvItems); console.log('· Actividades (catálogo CC): ' + ni + ' cargadas'); }
     const csvData = path.join(AQUI, 'data.real.csv');
     if (fs.existsSync(csvData)){ const nd = await cargarDataCsv(sql, csvData); console.log('· DATA (muestra real): ' + nd + ' filas cargadas'); }
+  }
+
+  // 3b. D182: las migraciones que transforman DATOS se re-aplican con la DATA ya cargada, como en Supabase (en el
+  // paso 1 la tabla estaba vacía). 005_data_clima.sql mueve los sellos '[Clima: X]' que trae la muestra real en la
+  // OBSERVACIÓN a la columna clima y limpia la observación; D184: 007_data_completa.sql completa ACTA/ESPESOR/FC/
+  // CANTIDAD donde faltan (nunca pisa un valor, salvo el FC ≠ 1 de los «ajuste origen»: D185 [O]). Idempotentes.
+  for (const f of MIGRACIONES_DE_DATOS.filter(f => migraciones.indexOf(f) >= 0)){
+    const cu = CUENTA_MIGRACION[f];
+    const n0 = cu ? (await sql.unsafe(cu.q))[0].n : 0;
+    await sql.exec(fs.readFileSync(path.join(SQL_DIR, f), 'utf8'));
+    const n1 = cu ? (await sql.unsafe(cu.q))[0].n : 0;
+    console.log('· ' + f + ' re-aplicada sobre la DATA cargada' + (cu ? ': ' + cu.txt + ' ' + n0 + ' antes · ' + n1 + ' después' : ''));
   }
 
   // 4. Worker real contra la BD + pantallas en el mismo puerto

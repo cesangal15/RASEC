@@ -9,7 +9,8 @@
 --      tenga que pasarlo hasta que exista la segunda obra (4.03). Es parte de todas las claves primarias.
 --   2. Las columnas conservan el NOMBRE de la hoja de origen (mismos encabezados que definen los .gs),
 --      en snake_case. DATA conserva las 20 columnas A–T del maestro en el mismo ORDEN; la vista
---      `data_maestro` las expone con los encabezados EXACTOS del Excel para el pull del ESPEJO.
+--      `data_maestro` las expone con los encabezados EXACTOS del Excel para el pull del ESPEJO (layout
+--      D182 desde 005_data_clima.sql: sin ORDEN/PROYECTO/LIBERACION/Columna1 y con el CLIMA del día).
 --   3. Tipos: `date` para fecha, `timestamptz` para timestamp, `numeric` para horas/cantidades/medidores,
 --      `text` para todo lo demás (horas del tipo '07:00' incluidas: viajan como texto verbatim, así el
 --      export a Navision y el copy-paste no cambian). Vacío en la hoja = '' en texto, NULL en número/fecha.
@@ -117,9 +118,9 @@ CREATE TABLE IF NOT EXISTS data (
   espesor            numeric,                         -- P  ESPESOR
   fc                 numeric,                         -- Q  FC
   cantidad           numeric,                         -- R  CANTIDAD
-  observacion        text NOT NULL DEFAULT '',        -- S  OBSERVACION ('[Clima: …]' en la 1ª fila del día, D130)
+  observacion        text NOT NULL DEFAULT '',        -- S  OBSERVACION ('[Clima: …]' en la 1ª fila del día, D130; sin sello desde D182/005)
   columna1           text NOT NULL DEFAULT '',        -- T  Columna1
-  -- ---- U–AC: internas (no viajan al maestro) ----
+  -- ---- U–AC: internas (no viajan al maestro; desde D182, salvo `clima`: ver 005) ----
   id_registro        text NOT NULL,                   -- U  (id de la línea de BANDEJA; ya no se regenera)
   "timestamp"        timestamptz,                     -- V
   capataz            text NOT NULL DEFAULT '',        -- W
@@ -128,7 +129,7 @@ CREATE TABLE IF NOT EXISTS data (
   pk_inicial         text NOT NULL DEFAULT '',        -- Z
   pk_final           text NOT NULL DEFAULT '',        -- AA
   area               text NOT NULL DEFAULT '',        -- AB '' (=tierras) | odt | odl (D71)
-  clima              text NOT NULL DEFAULT '',        -- AC (D37)
+  clima              text NOT NULL DEFAULT '',        -- AC (D37; desde D182 viaja al maestro como "CLIMA", ver 005)
   PRIMARY KEY (obra_id, id_registro)
 );
 CREATE INDEX IF NOT EXISTS data_fecha_idx      ON data (obra_id, fecha);
@@ -158,6 +159,11 @@ COMMENT ON COLUMN data.columna1         IS 'T · Columna1';
 -- Vista para el pull del ESPEJO y para la prueba de paridad celda a celda (§7.8): los 20 encabezados
 -- EXACTOS del maestro, en su orden, más las internas con su nombre de hoja. `SELECT * … ORDER BY fecha`
 -- reproduce la hoja DATA byte a byte (fechas como yyyy-MM-dd; vacío = '').
+-- D182 (sep-2026): 005_data_clima.sql RECREA esta vista (sin ORDEN/PROYECTO/LIBERACION/Columna1, con el
+-- CLIMA del día antes de OBSERVACION) y mueve los sellos '[Clima: …]' de la observación a data.clima. La
+-- definición de aquí es solo el punto de partida de la cadena 001→…→005. OJO: volver a correr 001 sobre una
+-- BD que ya tiene 005 falla en este CREATE OR REPLACE (no puede renombrar columnas): antes DROP VIEW
+-- data_maestro, y después vuelve a correr 005.
 CREATE OR REPLACE VIEW data_maestro AS
 SELECT obra_id,
   to_char(fecha, 'YYYY-MM-DD') AS "FECHA", orden AS "ORDEN", grupo AS "GRUPO", centro_de_costo AS "CENTRO DE COSTO",

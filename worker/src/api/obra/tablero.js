@@ -113,14 +113,15 @@ export async function tableroGuardar(c, body, ses){
 
 /* ---------- gzip ↔ base64 (Worker: CompressionStream/Buffer con nodejs_compat; Node: iguales en test) ----------
  * Se usan para encoger la foto antes del único write al pooler (ver tableroGuardar). base64 (texto ASCII, +33 %)
- * en vez de bytea (hex, +100 %) porque lo que importa es el tamaño EN EL CABLE del parámetro. */
-async function gzipB64_(texto){
+ * en vez de bytea (hex, +100 %) porque lo que importa es el tamaño EN EL CABLE del parámetro.
+ * D185: exportadas; las usa también tablero_vivo.js para las horas de máquina (tablero_horas). */
+export async function gzipB64_(texto){
   const cs = new CompressionStream('gzip');
   const w = cs.writable.getWriter(); w.write(new TextEncoder().encode(texto)); w.close();
   const buf = await new Response(cs.readable).arrayBuffer();
   return Buffer.from(buf).toString('base64');
 }
-async function gunzipB64_(b64){
+export async function gunzipB64_(b64){
   const ds = new DecompressionStream('gzip');
   const w = ds.writable.getWriter(); w.write(Buffer.from(b64, 'base64')); w.close();
   const buf = await new Response(ds.readable).arrayBuffer();

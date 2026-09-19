@@ -9,6 +9,23 @@
  * Shift+flechas o Shift+clic; se copia/pega y se rellena hacia abajo sobre la
  * selección; se edita con doble clic, Enter/F2 o escribiendo. CSP D170: los
  * eventos se enganchan por JS (addEventListener), no inline.
+ *
+ * D182 (sep-2026) — DATA online más simple: fuera ORDEN, PROYECTO y LIBERACIÓN (siguen en la tabla
+ * como campos OCULTOS que van y vuelven tal cual), CLIMA donde estaba OBSERVACIÓN y OBSERVACIÓN al
+ * final. El clima es DEL DÍA: fijarlo en una fila lo aplica a todas las de esa fecha (un solo paso de
+ * deshacer). Al guardar viaja como UN cambio {op:'clima', fecha, clima} por día: el servidor lo propaga
+ * sin reescribir ni re-derivar las filas, que solo se mandan si se corrigió otra cosa en ellas.
+ *
+ * D184 (sep-2026) — DATA completa. ACTA = la del periodo 16→15 de la FECHA (tabla periodos y, fuera de ella,
+ * la fórmula de respaldo: la misma regla que actaDeFecha del Worker). FC por ACTIVIDAD: al elegir o cambiar
+ * la DESCRIPCIÓN, el FC toma el de esa actividad (payload `actividades[].fc`, de fc_actividad; sin fila = 1)
+ * —el jefe lo puede corregir después, y es un solo paso de deshacer—; una fila nueva nace con ESPESOR 1 y el
+ * FC de su actividad. Con LARGO, un ESPESOR vacío vuelve a 1 y un FC vacío al de la actividad, igual que el
+ * servidor al guardar (así lo que se ve es lo que se guarda).
+ *
+ * D185 [O] (enmienda de D184, 18-sep-2026): en un SUBTRAMO NO OPERATIVO (los «ajuste origen UF1/UF2»: payload
+ * `subtramos[].no_operativo`, o el nombre como respaldo) el FC es SIEMPRE 1 —ya está en compacto—, no el de
+ * la actividad: al elegir la descripción, al llevar la fila a/desde un ajuste origen y al completar un FC vacío.
  * ==========================================================================*/
 if(window.TM2Estilos) TM2Estilos.aplicar();
 // Modo EMBED (dentro del Hub del Jefe, V3-10): oculta la cabecera propia. Sin ?embed=1 no cambia nada.
@@ -43,7 +60,10 @@ function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'Am
 
 /* ---------- estado ---------- */
 let COLS=[], FILAS=[], VIS=[];
-let ACT_BY={}, EL_BY={}, PERIODOS=[], LIB_OPC=[''];
+let ACT_BY={}, EL_BY={}, PERIODOS=[];
+let FC_BY={};                              // D184: FC por actividad (claveFc(descripción) → fc)
+let OPC={};                                // opciones de las columnas tipo 'lista' por clave (clima, …)
+let RANGO={ desde:'', hasta:'' };          // rango CARGADO (FILAS trae todas las filas de esas fechas)
 let tempSeq=0;
 let act=null, anc=null, editando=null;    // celda activa / ancla del rango / edición en curso
 let undoStack=[], redoStack=[];            // deshacer / rehacer (Ctrl+Z / Ctrl+Y)
@@ -59,18 +79,50 @@ function periodoDeHoy(){
 }
 
 /* ---------- derivación local (espejo del server) ---------- */
-function actaDe(fecha){ for(let i=0;i<PERIODOS.length;i++){ const p=PERIODOS[i]; if(fecha>=p.fi && fecha<=p.ff) return p.acta; } return ''; }
+// D184: ACTA de la fecha = el periodo 16→15 que la contiene (tabla periodos) y, si cae fuera de la tabla, la
+// fórmula de respaldo: mes de cierre = el de la fecha si el día ≤ 15, si no el siguiente; acta = (año − 2025)·12 +
+// mes + 2 (24 = 2026-09-16..10-15); < 1 → ''. Misma regla que actaDeFecha (worker/src/api/obra/periodos.js).
+function actaDe(fecha){
+  const f=String(fecha==null?'':fecha).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return '';
+  for(let i=0;i<PERIODOS.length;i++){ const p=PERIODOS[i]; if(f>=p.fi && f<=p.ff) return p.acta; }
+  let y=+f.slice(0,4), m=+f.slice(5,7);
+  if(+f.slice(8,10)>15){ m++; if(m>12){ m=1; y++; } }
+  const n=(y-2025)*12+m+2;
+  return n>=1 ? String(n) : '';
+}
+// D184: FC de una actividad (fc_actividad vía `actividades[].fc`); sin fila = 1. La clave es la MISMA que
+// normTexto (worker/src/comun.js) y que 007: espacios raros → ' ', MAYÚSCULAS, tildes/ñ fuera, espacios
+// colapsados. Así el FC que pone la pantalla es el que pondrían enviar_data, 007 y el servidor al guardar.
+function claveFc(s){
+  return String(s==null?'':s)
+    .replace(/[   ​‌‍﻿]/g,' ')
+    .toUpperCase()
+    .replace(/[ÁÀÂÄ]/g,'A').replace(/[ÉÈÊË]/g,'E').replace(/[ÍÌÎÏ]/g,'I')
+    .replace(/[ÓÒÔÖ]/g,'O').replace(/[ÚÙÛÜ]/g,'U').replace(/Ñ/g,'N')
+    .replace(/\s+/g,' ').trim();
+}
+function fcDe(desc){ const v=FC_BY[claveFc(desc)]; return (typeof v==='number' && v>0) ? v : 1; }
+// D185 [O]: ¿el subtramo es NO OPERATIVO (ajuste origen)? La bandera del servidor o el nombre (^ajuste origen,
+// el respaldo de grilla.js / catalogos.js). En uno de ellos el FC es 1; en los demás, el de la actividad.
+function esNoOperativo(elem){ const el=EL_BY[normNom(elem)]; return /^\s*ajuste\s*origen/i.test(String(elem==null?'':elem)) || !!(el && el.no_operativo); }
+function fcDeFila(desc, elem){ return esNoOperativo(elem) ? 1 : fcDe(desc); }
 function derivar(r){
   const el=EL_BY[normNom(r.elemento)]||null;
   const uf=el?String(el.uf||''):String(r.unidad_funcional||'');
   const a=ACT_BY[normNom(r.descripcion)+'|'+uf.toUpperCase()]||null;
   const cc=a?a.cc:String(r.centro_de_costo||'');
-  const L=num(r.largo), E=num(r.espesor), F=num(r.fc);
+  const L=num(r.largo); let E=num(r.espesor), F=num(r.fc);
+  // D184: con LARGO, espesor vacío → 1 y FC vacío → el de la actividad (lo mismo que hace el servidor al guardar).
+  const extra={};
+  if(L!=null){ if(E==null){ E=1; extra.espesor=1; } if(F==null){ F=fcDeFila(r.descripcion, r.elemento); extra.fc=F; } }   // D185 [O]
   const cant=(L==null)?(r.cantidad===''?'':num(r.cantidad)):Math.round(L*(E==null?1:E)/((F==null||F===0)?1:F)*1e6)/1e6;
-  return { unidad_funcional:uf, centro_de_costo:cc, grupo:a?a.grupo:r.grupo, capitulo:a?a.capitulo:r.capitulo,
-    unidad_medida:a?a.unidad:r.unidad_medida, orden:a?String(a.orden||''):r.orden, proyecto:a?a.proyecto:r.proyecto,
+  // D182: PROYECTO (oculto) fuera de catálogo y vacío sale de la UF (D04: UF1 → 3701, UF2 → 3702), como en el servidor.
+  const pUf=({UF1:'3701',UF2:'3702'})[uf.toUpperCase().replace(/\s/g,'')]||'';
+  return Object.assign({ unidad_funcional:uf, centro_de_costo:cc, grupo:a?a.grupo:r.grupo, capitulo:a?a.capitulo:r.capitulo,
+    unidad_medida:a?a.unidad:r.unidad_medida, orden:a?String(a.orden||''):r.orden, proyecto:a?a.proyecto:(String(r.proyecto==null?'':r.proyecto)||pUf),
     abs_inicial:el?String(el.abs_inicio||''):r.abs_inicial, abs_final:el?String(el.abs_fin||''):r.abs_final,
-    acta:actaDe(r.fecha)||r.acta, cantidad:(cant===null?'':cant) };
+    acta:actaDe(r.fecha)||r.acta, cantidad:(cant===null?'':cant) }, extra);
 }
 
 /* ---------- carga ---------- */
@@ -84,9 +136,14 @@ async function cargar(desde, hasta){
 }
 async function recargar(){ if(dirtyCambios().length && !confirm('Hay cambios sin guardar. ¿Descartarlos y recargar?')) return; const d=document.getElementById('desde').value, h=document.getElementById('hasta').value; if(d) cargar(d,h||d); }
 function aplicarModelo(d){
-  COLS=d.columnas||[]; LIB_OPC=d.liberacion_opciones||['']; PERIODOS=d.periodos||[];
+  COLS=d.columnas||[]; PERIODOS=d.periodos||[]; RANGO={ desde:d.desde||'', hasta:d.hasta||d.desde||'' };
+  // Opciones de las listas: la definición de la columna manda (c.opciones); si no, «<clave>_opciones» del payload.
+  OPC={ clima:d.clima_opciones||[''], liberacion:d.liberacion_opciones||[''] };
+  COLS.forEach(function(c){ if(c.tipo==='lista' && Array.isArray(c.opciones)) OPC[c.k]=c.opciones; });
   ACT_BY={}; (d.actividades||[]).forEach(function(a){ ACT_BY[normNom(a.descripcion)+'|'+String(a.uf||'').toUpperCase()]={cc:a.cc,capitulo:a.capitulo,grupo:a.grupo,unidad:a.unidad,proyecto:a.proyecto,orden:a.orden}; });
-  EL_BY={}; (d.subtramos||[]).forEach(function(e){ EL_BY[normNom(e.elemento)]={uf:e.uf,abs_inicio:e.abs_inicio,abs_fin:e.abs_fin}; });
+  // D184: FC por descripción (la primera que llega; UF1 y UF2 traen el mismo). Un servidor sin D184 no manda fc → 1.
+  FC_BY={}; (d.actividades||[]).forEach(function(a){ const k=claveFc(a.descripcion), f=num(a.fc); if(!(k in FC_BY) && f!=null && f>0) FC_BY[k]=f; });
+  EL_BY={}; (d.subtramos||[]).forEach(function(e){ EL_BY[normNom(e.elemento)]={uf:e.uf,abs_inicio:e.abs_inicio,abs_fin:e.abs_fin,no_operativo:e.no_operativo===true}; });   // D185 [O]: no_operativo
   document.getElementById('dlDesc').innerHTML=(d.actividades||[]).map(function(a){ return '<option value="'+esc(a.descripcion)+'">'+esc((a.uf||'')+' · '+a.cc)+'</option>'; }).join('');
   document.getElementById('dlElem').innerHTML=(d.subtramos||[]).map(function(e){ return '<option value="'+esc(e.elemento)+'">'+esc(e.uf||'')+'</option>'; }).join('');
   FILAS=(d.filas||[]).map(function(r){ const o=Object.assign({},r); o._key=r.id_registro; o._orig=Object.assign({},r); o._alta=false; o._baja=false; return o; });
@@ -103,9 +160,10 @@ let ordCol=-1, ordDir=1;
 function ordenarPor(i){ if(ordCol===i){ ordDir=-ordDir; } else { ordCol=i; ordDir=1; } pintarCab(); pintar(); }
 
 /* ---------- ancho de columnas (arrastrable, se guarda en el navegador) ---------- */
-const ANCHO_DEF={ fecha:96, orden:60, grupo:90, centro_de_costo:104, capitulo:150, descripcion:250,
-  unidad_funcional:56, proyecto:70, elemento:160, abs_inicial:82, abs_final:82, liberacion:110, acta:56,
-  unidad_medida:70, largo:78, espesor:78, fc:78, cantidad:78, observacion:200 };
+// D182: sin orden/proyecto/liberacion. Un ancho guardado de una columna que ya no llega se ignora.
+const ANCHO_DEF={ fecha:96, grupo:90, centro_de_costo:104, capitulo:150, descripcion:250,
+  unidad_funcional:56, elemento:160, abs_inicial:82, abs_final:82, acta:56,
+  unidad_medida:70, largo:78, espesor:78, fc:78, cantidad:78, clima:110, observacion:200 };
 let ANCHOS={};
 try{ ANCHOS=JSON.parse(localStorage.getItem('tm2_data_anchos')||'{}')||{}; }catch(e){ ANCHOS={}; }
 function anchoDe(k){ const v=ANCHOS[k]; return (typeof v==='number'&&v>0)?v : (ANCHO_DEF[k]||90); }
@@ -186,7 +244,7 @@ function celHTML(r, c, ci, ri){
 }
 function filaHTML(r, ri){
   const sinCC=!String(r.centro_de_costo||'').trim();
-  let h='<tr data-r="'+ri+'" data-fila="'+esc(r._key)+'" class="'+(esDirty(r)?'dirty ':'')+(sinCC?'sincc':'')+'">';
+  let h='<tr data-r="'+ri+'" data-fila="'+esc(r._key)+'" class="'+(pendiente(r)?'dirty ':'')+(sinCC?'sincc':'')+'">';
   h+='<td class="rownum">'+(r._alta?'+':(ri+1))+'</td>';
   COLS.forEach(function(c,ci){ h+=celHTML(r,c,ci,ri); });
   if(PUEDE_EDITAR) h+='<td class="rownum acc"><button class="xbtn" title="Eliminar fila" data-on-click="bajaFila(\''+esc(r._key)+'\')">✕</button></td>';
@@ -231,7 +289,14 @@ function beginEdit(r,c,inicial){
   let el;
   if(col.tipo==='lista'){
     el=document.createElement('select'); el.className='editor';
-    (col.opciones||LIB_OPC).forEach(function(o){ const op=document.createElement('option'); op.value=o; op.textContent=o||'—'; if(String(row[col.k]||'')===o) op.selected=true; el.appendChild(op); });
+    // Un valor viejo fuera de la lista (p. ej. «SOLEADO») se ofrece TAL CUAL: si no, el select caería en la
+    // primera opción y al salir borraría el dato sin que nadie lo pidiera.
+    const ops=opcionesDe(col).slice(), actual=String(row[col.k]==null?'':row[col.k]);
+    if(ops.indexOf(actual)<0) ops.push(actual);
+    // Escribir una letra sobre la celda abre la lista con la primera opción que empiece por ella.
+    let elegida=actual;
+    if(inicial!==undefined && inicial!==null){ const t=normNom(inicial); const m=ops.filter(function(o){ return o && normNom(o).indexOf(t)===0; })[0]; if(m) elegida=m; }
+    ops.forEach(function(o){ const op=document.createElement('option'); op.value=o; op.textContent=o||'—'; if(o===elegida) op.selected=true; el.appendChild(op); });
   } else {
     el=document.createElement('input'); el.type=(col.tipo==='fecha')?'date':'text'; el.className='editor';
     if(col.tipo==='num') el.classList.add('num');
@@ -268,16 +333,69 @@ function cancelEdit(){
   const wrap=document.getElementById('wrap'); if(wrap) wrap.focus({preventScroll:true});
 }
 function setValor(r,c,val){
-  const row=VIS[r], k=COLS[c].k; if(!row) return;
+  const row=VIS[r], col=COLS[c], k=col.k; if(!row) return;
+  if(String(row[k]==null?'':row[k])===String(val)) { refrescarFila(r); return; }   // (un valor viejo que se deja igual NO se «corrige»)
+  if(col.tipo==='lista') val=canonLista(col, val);
   if(String(row[k]==null?'':row[k])===String(val)) { refrescarFila(r); return; }
+  const noOpAntes=esNoOperativo(row.elemento);   // D185 [O]
   row[k]=val;
+  // D184: elegir/cambiar la DESCRIPCIÓN pone el FC de esa actividad (el jefe lo corrige después si quiere). Va
+  // en la misma acción que el cambio de descripción: un solo Ctrl+Z deshace los dos. Vaciarla no toca el FC.
+  // D185 [O]: en un ajuste origen (subtramo no operativo) ese FC es 1; y llevar la fila A o DESDE un ajuste
+  // origen vuelve a poner el FC que le toca (1 / el de la actividad), en la misma acción.
+  if(k==='descripcion' && String(val).trim()) row.fc=fcDeFila(val, row.elemento);
+  if(k==='elemento' && esNoOperativo(val)!==noOpAntes) row.fc=fcDeFila(row.descripcion, val);
   if(DRIVERS.indexOf(k)>=0) Object.assign(row, derivar(row));
+  if(k==='fecha') climaAlMoverFecha(row);      // D182: la fila toma el clima de su nuevo día
+  if(k==='clima') propagarClima(row);          // D182: el clima es del día → a todas las filas de esa fecha
   refrescarFila(r); pintarKPIs(); actualizarDirty();
+}
+/* ---------- listas: opciones por columna ---------- */
+function opcionesDe(col){ return (col && (col.opciones || OPC[col.k])) || ['']; }
+// Lo pegado/rellenado que coincide con una opción salvo mayúsculas/tildes se guarda con la grafía de la
+// lista («soleado» → «Soleado»); lo que no coincide se deja tal cual (el servidor lo acepta como texto).
+function canonLista(col, val){
+  const t=normNom(val); if(!t) return String(val==null?'':val).trim();
+  const m=opcionesDe(col).filter(function(o){ return normNom(o)===t; })[0];
+  return m!==undefined ? m : String(val).trim();
+}
+
+/* ---------- CLIMA DEL DÍA (D182) ----------
+ * El clima no es de la fila sino del DÍA (la hoja DATOS del Excel desaparece y el sello «[Clima: X]» de
+ * D130 con ella). Fijarlo en una fila —tecleo, lista, pegar, Ctrl+D, rellenar, vaciar— lo copia a TODAS
+ * las filas de esa fecha en FILAS (también las que el filtro oculta), dentro de la misma acción de
+ * deshacer (la instantánea se toma antes). Si en una misma acción se ponen dos climas a una fecha, gana
+ * el último: igual que el servidor al guardar el lote. Las filas de esa fecha quedan marcadas `_climaDia`
+ * (el jefe fijó el clima de ese día): de ahí sale el {op:'clima'} que se manda al guardar. */
+function climaDe(r){ return String(r && r.clima!=null ? r.clima : '').trim(); }
+function climaDelDia(fecha, salvo){
+  for(let i=0;i<FILAS.length;i++){ const x=FILAS[i]; if(x===salvo || x._baja || x.fecha!==fecha) continue; const v=climaDe(x); if(v) return v; }
+  return '';
+}
+function propagarClima(row){
+  const v=String(row.clima==null?'':row.clima), cambiadas=new Set();
+  row._climaDia=true;
+  FILAS.forEach(function(x){ if(x===row || x._baja || x.fecha!==row.fecha) return; x._climaDia=true; if(String(x.clima==null?'':x.clima)!==v){ x.clima=v; cambiadas.add(x); } });
+  if(cambiadas.size) VIS.forEach(function(x,i){ if(cambiadas.has(x)) refrescarFila(i); });
+  return cambiadas.size;
+}
+// Cambiar la FECHA de una fila la lleva a otro día → muestra el clima de ese día ('' si no tiene: el del día
+// viejo sería un dato falso). El clima NO viaja con la fila: al guardar, el servidor le pone el del día de
+// destino (D182) y, si era la única fila con el clima de su día viejo, se lo deja a las que quedan allí.
+// Si vuelve a su fecha original, recupera su clima guardado (salvo que el jefe haya fijado el de ese día).
+// Fuera del rango cargado no se sabe cuál es: queda en blanco hasta guardar, con aviso.
+function climaAlMoverFecha(row){
+  row._climaDia=false;
+  if(!row.fecha) return;
+  if(!row._alta && row.fecha===row._orig.fecha && !FILAS.some(function(x){ return x!==row && !x._baja && x._climaDia && x.fecha===row.fecha; })){ row.clima=climaDe(row._orig); return; }
+  if(RANGO.desde && row.fecha>=RANGO.desde && row.fecha<=RANGO.hasta){ row.clima=climaDelDia(row.fecha, row); return; }
+  row.clima='';
+  toast('La fila pasa al '+row.fecha+', fuera del rango cargado: al guardar tomará el clima de ese día.');
 }
 function refrescarFila(r){
   const row=VIS[r], tr=document.querySelector('#cuerpo tr[data-r="'+r+'"]'); if(!tr) return;
   COLS.forEach(function(c,ci){ const cv=tr.querySelector('td[data-c="'+ci+'"] .cv'); if(cv){ const d=disp(row,c); cv.textContent=d; cv.title=d; } });
-  tr.classList.toggle('dirty', esDirty(row)); tr.classList.toggle('sincc', !String(row.centro_de_costo||'').trim());
+  tr.classList.toggle('dirty', pendiente(row)); tr.classList.toggle('sincc', !String(row.centro_de_costo||'').trim());
 }
 
 /* ---------- deshacer / rehacer (Ctrl+Z / Ctrl+Y) ----------
@@ -417,16 +535,22 @@ function pintarKPIs(){
   document.getElementById('kCant').textContent=fmt(suma);
   document.getElementById('kSinCC').textContent=sincc;
 }
-function esDirty(r){ if(r._alta||r._baja) return true; return COLS.some(function(c){ return String(r[c.k]==null?'':r[c.k])!==String(r._orig[c.k]==null?'':r._orig[c.k]); }); }
+// D182: el CLIMA no ensucia la fila —viaja aparte, un {op:'clima'} por día (dirtyCambios)—; si una fila solo
+// cambió de clima no se manda (el servidor no la reescribe ni la re-deriva), pero en pantalla se marca igual.
+function esDirty(r){ if(r._alta||r._baja) return true; return COLS.some(function(c){ return c.k!=='clima' && String(r[c.k]==null?'':r[c.k])!==String(r._orig[c.k]==null?'':r._orig[c.k]); }); }
+function pendiente(r){ return esDirty(r) || climaDe(r)!==climaDe(r._orig); }
 
 /* ---------- alta / baja ---------- */
 function filaPorKey(k){ return FILAS.filter(function(r){ return String(r._key)===String(k); })[0]||null; }
 function altaFila(){
   pushUndo();
   const desde=document.getElementById('desde').value||hoyBogota();
+  // orden/proyecto/liberacion: ocultos desde D182 (los dos primeros los deriva el catálogo; liberación
+  // sigue naciendo 'CAMPO' como en el Excel). El clima es el de su día, si alguna fila de esa fecha lo tiene.
+  // D184: nace con ESPESOR 1 y el FC de su actividad (aún sin descripción → 1; al elegirla toma el suyo).
   const r={ _key:'nuevo-'+(++tempSeq), id_registro:'', version:0, fecha:desde, orden:'', grupo:'', centro_de_costo:'', capitulo:'',
     descripcion:'', unidad_funcional:'', proyecto:'', elemento:'', abs_inicial:'', abs_final:'', liberacion:'CAMPO', acta:actaDe(desde),
-    unidad_medida:'', largo:'', espesor:1, fc:1, cantidad:'', observacion:'', editado_por:'', editado_ts:'', _alta:true, _baja:false, _orig:{} };
+    unidad_medida:'', largo:'', espesor:1, fc:fcDe(''), cantidad:'', clima:climaDelDia(desde), observacion:'', editado_por:'', editado_ts:'', _alta:true, _baja:false, _orig:{} };
   FILAS.unshift(r); ordCol=-1;
   document.getElementById('q').value='';                          // limpia filtros para que la fila nueva se vea
   FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el) el.value=''; });
@@ -440,16 +564,28 @@ function bajaFila(key){
 }
 
 /* ---------- guardar ---------- */
-const CAMPOS_ENVIO=['fecha','descripcion','elemento','liberacion','largo','espesor','fc','observacion','centro_de_costo','grupo','capitulo','unidad_funcional','proyecto','abs_inicial','abs_final','acta','unidad_medida','orden'];
-function payloadFila(r){ const o={}; CAMPOS_ENVIO.forEach(function(k){ o[k]=r[k]; }); return o; }
+// D182: orden/proyecto/liberacion ya no se ven, pero viajan tal como llegaron (o como los derivó el catálogo).
+// El clima NO va en las filas: sin él, el servidor conserva el guardado (update), pone el del día de destino
+// (cambio de fecha) o hereda el del día (alta). El que fija el jefe va en un {op:'clima'} por día (abajo).
+const CAMPOS_ENVIO=['fecha','descripcion','elemento','largo','espesor','fc','observacion','centro_de_costo','grupo','capitulo','unidad_funcional','abs_inicial','abs_final','acta','unidad_medida',
+  'orden','proyecto','liberacion'];
+function payloadFila(r){
+  const o={}; CAMPOS_ENVIO.forEach(function(k){ o[k]=r[k]; });
+  return o;
+}
 function dirtyCambios(){
-  const out=[];
+  const out=[], dias=new Map();
   FILAS.forEach(function(r){
+    // D182: día cuyo clima fijó el jefe y quedó distinto del que tenía (un ida y vuelta no manda nada).
+    if(!r._baja && r._climaDia && climaDe(r)!==climaDe(r._orig)) dias.set(r.fecha, climaDe(r));
     if(r._baja && !r._alta){ out.push({ op:'baja', id_registro:r.id_registro, if_version:r.version }); return; }
     if(r._baja) return;
     if(r._alta){ const o=payloadFila(r); o.op='alta'; o.id_registro='jefe-'+(window.crypto&&crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2)); out.push(o); return; }
     if(esDirty(r)){ const o=payloadFila(r); o.op='update'; o.id_registro=r.id_registro; o.if_version=r.version; out.push(o); }
   });
+  // D182: el clima del DÍA, uno por fecha, sin reescribir ni re-derivar ninguna fila (el servidor lo propaga a
+  // todas las de esa fecha, de cualquier área, DESPUÉS de las escrituras del lote).
+  dias.forEach(function(cl, fecha){ if(fecha) out.push({ op:'clima', fecha:fecha, clima:cl }); });
   return out;
 }
 function actualizarDirty(){ const n=dirtyCambios().length; const b=document.getElementById('btnGuardar'), c=document.getElementById('nDirty'); if(c) c.textContent=n; if(b) b.disabled=n===0;

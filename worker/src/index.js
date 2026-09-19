@@ -14,7 +14,8 @@
  *      error que ya devuelve el backend por usuario+action (D166), así las pantallas lo entienden.
  *   3. Filtro de token (D109): en /obra y /asistencias toda petición tiene que TRAER el token en la
  *      forma en que auth.js lo adjunta — `?token=` en GET, `token` dentro del JSON del cuerpo en
- *      POST —, salvo `action=login` (aún no hay token) y `action=tablero` (lectura pública, D161).
+ *      POST —, salvo `action=login` (aún no hay token), `action=tablero` (lectura pública, D161) y
+ *      `action=tablero_vivo` (el Tablero en vivo, D185: ampliación de D161 decidida por el dueño).
  *      /parte pasa sin token: formulario público por QR (D165). Sin token: 401 {ok:false, auth:false}
  *      con el MISMO mensaje genérico de D166, que `TM2Auth.caducada()` reconoce y manda al login.
  *      Aquí NO se verifica la firma: eso sigue siendo cosa de los Apps Script. Solo se exige
@@ -28,8 +29,20 @@
  * si faltan, 503 {ok:false, error:'no_configurado'} (antes entorno.js ignoraba `?env=prueba` con
  * URLs vacías; ahora lo decide el Worker).
  *
- * Lo que NO hace: no cachea nada (Cache-Control: no-store), no reenvía cookies ni cabeceras del
- * cliente, no toca el cuerpo, no guarda registros con datos de personas.
+ * Lo que NO hace: no cachea nada (Cache-Control: no-store) salvo el Tablero en vivo de abajo (D185), no
+ * reenvía cookies ni cabeceras del cliente, no toca el cuerpo, no guarda registros con datos de personas.
+ *
+ * D185 (V3-11 Fases B+C) — CACHÉ DEL TABLERO EN VIVO: GET /obra?action=tablero_vivo (público, con obra en `db`)
+ * se guarda 60 s en la Cache API de Cloudflare (caches.default, por centro de datos), con UNA clave por entorno
+ * (…/obra?action=tablero_vivo y …/prueba/obra?action=tablero_vivo; el token no entra en la clave). Todos los que
+ * abren el Tablero en ese minuto (los directivos por el enlace público) leen la misma respuesta sin tocar la BD.
+ * Se la SALTA una petición con token VÁLIDO de admin o jefe: calcula al momento (el jefe ve su corrección al
+ * instante) y deja esa respuesta fresca en la caché para los demás. Un POST de obra que cambia lo que muestra
+ * (enviar_data, data_grid_guardar, proyeccion_guardar, tablero_horas_guardar) borra la clave de su entorno en ese
+ * centro de datos (los demás la renuevan en ≤ 60 s). Solo se cachea una respuesta ok (status 200, '{"ok":true').
+ * Al cliente siempre va con Cache-Control: no-store y la cabecera X-Tablero-Cache: HIT | MISS | BYPASS | SIN (sin
+ * Cache API: el banco en Node). En el banco, `env.__cachePrueba` (un objeto con match/put/delete) sustituye a
+ * caches.default.
  *
  * 4.01 (D180) — CONMUTADOR POR RUTA: cada módulo puede vivir AQUÍ (src/api/*.js contra Postgres,
  * src/db.js) en vez de en su Apps Script. Lo decide una variable por ruta, sin tocar el frontend:
@@ -47,7 +60,8 @@
  *   Para /prueba/*: HYPERDRIVE_PRUEBA / DATABASE_URL_PRUEBA y AUTH_SECRETO_PRUEBA / AUTH_V_PRUEBA si el
  *   entorno de prueba tiene su propia BD o su propio secreto; si faltan, usa los de producción.
  * LOG por petición (tabla `log`, decisión 9): parte → 'parte:'+op; obra y asistencias → action (GET sin
- * action = 'ping', POST sin action = 'reporte'); el tablero público (GET obra action=tablero) no escribe LOG.
+ * action = 'ping', POST sin action = 'reporte'); el tablero público (GET obra action=tablero) y el Tablero en vivo
+ * (action=tablero_vivo, D185) no escriben LOG.
  * Vuelta atrás: la var a `sheets` (panel o wrangler.toml + `wrangler deploy`); las filas creadas en la
  * BD entre tanto se pegan a mano al Sheet (informe §3).
  */
@@ -56,7 +70,7 @@ import { abrirDb } from './db.js';
 import { parteDoGet_, parteDoPost_ } from './api/parte.js';
 import { obraDoGet_, obraDoPost_ } from './api/obra.js';
 import { asistenciasDoGet_, asistenciasDoPost_ } from './api/asistencias.js';
-import { logIniciar_, logMarcar_, logEscribir_ } from './comun.js';
+import { logIniciar_, logMarcar_, logEscribir_, verificarToken_ } from './comun.js';
 
 // `mod=parte` sobre /obra (como lo llama revision-maquinaria.js y como lo despacha doGet/doPost de Codigo.gs)
 // es el Parte: se atiende con la ruta /parte correspondiente (mismo conmutador, sin filtro de token).
@@ -85,8 +99,8 @@ const MODULOS = {
   asistencias: { get: asistenciasDoGet_, post: asistenciasDoPost_ }    // Fase 3 (stub hasta que se porte)
 };
 
-// Acciones que pasan SIN token en las rutas con filtro (D108 login · D161 tablero público).
-const SIN_TOKEN = new Set(['login', 'tablero']);
+// Acciones que pasan SIN token en las rutas con filtro (D108 login · D161 tablero público · D185 tablero en vivo).
+const SIN_TOKEN = new Set(['login', 'tablero', 'tablero_vivo']);
 
 const MAX_BODY_BYTES = 1024 * 1024;       // 1 MB: los payloads reales pesan unos pocos KB
 const MENSAJE_AUTH = 'Sesión no válida. Vuelve a entrar.';   // idéntico al de D166 en los backends
@@ -220,9 +234,11 @@ function etiquetaLog(modulo, method, o) {
   if (modulo === 'parte') return 'parte:' + String((o && o.op) || '').toLowerCase();
   return String((o && o.action) || '') || (method === 'GET' ? 'ping' : 'reporte');
 }
-// El tablero público (obra, GET action=tablero, D161) es lectura anónima: no escribe LOG.
+// El tablero público (obra, GET action=tablero, D161) y el Tablero en vivo (action=tablero_vivo, D185) son lecturas
+// anónimas: no escriben LOG.
+const ACCIONES_SIN_LOG = ['tablero', 'tablero_vivo'];
 function sinLog(modulo, method, o) {
-  return modulo === 'obra' && method === 'GET' && String((o && o.action) || '').toLowerCase() === 'tablero';
+  return modulo === 'obra' && method === 'GET' && ACCIONES_SIN_LOG.indexOf(String((o && o.action) || '').toLowerCase()) >= 0;
 }
 
 // Misma secuencia que doGet/doPost de Codigo.gs: LOG por petición (tabla `log`), despacho por op/action, `_ms`.
@@ -255,6 +271,65 @@ async function servirDb(ruta, env, ctx, url, method, bodyText) {
   const cierre = logEscribir_(c, ruta.modulo).catch(() => {}).then(() => con.cerrar());
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(cierre); else await cierre;
   return json(out, status);
+}
+
+/* ---------------- Tablero en vivo: caché de 60 s (D185) ---------------- */
+
+const VIVO_TTL_S = 60;
+const VIVO_ROLES_FRESCO = ['admin', 'jefe'];     // su token salta la caché (y la refresca)
+// POST de obra que cambian lo que muestra el Tablero en vivo: borran la clave de su entorno.
+const VIVO_INVALIDAN = new Set(['enviar_data', 'data_grid_guardar', 'proyeccion_guardar', 'tablero_horas_guardar']);
+
+function cacheVivo(env) {
+  if (env && env.__cachePrueba) return env.__cachePrueba;               // banco: Node no tiene Cache API
+  try { return (typeof caches !== 'undefined' && caches && caches.default) ? caches.default : null; }
+  catch (e) { return null; }
+}
+// Una clave por entorno (/obra · /prueba/obra), sin el token ni otros parámetros.
+function claveVivo(url) {
+  return new Request(url.origin + url.pathname.replace(/\/+$/, '') + '?action=tablero_vivo', { method: 'GET' });
+}
+function esTableroVivo(ruta, method, url) {
+  return ruta.modulo === 'obra' && method === 'GET' && String(url.searchParams.get('action') || '').toLowerCase() === 'tablero_vivo';
+}
+function respuestaVivo(texto, status, estado) {
+  return new Response(texto, { status: status || 200, headers: { 'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Tablero-Cache': estado } });
+}
+// ¿El token es VÁLIDO y de admin/jefe? Aquí sí se verifica la FIRMA: decide si se salta la caché. Cualquier otro
+// caso (sin token, token roto, otro rol) = lector anónimo, que lee la caché.
+async function vivoFresco(ruta, env, url) {
+  const tok = url.searchParams.get('token') || '';
+  const secreto = String(primero(env, ruta.auth) || '');
+  if (!tok || !secreto) return false;
+  try {
+    const v = await verificarToken_(tok, secreto, String(primero(env, ruta.authV) || '1'));
+    return !!(v && v.ok) && VIVO_ROLES_FRESCO.indexOf(String(v.rol || '').toLowerCase()) >= 0;
+  } catch (e) { return false; }
+}
+async function servirVivo(ruta, env, ctx, url) {
+  const cache = cacheVivo(env), clave = claveVivo(url);
+  const fresco = await vivoFresco(ruta, env, url);
+  if (cache && !fresco) {
+    let hit = null;
+    try { hit = await cache.match(clave); } catch (e) { hit = null; }
+    if (hit) return respuestaVivo(await hit.text(), 200, 'HIT');
+  }
+  const r = await servirDb(ruta, env, ctx, url, 'GET', '');
+  const texto = await r.text();
+  if (cache && r.status === 200 && texto.indexOf('{"ok":true') === 0) {
+    const copia = new Response(texto, { headers: { 'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'public, max-age=' + VIVO_TTL_S } });
+    const p = Promise.resolve().then(() => cache.put(clave, copia)).catch(() => {});
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); else await p;
+  }
+  return respuestaVivo(texto, r.status, fresco ? 'BYPASS' : (cache ? 'MISS' : 'SIN'));
+}
+function invalidarVivo(env, ctx, url) {
+  const cache = cacheVivo(env);
+  if (!cache || typeof cache.delete !== 'function') return;
+  const p = Promise.resolve().then(() => cache.delete(claveVivo(url))).catch(() => {});
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p);
 }
 
 /* ---------------- entrada ---------------- */
@@ -298,15 +373,23 @@ async function manejar(request, env, ctx) {
   if (ruta.parte && esParte(method, url, bodyText)) ruta = RUTAS[ruta.parte];
 
   // 3. Filtro de token (presencia)
+  let accion = '';
   if (ruta.token) {
     const { token, action } = extraerTokenYAccion(method, url, bodyText);
+    accion = action;
     if (!token && !SIN_TOKEN.has(action)) {
       return conCors(json({ ok: false, auth: false, error: MENSAJE_AUTH }, 401), cors);
     }
   }
 
   // 4a. Backend en el Worker (4.01): la ruta está conmutada a la base de datos
-  if (backendDb(ruta, env)) return conCors(await servirDb(ruta, env, ctx, url, method, bodyText), cors);
+  if (backendDb(ruta, env)) {
+    // D185: el Tablero en vivo pasa por su caché de 60 s (arriba).
+    if (esTableroVivo(ruta, method, url)) return conCors(await servirVivo(ruta, env, ctx, url), cors);
+    const resp = await servirDb(ruta, env, ctx, url, method, bodyText);
+    if (method === 'POST' && ruta.modulo === 'obra' && VIVO_INVALIDAN.has(accion)) invalidarVivo(env, ctx, url);
+    return conCors(resp, cors);
+  }
 
   // 4b. Reenvío al Apps Script (URL en secreto)
   const destino = env[ruta.secreto];

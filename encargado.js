@@ -107,14 +107,14 @@ function textoBotonEnviar(){
   return '📤 Enviar a DATA';
 }
 /* D130 — el clima es OBLIGATORIO para enviar a DATA. Deja de ser un dato "bonito" del WhatsApp:
- * el maestro lo necesita (se estampa en la OBSERVACION del día y una tabla del Excel lo lee), así que
- * un día enviado sin clima deja esa tabla sin dato y hay que rehacer el envío. Se avisa ANTES de bajar
+ * el maestro lo necesita (desde D182 va a la columna CLIMA de DATA, que es del día y el maestro lee de
+ * ahí), así que un día enviado sin clima deja esa columna sin dato y hay que rehacer el envío. Se avisa ANTES de bajar
  * hasta el botón (el selector de clima está debajo de las acciones) y el envío se bloquea. */
 function faltaClima(){ return !STATE.clima && STATE.cantidades.length>0; }
 function renderAvisoClima(){
   if(!faltaClima()) return '';
   return '<div class="envio-estado pend"><span class="ico">🌦️</span><span><b>Falta el clima del día</b>'
-    +'<span class="sub">Sin clima no se puede enviar a DATA: el maestro lo lee de la observación del día. '
+    +'<span class="sub">Sin clima no se puede enviar a DATA: va a la columna CLIMA del día, que lee el maestro. '
     +'Elígelo en «Clima del día», más abajo.</span></span></div>';
 }
 function refreshEnvio(){
@@ -133,16 +133,18 @@ window.addEventListener('beforeunload', function(ev){
   ev.preventDefault(); ev.returnValue=''; return '';
 });
 
-/* D37 (enmendada por D130): clima del día que elige el encargado. Se sella en DATA (columna interna,
- * no viaja al maestro) para el resumen del jefe, se añade al WhatsApp y —desde D130— también se estampa
- * en la OBSERVACION (col S) de la primera fila del día para que el Excel maestro lo lea al pegar.
+/* D37 (enmendada por D130 y D182): clima del día que elige el encargado. Se sella en DATA, en la
+ * columna CLIMA (es del día: la Revisión de DATA la muestra y el maestro la lee de ahí), va al resumen
+ * del jefe y al WhatsApp. D182: ya NO se estampa «[Clima: X]» en la OBSERVACION (la hoja DATOS del
+ * Excel, que lo leía de ahí, se elimina).
  *
  * D130 — SOLO TRES ESTADOS. La lista original tenía seis (Parcialmente nublado · Nublado · Lluvia
  * ligera/intermitente/fuerte) y el maestro no distingue esos matices: la tabla que lo consume clasifica
  * el día en soleado / lluvias / lluvias parciales y nada más. Seis opciones para tres destinos solo
  * producen días equivalentes escritos distinto. Los valores viejos que ya están en DATA NO se tocan
  * (el jefe los sigue mostrando verbatim); lo que cambia es lo que se puede elegir de aquí en adelante.
- * OJO: estos strings viajan a DATA y los lee una tabla del Excel — cambiarlos rompe ese cruce. */
+ * OJO: estos strings viajan a la columna CLIMA de DATA y son las mismas opciones de la Revisión de DATA
+ * (CLIMA_OPC del Worker, D182): cambiarlos aquí sin cambiarlos allá rompe ese cruce. */
 const CLIMA_OPS=['','Soleado','Lluvias','Lluvias parciales'];
 function setClima(v){ STATE.clima=v||''; marcarCambio(); refreshEnvio(); }
 
@@ -636,7 +638,7 @@ function render(){
     '<select id="clima" data-on-change="setClima(this.value)" data-estilo="width:100%;background:var(--input-bg);border:1px solid '+(STATE.clima?'var(--border)':'rgba(231,76,60,0.55)')+';border-radius:8px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:13px;padding:10px 12px;outline:none;">'+
       CLIMA_OPS.map(o=>`<option value="${esc(o)}"${STATE.clima===o?' selected':''}>${o?esc(o):'— Elige el clima —'}</option>`).join('')+
     '</select>'+
-    '<p data-estilo="font-size:11px;color:var(--muted);margin-top:6px;">Obligatorio para enviar a DATA. Va al WhatsApp, al resumen del jefe y a la observación del reporte, de donde lo lee el Excel maestro.</p>'+
+    '<p data-estilo="font-size:11px;color:var(--muted);margin-top:6px;">Obligatorio para enviar a DATA. Va al WhatsApp, al resumen del jefe y a la columna CLIMA del día en DATA, de donde lo lee el maestro.</p>'+
     '</div>';
   html+='<div class="card" data-estilo="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">'+
     '<div class="section-title" data-estilo="margin-bottom:10px;">Equipos inoperativos / novedades</div>'+
@@ -870,7 +872,7 @@ async function enviar(){
   /* D130 — sin clima NO se envía. El backend lo rechaza igual (la regla vive en los dos lados), pero
    * aquí se para antes de gastar la petición y se lleva al residente al selector, que está más abajo. */
   if(!STATE.clima){
-    alert('Falta el CLIMA del día.\n\nNo se puede enviar a DATA sin él: el clima se estampa en la observación del reporte y el Excel maestro lo lee de ahí.\n\nElígelo en «Clima del día» (Soleado · Lluvias · Lluvias parciales) y vuelve a enviar.');
+    alert('Falta el CLIMA del día.\n\nNo se puede enviar a DATA sin él: va a la columna CLIMA del día en DATA y el maestro lo lee de ahí.\n\nElígelo en «Clima del día» (Soleado · Lluvias · Lluvias parciales) y vuelve a enviar.');
     const sel=document.getElementById('clima');
     if(sel){ if(sel.scrollIntoView) sel.scrollIntoView({behavior:'smooth', block:'center'}); try{ sel.focus(); }catch(e){} }
     return;
