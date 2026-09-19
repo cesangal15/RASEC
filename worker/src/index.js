@@ -29,8 +29,9 @@
  * si faltan, 503 {ok:false, error:'no_configurado'} (antes entorno.js ignoraba `?env=prueba` con
  * URLs vacías; ahora lo decide el Worker).
  *
- * Lo que NO hace: no cachea nada (Cache-Control: no-store) salvo el Tablero en vivo de abajo (D185), no
- * reenvía cookies ni cabeceras del cliente, no toca el cuerpo, no guarda registros con datos de personas.
+ * Lo que NO hace: no cachea nada (Cache-Control: no-store) salvo el Tablero en vivo de abajo (D185) y el CSV del
+ * Excel maestro (D187), no reenvía cookies ni cabeceras del cliente, no toca el cuerpo, no guarda registros con
+ * datos de personas.
  *
  * D185 (V3-11 Fases B+C) — CACHÉ DEL TABLERO EN VIVO: GET /obra?action=tablero_vivo (público, con obra en `db`)
  * se guarda 60 s en la Cache API de Cloudflare (caches.default, por centro de datos), con UNA clave por entorno
@@ -59,6 +60,16 @@
  *                                                             `db`, EMITIRLOS en el login (src/auth.js)
  *   Para /prueba/*: HYPERDRIVE_PRUEBA / DATABASE_URL_PRUEBA y AUTH_SECRETO_PRUEBA / AUTH_V_PRUEBA si el
  *   entorno de prueba tiene su propia BD o su propio secreto; si faltan, usa los de producción.
+ * D187 — LA DATA PARA EL EXCEL MAESTRO SIN INSTALAR NADA: GET /obra?action=data_csv&clave=<CLAVE> (y
+ * ?action=proyeccion_csv&tabla=plan|contrato|rendimiento|parametros&clave=…), también bajo /prueba/obra, devuelve la
+ * vista data_maestro (o proyeccion_<tabla>_maestro) en CSV UTF-8 con BOM para Power Query «Desde la Web» (Web.Contents
+ * + Csv.Document, nativo en Excel de escritorio). Se atiende ANTES del filtro de token (no hay sesión: es Excel) con
+ * una CLAVE DE LECTURA compartida, secreto `CLAVE_LECTURA_EXCEL` (`CLAVE_LECTURA_EXCEL_PRUEBA` en /prueba, con
+ * respaldo a la de producción), comparada en tiempo constante. Sin secreto → 503; clave vacía o mala → 401; errores en
+ * TEXTO PLANO corto (Excel no enseña JSON). Además del límite general por IP, 10 claves malas por minuto e IP → 429.
+ * Caché de 60 s por entorno y tabla (Cache API, como el Tablero en vivo), SOLO tras validar la clave y sin la clave en
+ * la llave de caché; los mismos POST que borran el Tablero en vivo la borran. Sin LOG (lectura anónima, como D185).
+ *
  * LOG por petición (tabla `log`, decisión 9): parte → 'parte:'+op; obra y asistencias → action (GET sin
  * action = 'ping', POST sin action = 'reporte'); el tablero público (GET obra action=tablero) y el Tablero en vivo
  * (action=tablero_vivo, D185) no escriben LOG.
@@ -70,7 +81,8 @@ import { abrirDb } from './db.js';
 import { parteDoGet_, parteDoPost_ } from './api/parte.js';
 import { obraDoGet_, obraDoPost_ } from './api/obra.js';
 import { asistenciasDoGet_, asistenciasDoPost_ } from './api/asistencias.js';
-import { logIniciar_, logMarcar_, logEscribir_, verificarToken_ } from './comun.js';
+import { logIniciar_, logMarcar_, logEscribir_, verificarToken_, valEsquema_ } from './comun.js';
+import { dataCsv, proyeccionCsv, CSV_TABLAS, VAL_CSV } from './api/obra/data_csv.js';   // D187: DATA → Excel por la Web
 
 // `mod=parte` sobre /obra (como lo llama revision-maquinaria.js y como lo despacha doGet/doPost de Codigo.gs)
 // es el Parte: se atiende con la ruta /parte correspondiente (mismo conmutador, sin filtro de token).
@@ -79,16 +91,18 @@ const DB_PROD     = ['HYPERDRIVE', 'DATABASE_URL'];
 const DB_PRUEBA   = ['HYPERDRIVE_PRUEBA', 'DATABASE_URL_PRUEBA', 'HYPERDRIVE', 'DATABASE_URL'];
 const AUTH_PROD   = ['AUTH_SECRETO'],                   AUTHV_PROD   = ['AUTH_V'];
 const AUTH_PRUEBA = ['AUTH_SECRETO_PRUEBA', 'AUTH_SECRETO'], AUTHV_PRUEBA = ['AUTH_V_PRUEBA', 'AUTH_V'];
+// D187: la clave de lectura del Excel maestro (Power Query «Desde la Web»); /prueba cae a la de producción si falta.
+const CLAVE_EXCEL_PROD = ['CLAVE_LECTURA_EXCEL'], CLAVE_EXCEL_PRUEBA = ['CLAVE_LECTURA_EXCEL_PRUEBA', 'CLAVE_LECTURA_EXCEL'];
 const RUTAS = {
   '/obra':               { secreto: 'OBRA_URL',               token: true,  parte: '/parte',        modulo: 'obra',        backend: 'BACKEND_OBRA',
-                           db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD },
-  '/asistencias':        { secreto: 'ASISTENCIAS_URL',        token: true,                          modulo: 'asistencias', backend: 'BACKEND_ASISTENCIAS',
+                           db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD,   claveExcel: CLAVE_EXCEL_PROD },
+  '/asistencias':       { secreto: 'ASISTENCIAS_URL',        token: true,                          modulo: 'asistencias', backend: 'BACKEND_ASISTENCIAS',
                            db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD },
   '/parte':              { secreto: 'PARTE_URL',              token: false,                         modulo: 'parte',       backend: 'BACKEND_PARTE',
                            db: DB_PROD,   auth: AUTH_PROD,   authV: AUTHV_PROD },
   '/prueba/obra':        { secreto: 'OBRA_PRUEBA_URL',        token: true,  parte: '/prueba/parte', modulo: 'obra',        backend: 'BACKEND_OBRA_PRUEBA',
-                           db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA },
-  '/prueba/asistencias': { secreto: 'ASISTENCIAS_PRUEBA_URL', token: true,                          modulo: 'asistencias', backend: 'BACKEND_ASISTENCIAS_PRUEBA',
+                           db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA, claveExcel: CLAVE_EXCEL_PRUEBA },
+  '/prueba/asistencias':{ secreto: 'ASISTENCIAS_PRUEBA_URL', token: true,                          modulo: 'asistencias', backend: 'BACKEND_ASISTENCIAS_PRUEBA',
                            db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA },
   '/prueba/parte':       { secreto: 'PARTE_PRUEBA_URL',       token: false,                         modulo: 'parte',       backend: 'BACKEND_PARTE_PRUEBA',
                            db: DB_PRUEBA, auth: AUTH_PRUEBA, authV: AUTHV_PRUEBA }
@@ -332,6 +346,103 @@ function invalidarVivo(env, ctx, url) {
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p);
 }
 
+/* ---------------- DATA para el Excel maestro: CSV con clave de lectura (D187) ---------------- */
+
+const CSV_ACCIONES = ['data_csv', 'proyeccion_csv'];
+const CSV_TTL_S = 60;
+const CSV_FALLOS_POR_MIN = 10;          // claves malas por IP y minuto antes de 429 (además del límite general)
+const _csvFallos = new Map();
+
+function esCsv(ruta, method, url) {
+  return ruta.modulo === 'obra' && method === 'GET' && CSV_ACCIONES.indexOf(String(url.searchParams.get('action') || '').toLowerCase()) >= 0;
+}
+// Errores en texto plano corto: Power Query / el navegador los enseñan tal cual.
+function textoPlano(texto, status, extra) {
+  return new Response(texto + '\n', { status, headers: Object.assign({ 'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }, extra || {}) });
+}
+function respuestaCsv(texto, estado, nombre) {
+  return new Response(texto, { status: 200, headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline; filename="' + nombre + '.csv"', 'X-Csv-Cache': estado } });
+}
+// Llave de caché: entorno + acción (+ tabla). NUNCA la clave: una clave vieja no lee nada de la caché porque la caché
+// solo se consulta DESPUÉS de validar la clave contra el secreto vigente.
+function claveCsv(url, accion, tabla) {
+  return new Request(url.origin + url.pathname.replace(/\/+$/, '') + '?action=' + accion + (tabla ? '&tabla=' + tabla : ''), { method: 'GET' });
+}
+// Comparación en tiempo constante: SHA-256 de ambas (siempre 32 bytes) y XOR de todos los bytes, sin salir antes.
+async function claveIgual(dada, secreta) {
+  const enc = new TextEncoder();
+  const [a, b] = await Promise.all([crypto.subtle.digest('SHA-256', enc.encode(String(dada))), crypto.subtle.digest('SHA-256', enc.encode(String(secreta)))]);
+  const x = new Uint8Array(a), y = new Uint8Array(b);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
+  return d === 0;
+}
+// Claves malas por IP (ventana fija de 60 s en memoria del isolate, como el respaldo del rate limit).
+function csvBloqueado(ip) {
+  const v = _csvFallos.get(ip);
+  return !!v && Date.now() - v.desde < 60000 && v.n >= CSV_FALLOS_POR_MIN;
+}
+function csvFallo(ip) {
+  const ahora = Date.now(), v = _csvFallos.get(ip);
+  if (!v || ahora - v.desde >= 60000) { if (_csvFallos.size > 5000) _csvFallos.clear(); _csvFallos.set(ip, { desde: ahora, n: 1 }); }
+  else v.n++;
+}
+function invalidarCsv(env, ctx, url) {
+  const cache = cacheVivo(env);
+  if (!cache || typeof cache.delete !== 'function') return;
+  const llaves = [claveCsv(url, 'data_csv', '')].concat(CSV_TABLAS.map(t => claveCsv(url, 'proyeccion_csv', t)));
+  const p = Promise.all(llaves.map(k => Promise.resolve().then(() => cache.delete(k)).catch(() => {})));
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p);
+}
+
+async function servirCsv(ruta, env, ctx, url, ip) {
+  const accion = String(url.searchParams.get('action') || '').toLowerCase();
+  const secreta = String(primero(env, ruta.claveExcel) || '');
+  if (!secreta) return textoPlano('Galca: falta configurar CLAVE_LECTURA_EXCEL en el Worker.', 503);
+  if (csvBloqueado(ip)) return textoPlano('Galca: demasiados intentos con clave incorrecta. Espera un minuto.', 429, { 'Retry-After': '60' });
+  const dada = url.searchParams.get('clave') || '';
+  if (!dada || !(await claveIgual(dada, secreta))) {
+    csvFallo(ip);
+    return textoPlano(dada ? 'Galca: clave de lectura incorrecta.' : 'Galca: falta la clave de lectura (clave=).', 401);
+  }
+  // D166: parámetros (la clave ya pasó; aquí su tamaño y la lista de tablas) ANTES de tocar la BD.
+  const params = { clave: dada, tabla: url.searchParams.get('tabla') || '' };
+  const f = valEsquema_(params, VAL_CSV, '');
+  if (f) return textoPlano('Galca: parámetro ' + f.campo + ' no válido (' + f.motivo + ').', 400);
+  const tabla = accion === 'proyeccion_csv' ? String(params.tabla).trim().toLowerCase() : '';
+  if (accion === 'proyeccion_csv' && CSV_TABLAS.indexOf(tabla) < 0) return textoPlano('Galca: falta tabla= (' + CSV_TABLAS.join(', ') + ').', 400);
+  if (!backendDb(ruta, env)) return textoPlano('Galca: la obra todavía no está en la base de datos (' + ruta.backend + ' no es db).', 503);
+
+  const nombre = accion === 'data_csv' ? 'DATA' : 'PROYECCION_' + tabla.toUpperCase();
+  const cache = cacheVivo(env), llave = claveCsv(url, accion, tabla);
+  if (cache) {
+    let hit = null;
+    try { hit = await cache.match(llave); } catch (e) { hit = null; }
+    if (hit) return respuestaCsv(await hit.arrayBuffer(), 'HIT', nombre);   // bytes: text() se comería el BOM
+  }
+  const con = abrirDb(env, ruta.db);
+  if (!con) return textoPlano('Galca: falta la conexión a la base de datos (HYPERDRIVE o DATABASE_URL).', 503);
+  let texto;
+  try {
+    const c = { sql: con.sql, env };
+    texto = accion === 'data_csv' ? await dataCsv(c) : await proyeccionCsv(c, tabla);
+  } catch (e) {
+    return textoPlano('Galca: no se pudo leer ' + (accion === 'data_csv' ? 'data_maestro' : 'la Proyección')
+      + ' (' + String(e && e.message || e).slice(0, 160) + ').', 500);
+  } finally {
+    const cierre = Promise.resolve().then(() => con.cerrar()).catch(() => {});
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(cierre); else await cierre;
+  }
+  if (cache) {
+    const copia = new Response(texto, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'public, max-age=' + CSV_TTL_S } });
+    const p = Promise.resolve().then(() => cache.put(llave, copia)).catch(() => {});
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); else await p;
+  }
+  return respuestaCsv(texto, cache ? 'MISS' : 'SIN', nombre);
+}
+
 /* ---------------- entrada ---------------- */
 
 async function manejar(request, env, ctx) {
@@ -372,6 +483,9 @@ async function manejar(request, env, ctx) {
   // 2b. `mod=parte` sobre /obra → es el Parte Digital (revision-maquinaria.js lo llama así): misma ruta /parte
   if (ruta.parte && esParte(method, url, bodyText)) ruta = RUTAS[ruta.parte];
 
+  // 2c. D187: la DATA para el Excel maestro (CSV con clave de lectura), ANTES del filtro de token.
+  if (esCsv(ruta, method, url)) return conCors(await servirCsv(ruta, env, ctx, url, ip), cors);
+
   // 3. Filtro de token (presencia)
   let accion = '';
   if (ruta.token) {
@@ -387,7 +501,7 @@ async function manejar(request, env, ctx) {
     // D185: el Tablero en vivo pasa por su caché de 60 s (arriba).
     if (esTableroVivo(ruta, method, url)) return conCors(await servirVivo(ruta, env, ctx, url), cors);
     const resp = await servirDb(ruta, env, ctx, url, method, bodyText);
-    if (method === 'POST' && ruta.modulo === 'obra' && VIVO_INVALIDAN.has(accion)) invalidarVivo(env, ctx, url);
+    if (method === 'POST' && ruta.modulo === 'obra' && VIVO_INVALIDAN.has(accion)) { invalidarVivo(env, ctx, url); invalidarCsv(env, ctx, url); }
     return conCors(resp, cors);
   }
 

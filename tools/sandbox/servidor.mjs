@@ -57,6 +57,9 @@ const CUENTA_MIGRACION = {
 const args = {}; process.argv.slice(2).forEach(a => { const m = a.match(/^--([^=]+)(?:=(.*))?$/); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const PUERTO = Number(args.puerto || 8099);
 const SECRETO = 'sandbox-secreto-local';   // da igual cuál sea: el login firma y la puerta verifica con el mismo
+// D187: la clave de lectura del CSV para el Excel maestro (Power Query «Desde la Web»), conocida para poder probarlo:
+//   http://127.0.0.1:8099/obra?action=data_csv&clave=clave-excel-sandbox
+const CLAVE_EXCEL = 'clave-excel-sandbox';
 
 const MIME = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8',
   '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml', '.png':'image/png', '.ico':'image/x-icon',
@@ -178,7 +181,7 @@ async function main(){
   // 4. Worker real contra la BD + pantallas en el mismo puerto
   const envWorker = { ALLOWED_ORIGINS: 'http://127.0.0.1:' + PUERTO + ',http://localhost:' + PUERTO,
     BACKEND_OBRA: 'db', BACKEND_ASISTENCIAS: 'db', BACKEND_PARTE: 'db',
-    AUTH_SECRETO: SECRETO, AUTH_V: '1', RATE_LIMIT_POR_MIN: '100000', __dbPrueba: () => sql };
+    AUTH_SECRETO: SECRETO, AUTH_V: '1', RATE_LIMIT_POR_MIN: '100000', CLAVE_LECTURA_EXCEL: CLAVE_EXCEL, __dbPrueba: () => sql };
   const ctx = { waitUntil: (p) => { Promise.resolve(p).catch(() => {}); } };
 
   const servidor = http.createServer((req, res) => {
@@ -192,7 +195,7 @@ async function main(){
       try {
         const r = await manejar(new Request(u.toString(), init), envWorker, ctx);
         const cabeceras = {}; r.headers.forEach((v, k) => cabeceras[k] = v);
-        res.writeHead(r.status, cabeceras); res.end(await r.text());
+        res.writeHead(r.status, cabeceras); res.end(Buffer.from(await r.arrayBuffer()));   // bytes: el BOM del CSV (D187) llega entero
       } catch (e) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok:false, error:'worker: ' + String(e && e.stack || e) })); }
     });
   });
@@ -200,6 +203,7 @@ async function main(){
   console.log('\n  SANDBOX LISTO  →  http://127.0.0.1:' + PUERTO);
   console.log('  Entra con  admin / 1234  (o jefe / clave-jefe · residente / clave-res)');
   console.log('  Menú → «Grilla de catálogos», o directo http://127.0.0.1:' + PUERTO + '/grilla.html tras entrar.');
+  console.log('  DATA para el Excel (D187): http://127.0.0.1:' + PUERTO + '/obra?action=data_csv&clave=' + CLAVE_EXCEL);
   console.log('  Ctrl+C para cerrar (todo se borra: es en memoria).\n');
 }
 main().catch(err => { console.error('El sandbox no pudo arrancar: ' + (err && err.stack || err)); process.exit(2); });

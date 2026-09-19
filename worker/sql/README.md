@@ -245,3 +245,25 @@ nada (`obra.sql.008.idempotente`); la regla [O] de `007` la comprueba `obra.sql.
 `worker/pruebas/verificar_d185_tablero_vivo.mjs` comprueba lo mismo contra la DATA del sandbox o contra la hoja DATA de una
 copia del Excel (`--excel=`). `tablero_mapeo` se edita en el Table Editor de Supabase. Si la BASE cambia el texto de
 una de esas descripciones, hay que cambiarlo aquí también, o esa actividad deja de contar en el Tablero.
+
+## `importar_maestro.js` — carga única de la hoja DATA del Excel maestro (D186)
+
+La tabla `data` de producción solo tiene lo que mandó la app desde el 17-jun-2026; la hoja DATA del Excel del jefe
+tiene todo desde el 1-ago-2025, más lo que él agrega o corrige a mano, los drenajes y los «ajuste origen». Antes de
+conectar el Excel por Power Query (`docs/OPERACIONES.md` §14, **Paso 0**) se copia **una vez** la hoja a Galca. **Hasta
+la fecha de corte manda el Excel**; después, todo se edita en Galca y se deja de usar «Copiar».
+
+```powershell
+$env:DATABASE_URL = "postgres://…"    # o --conexion-archivo=<ruta fuera del repo>; con --simular puede faltar
+node worker/sql/importar_maestro.js --excel="<copia>.xlsx" --hasta=YYYY-MM-DD --simular     # no escribe: Excel vs Galca por mes
+node worker/sql/importar_maestro.js --excel="<copia>.xlsx" --hasta=YYYY-MM-DD [--respaldo=<carpeta>] [--sin-migraciones]
+```
+
+| Paso | Qué hace |
+|---|---|
+| lectura | Hoja DATA A:T con SheetJS (`tablero-xlsx.js` en un `vm`), **valores calculados** de las fórmulas; el `.xlsx` nunca se escribe. Comprueba los encabezados (normalizados: `LIBERACION ` con espacio vale); si no son los del maestro, aborta. FECHA serial/Date/texto → `yyyy-mm-dd` sin corrimiento de zona; sin fecha → se salta y se cuenta; < 2025-01-01 o > hoy → aviso; > `--hasta` → se cuenta y se ignora. Texto con trim; un número en columna de texto (ORDEN, ACTA, ABS…) → texto sin decimales espurios; LARGO/ESPESOR/FC/CANTIDAD → number o NULL. Celdas con datos fuera de A:T → aviso |
+| mapeo | Las 20 columnas A–T + `id_registro` = `'mae-'` + `uuidDeterminista(fecha, nº de fila, contenido)` (relanzar da los mismos ids) · `timestamp`/`editado_ts` now() · `capataz` 'maestro' · `rol` 'importacion' · `actividad` = descripción · `pk_*` = ABS · `area` = `deriveArea(CC)` · `clima` '' · `version` 0 · `editado_por` 'importacion D186'. El sello `[Clima: X]` de la observación lo mueve `005` |
+| escritura | Una transacción: `esquema_version` ≥ 8 (si no, aborta) → **respaldo** CSV (UTF-8 con BOM, `;`, todas las columnas) de las filas de `data` con fecha ≤ corte en `--respaldo` (por defecto la carpeta actual), `respaldo_data_<hasta>_<yyyymmdd-hhmmss>.csv`, releído y contado → `DELETE … fecha <= hasta` (tantas como el respaldo) → INSERT por lotes de 500 → COMMIT |
+| después | Salvo `--sin-migraciones`, re-aplica `005 → 006 → 007 → 008` y muestra qué hizo cada una. Verificación: por mes, filas y Σ LARGO de `data` (≤ corte) = Excel, y los ids `mae-…` sin duplicados; ✓/✗ y código 1 si no cuadra |
+
+Es también un módulo (`importarMaestro(sql, opciones)`, `leerMaestro`, `verificar`). `worker/pruebas/verificar_d186_importar_maestro.mjs --excel=<copia>` lo prueba con PGlite: semillas de la app antes y después del corte, `--simular` sin cambios, meses y Σ LARGO = un cálculo aparte de la hoja, la app posterior al corte intacta, el respaldo con las filas borradas, `005`/`007` aplicadas, relanzar idempotente y una BD sin `008` que aborta sin tocar nada.

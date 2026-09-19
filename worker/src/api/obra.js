@@ -9,6 +9,8 @@
  *   GET  ?action=tablero                 PÚBLICO (ANTES de la puerta, sin LOG: D159/D161) → tablero.js
  *   GET  ?action=tablero_vivo            PÚBLICO (ANTES de la puerta, sin LOG; D185 = ampliación de D161 decidida por el
  *                                        dueño: el Tablero en vivo con la DATA de Galca; index.js lo cachea 60 s) → tablero_vivo.js
+ *   GET  ?action=data_csv | proyeccion_csv   NO llegan aquí: index.js (servirCsv, D187) los atiende ANTES de la puerta con
+ *                                        la CLAVE DE LECTURA del Excel maestro (CLAVE_LECTURA_EXCEL) → obra/data_csv.js
  *   GET  (resto)                         TOKEN (puerta_ action||'ping') → lectura / flota / data / maquinaria
  *                                        (proyeccion y proyeccion_tablero reciben además la sesión: V3-11 / D183)
  *   POST {action:'login'}                PÚBLICO (aún no hay token, D108) → auth.js login_
