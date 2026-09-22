@@ -85,7 +85,7 @@ async function cargarBandeja(){
   pintarBandeja();
 }
 function alertasDe(r){ return String(r.alertas||'').split(';').map(s=>s.trim()).filter(Boolean); }
-const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC', SIN_CC:'Texto libre sin centro de coste: léelo, elige el CC (se puede editar aquí) y aprueba; sin CC no se deja aprobar', FUERA_DE_FLOTA:'Reportó sin estar vigente ese día en la flota (Maquinaria › Flota): reemplazo de un día, equipo devuelto o de otro frente. Si se queda, dale el alta', PARTE_REPETIDO:'El mismo nº de parte físico ya se subió en OTRO día: posible doble carga del mismo turno (típico del turno noche que cruza medianoche). Revisa antes de aprobar para no facturarlo dos veces' };
+const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el final del parte ANTERIOR del equipo (se calcula al abrir la revisión; la línea «Medidor» de la tarjeta muestra los dos valores)', HORARIO_RARO:'La jornada pasa de 14 h: casi siempre una hora mal digitada (p. ej. 17:00→16:30) que el sistema toma por turno noche. Corrige «Hora de» / «Hora a» antes de aprobar',TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC', SIN_CC:'Texto libre sin centro de coste: léelo, elige el CC (se puede editar aquí) y aprueba; sin CC no se deja aprobar', FUERA_DE_FLOTA:'Reportó sin estar vigente ese día en la flota (Maquinaria › Flota): reemplazo de un día, equipo devuelto o de otro frente. Si se queda, dale el alta', PARTE_REPETIDO:'El mismo nº de parte físico ya se subió en OTRO día: posible doble carga del mismo turno (típico del turno noche que cruza medianoche). Revisa antes de aprobar para no facturarlo dos veces' };
 function pintarBandeja(){
   const p=(BAND.pendientes||[]).filter(r=>enGrupo(r.codigo)), rv=(BAND.revisadas||[]).filter(r=>enGrupo(r.codigo)), falt=faltVisibles();
   const conAl=p.filter(r=>alertasDe(r).length).length;
@@ -159,14 +159,131 @@ function opSelect(v, lista, extra){
   if(v && !vistos[v]) html='<option value="'+esc(v)+'" selected>'+esc(v)+' (no está en la lista)</option>'+html;
   return html;
 }
-function ccSelect(v){
-  const reales=(LISTAS.cc||[]).filter(c=>!c.pseudo), pseudo=(LISTAS.cc||[]).filter(c=>c.pseudo);
-  const op=c=>'<option value="'+esc(c.centro_coste)+'"'+(c.centro_coste===v?' selected':'')+'>'+esc(c.centro_coste)+(c.descripcion_cc?' · '+esc(c.descripcion_cc):'')+'</option>';
-  let html='<option value="">—</option>';
-  if(v && !(LISTAS.cc||[]).some(c=>c.centro_coste===v)) html+='<option value="'+esc(v)+'" selected>'+esc(v)+' (no está en PARTE_CC)</option>';
-  html+='<optgroup label="Centros de coste">'+reales.map(op).join('')+'</optgroup><optgroup label="Sin operación">'+pseudo.map(op).join('')+'</optgroup>';
-  return html;
+/* ---------- D207: continuidad del medidor y turno noche en la tarjeta ----------
+ * El servidor manda, por fila, el parte ANTERIOR real del equipo (fecha + hora de fin, con el cruce de medianoche
+ * de D188) y la jornada. Aquí se muestra para poder verificarlo a ojo: «anterior 1358 → este inicial 1358 ✓». */
+function horaMin(h){ const m=/^(\d{1,2}):(\d{2})/.exec(String(h||'')); return m ? (+m[1])*60+(+m[2]) : -1; }
+function esNoche(hDe, hA){ const a=horaMin(hDe), b=horaMin(hA); return a>=0 && b>=0 && b<a; }
+function jornadaH(hDe, hA){ const a=horaMin(hDe); let b=horaMin(hA); if(a<0||b<0||a===b) return null; if(b<a) b+=1440; return Math.round((b-a)/60*100)/100; }
+function jornadaHTML(hDe, hA){
+  const j=jornadaH(hDe, hA);
+  return '<div class="tot jor'+(j!==null&&j>14?' mal':'')+'" title="De «Hora de» a «Hora a»'+(esNoche(hDe,hA)?'; sale al día siguiente (turno noche)':'')+'">'+(j===null?'—':fmt(j))+' <small>h'+(esNoche(hDe,hA)?' 🌙':'')+'</small></div>';
 }
+function fechaCorta(iso){ const p=String(iso||'').slice(0,10).split('-'); return p.length<3 ? String(iso||'') : p[2]+'/'+p[1]; }
+function continuidadHTML(r, inicial){
+  const ct=(BAND.continuidad||{})[r.id_registro]; if(!ct || r.estado==='descartado') return '<div class="cont hidden"></div>';
+  const p=ct.previo, u=TOPES[r.medidor]?TOPES[r.medidor].unidad:'';
+  if(!p) return '<div class="cont">Medidor: sin parte anterior del equipo en los últimos 45 días (nada con qué comparar el inicial).</div>';
+  const ini=num(inicial), dif=(ini!==null&&p.final!==null)?Math.round((ini-p.final)*100)/100:null, ok=dif!==null&&Math.abs(dif)<0.001;
+  const de='parte '+(p.reporte_num?'nº '+esc(p.reporte_num)+' ':'')+'del '+esc(fechaCorta(p.fecha))+(p.hora_de||p.hora_a?' '+esc(p.hora_de||'?')+'→'+esc(p.hora_a||'?'):'')+(esNoche(p.hora_de,p.hora_a)?' 🌙':'')+' · '+esc(p.estado);
+  return '<div class="cont '+(ok?'ok':dif===null?'':'mal')+'">Medidor: el anterior terminó en <b>'+esc(fmt(p.final))+'</b> <small>('+de+')</small> → este inicial <b>'+(ini===null?'—':esc(fmt(ini)))+'</b> '
+    +(ok?'<span class="si">✓ empalma</span>':dif===null?'':'<span class="no">✕ '+(dif>0?'salto de +':'retrocede ')+esc(fmt(Math.abs(dif)))+' '+esc(u)+'</span>')+'</div>';
+}
+
+/* ---------- D207: selector de centro de coste con buscador ----------
+ * Antes era un <select> de ~120 CC ordenados por uso: UF1, UF2 y drenajes mezclados y sin poder escribir. Ahora
+ * la lista llega completa del servidor (PARTE_CC + BASE) en orden UF → área → código; aquí se agrupa por esos
+ * encabezados, se filtra por UF y se busca escribiendo código («02.03», «2.3») o palabras («terraplen odt»). */
+const AREA_TXT={ tierras:'Tierras y otros', odt:'Drenaje transversal (ODT)', odl:'Drenaje longitudinal (ODL)' };
+function ccInfo(v){ return (LISTAS.cc||[]).find(c=>c.centro_coste===v)||null; }
+function ccEtiqueta(v){ if(!v) return '— elegir centro de coste —'; const c=ccInfo(v); return v+(c&&c.descripcion_cc?' · '+c.descripcion_cc:(c?'':' (no está en la lista)')); }
+function ccPickerHTML(v, destino, extra){
+  return '<button type="button" class="cc-pick'+(v?'':' vacio')+'" value="'+esc(v||'')+'" data-dest="'+esc(destino)+'"'+(extra||'')+' title="'+esc(ccEtiqueta(v))+'">'+esc(ccEtiqueta(v))+'</button>';
+}
+// uf/area los manda el Worker; si faltan (backend Apps Script) salen del código, con la misma regla.
+function ccUf(c){ return c.pseudo ? '' : (c.uf || ufDe(c.centro_coste)); }
+function ccArea(c){ if(c.pseudo) return ''; if(c.area) return c.area; const m=/^37\d\d\.(\d\d)\./.exec(c.centro_coste||''); return !m ? '' : m[1]==='06' ? 'odt' : m[1]==='07' ? 'odl' : 'tierras'; }
+function ccHaystack(c){
+  const m=/^(\d{4})\.(\d{2})\.(\d{2})$/.exec(c.centro_coste||''), alt=m ? [m[2]+'.'+m[3], (+m[2])+'.'+(+m[3]), m[1]+'.'+(+m[2])+'.'+(+m[3])].join(' ') : '';
+  const uf=ccUf(c), ar=ccArea(c);
+  return norm([c.centro_coste, alt, c.descripcion_cc, c.capitulo, ar, ar?AREA_TXT[ar]:'', uf?'UF'+uf:'', c.pseudo?'sin operacion':''].join(' '));
+}
+const CCP={ el:null, btn:null, uf:'', idx:0, vis:[], orden:null, de:null };
+// UF → área → código (pseudo-CC al final), aunque el backend mande otro orden: así cada encabezado sale una sola vez.
+function ccOrdenados(){
+  const l=LISTAS.cc||[]; if(CCP.de===l && CCP.orden) return CCP.orden;
+  const oa={ tierras:0, odt:1, odl:2 }, k=c=>[c.pseudo?1:0, ccUf(c)||'9', oa[ccArea(c)]===undefined?3:oa[ccArea(c)], c.pseudo?'':c.centro_coste];
+  CCP.orden=l.map((c,i)=>({c:c,i:i,k:k(c)})).sort((a,b)=>{ for(let j=0;j<4;j++){ if(a.k[j]<b.k[j]) return -1; if(a.k[j]>b.k[j]) return 1; } return a.i-b.i; }).map(x=>x.c);
+  CCP.de=l; return CCP.orden;
+}
+function ccPop(){
+  if(CCP.el) return CCP.el;
+  const el=document.createElement('div'); el.className='cc-pop hidden'; el.setAttribute('role','dialog'); el.setAttribute('aria-label','Elegir centro de coste');
+  el.innerHTML='<input type="text" class="cc-q" placeholder="Escribe código o palabra: 02.03 · terraplén · ODT…" aria-label="Buscar centro de coste" autocomplete="off">'
+    +'<div class="cc-uf" role="group" aria-label="Unidad funcional"></div><div class="cc-lista" role="listbox"></div>';
+  document.body.appendChild(el); CCP.el=el;
+  const q=el.querySelector('.cc-q');
+  q.addEventListener('input', ()=>{ CCP.idx=0; ccPintar(); });
+  q.addEventListener('keydown', ev=>{
+    if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ ev.preventDefault(); if(!CCP.vis.length) return; CCP.idx=(CCP.idx+(ev.key==='ArrowDown'?1:-1)+CCP.vis.length)%CCP.vis.length; ccMarcar(); }
+    else if(ev.key==='Enter'){ ev.preventDefault(); if(CCP.vis[CCP.idx]) ccElegir(CCP.vis[CCP.idx].centro_coste); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); ccCerrar(true); }
+  });
+  el.querySelector('.cc-uf').addEventListener('click', ev=>{ const b=ev.target.closest('button[data-uf]'); if(!b) return; CCP.uf=b.dataset.uf; CCP.idx=0; ccPintar(); q.focus(); });
+  el.querySelector('.cc-lista').addEventListener('mousedown', ev=>{ const o=ev.target.closest('[data-v]'); if(!o) return; ev.preventDefault(); ccElegir(o.dataset.v); });
+  return el;
+}
+function ccAbrir(btn){
+  const el=ccPop(); CCP.btn=btn;
+  const v=btn.value, info=ccInfo(v);
+  // arranca en la UF del CC actual (lo normal es corregir dentro de la misma UF); «Todas» está a un clic
+  CCP.uf = info ? (info.pseudo ? 'sin' : ccUf(info)) : '';
+  el.querySelector('.cc-q').value=''; CCP.idx=0; ccPintar(v);
+  el.classList.remove('hidden'); ccPosicionar();
+  el.querySelector('.cc-q').focus();
+}
+function ccPosicionar(){
+  const el=CCP.el, b=CCP.btn; if(!el||!b) return;
+  const r=b.getBoundingClientRect(), vw=document.documentElement.clientWidth, vh=window.innerHeight, w=Math.min(560, vw-16);
+  el.style.width=w+'px'; el.style.left=Math.max(8, Math.min(r.left, vw-w-8))+'px';
+  const abajo=vh-r.bottom, alto=Math.min(420, Math.max(abajo, r.top)-12);
+  el.style.maxHeight=Math.max(220, alto)+'px';
+  if(abajo>=260 || abajo>=r.top){ el.style.top=(r.bottom+4)+'px'; el.style.bottom='auto'; } else { el.style.top='auto'; el.style.bottom=(vh-r.top+4)+'px'; }
+}
+function ccPintar(actual){
+  const el=CCP.el, q=norm(el.querySelector('.cc-q').value), toks=q.split(/\s+/).filter(Boolean);
+  const todos=ccOrdenados(), ufs=[...new Set(todos.map(ccUf).filter(Boolean))].sort();
+  el.querySelector('.cc-uf').innerHTML=[['','Todas']].concat(ufs.map(u=>[u,'UF'+u])).concat([['sin','Sin operación']])
+    .map(x=>'<button type="button" data-uf="'+x[0]+'" class="'+(CCP.uf===x[0]?'on':'')+'">'+x[1]+'</button>').join('');
+  CCP.vis=todos.filter(c=>{
+    if(CCP.uf==='sin' ? !c.pseudo : (CCP.uf && (c.pseudo || ccUf(c)!==CCP.uf))) return false;
+    if(!toks.length) return true;
+    const h=c._h||(c._h=ccHaystack(c)); return toks.every(t=>h.indexOf(t)>=0);
+  });
+  const sel=actual!==undefined ? actual : (CCP.btn?CCP.btn.value:'');
+  if(actual!==undefined){ const i=CCP.vis.findIndex(c=>c.centro_coste===sel); CCP.idx=i>=0?i:0; }
+  let html='', grupo='';
+  CCP.vis.forEach((c,i)=>{
+    const g=c.pseudo ? 'Sin operación' : (ccUf(c)?'UF'+ccUf(c):'Otros')+' · '+(AREA_TXT[ccArea(c)]||'Otros');
+    if(g!==grupo){ grupo=g; html+='<div class="cc-grupo">'+esc(g)+'</div>'; }
+    html+='<div class="cc-op'+(i===CCP.idx?' act':'')+(c.centro_coste===sel?' sel':'')+'" role="option" data-v="'+esc(c.centro_coste)+'" data-i="'+i+'">'
+      +'<b>'+esc(c.centro_coste)+'</b><span>'+esc(c.descripcion_cc||'')+'</span></div>';
+  });
+  el.querySelector('.cc-lista').innerHTML = html || '<div class="cc-vacio">Ningún centro de coste coincide'+(CCP.uf?' en este filtro: prueba «Todas»':'')+'.</div>';
+  ccMarcar();
+}
+function ccMarcar(){
+  const l=CCP.el.querySelector('.cc-lista');
+  l.querySelectorAll('.cc-op.act').forEach(o=>o.classList.remove('act'));
+  const o=l.querySelector('.cc-op[data-i="'+CCP.idx+'"]'); if(o){ o.classList.add('act'); o.scrollIntoView({block:'nearest'}); }
+}
+function ccCerrar(foco){ if(!CCP.el) return; CCP.el.classList.add('hidden'); const b=CCP.btn; CCP.btn=null; if(foco&&b) b.focus(); }
+function ccElegir(v){
+  const b=CCP.btn; ccCerrar(true); if(!b || b.value===v) return;
+  b.value=v; b.textContent=ccEtiqueta(v); b.title=ccEtiqueta(v); b.classList.toggle('vacio', !v);
+  const dest=b.dataset.dest||'';
+  if(dest.indexOf('fila:')===0) edit(dest.slice(5), b);
+  else if(dest==='manual') setUfDesdeCC('m_uf', v);
+  else if(dest.indexOf('rep:')===0) setRepartir(+dest.slice(4), 'cc', v);
+}
+document.addEventListener('click', ev=>{
+  const b=ev.target.closest && ev.target.closest('.cc-pick');
+  if(b){ if(b.disabled) return; if(CCP.btn===b && !CCP.el.classList.contains('hidden')) ccCerrar(); else ccAbrir(b); return; }
+  // un clic en un chip de UF repinta los chips: el botón pulsado ya no está en el DOM y no cuenta como «fuera»
+  if(CCP.el && !CCP.el.classList.contains('hidden') && ev.target.isConnected && !CCP.el.contains(ev.target)) ccCerrar();
+});
+window.addEventListener('resize', ()=>{ if(CCP.btn) ccPosicionar(); });
+window.addEventListener('scroll', ()=>{ if(CCP.btn) ccPosicionar(); }, true);
 function filaHTML(r, soloLectura){
   const al=alertasDe(r), id=r.id_registro, d=dirty[id]||{}, idA=esc(id), idJs=esc(String(id).replace(/'/g,"\\'"));
   const v=k=> d.hasOwnProperty(k) ? d[k] : r[k];
@@ -180,7 +297,7 @@ function filaHTML(r, soloLectura){
     +'<div class="fila-head"><span class="cod">'+esc(r.codigo)+'</span><span class="tipo">'+esc(r.tipo)+(r.placa?' · '+esc(r.placa):'')+' · '+esc(r.medidor||'sin medidor')+'</span>'
     +(r.origen==='manual'?'<span class="badge manual">manual</span>':'')
     +(/\[Reparto /.test(String(r.observaciones||''))?'<span class="badge manual" title="Parte de un reparto por porcentaje: el medidor y las horas vienen prorrateados">'+esc((String(r.observaciones).match(/\[Reparto [^\]]*\]/)||[''])[0].replace(/[\[\]]/g,''))+'</span>':'')
-    +(r.inicial_modificado==='SI'?'<span class="badge alerta" title="El operador cambió el inicial precargado">inicial editado</span>':'')
+    +(esNoche(v('hora_de'),v('hora_a'))?'<span class="badge noche" title="Turno noche (D188): sale al día siguiente; el parte va en el día que EMPIEZA">🌙 turno noche</span>':'')
     +(soloLectura?'<span class="badge estado-'+esc(r.estado)+'">'+esc(r.estado)+(r.revisado_por?' · '+esc(r.revisado_por):'')+'</span>':'')
     +al.map(a=>'<span class="badge alerta" title="'+esc(ALERTA_TXT[a]||a)+'">⚠ '+esc(a)+'</span>').join('')
     +'<span class="acciones">'
@@ -196,18 +313,20 @@ function filaHTML(r, soloLectura){
     +'<div class="c"><label>Nº parte</label>'+inp('reporte_num','text')+'</div>'
     +'<div class="c w2"><label>Operador</label><select data-k="operador"'+ro+on+'>'+opSelect(v('operador'), LISTAS.operadores||[], ['Sin operador'])+'</select></div>'
     +'<div class="c"><label>Hora de</label>'+inp('hora_de','time')+'</div>'
-    +'<div class="c"><label>Hora a</label>'+inp('hora_a','time')+'</div>'
+    +'<div class="c"><label>Hora a <span class="mas1'+(esNoche(v('hora_de'),v('hora_a'))?'':' hidden')+'">(+1 día)</span></label>'+inp('hora_a','time')+'</div>'
+    +'<div class="c"><label>Jornada</label>'+jornadaHTML(v('hora_de'),v('hora_a'))+'</div>'
     +'<div class="c"><label>Inicial</label>'+inp('inicial','number',' step="0.1"')+'</div>'
     +'<div class="c"><label>Final</label>'+inp('final','number',' step="0.1"')+'</div>'
     +'<div class="c"><label>Total</label><div class="tot '+totCls+'">'+(tot===null?'—':fmt(tot))+' <small>'+unidad+'</small></div></div>'
     +'<div class="c"><label>H. varada</label>'+inp('horas_varada','number',' step="0.5"')+'</div>'
     +'<div class="c"><label>H. lluvia</label>'+inp('horas_lluvia','number',' step="0.5"')+'</div>'
     +'<div class="c"><label>PR</label>'+inp('pr','number')+'</div>'
-    +'<div class="c w3"><label>Centro de coste</label><select data-k="centro_coste"'+ro+on+'>'+ccSelect(v('centro_coste'))+'</select></div>'
+    +'<div class="c w3"><label>Centro de coste</label>'+ccPickerHTML(v('centro_coste'), 'fila:'+id, ' data-k="centro_coste"'+ro)+'</div>'
     +'<div class="c"><label>UF</label><select data-k="uf"'+ro+on+'>'+['','1','2','3'].map(u=>'<option value="'+u+'"'+(String(v('uf'))===u?' selected':'')+'>'+(u||'—')+'</option>').join('')+'</select></div>'
     +'<div class="c w2"><label>Descripción</label><textarea rows="2" data-k="descripcion_trabajo"'+ro+on+'>'+esc(v('descripcion_trabajo'))+'</textarea></div>'
     +'<div class="c w3"><label>Observaciones</label><textarea rows="2" data-k="observaciones"'+ro+on+'>'+esc(v('observaciones'))+'</textarea></div>'
     +'</div>'
+    +continuidadHTML(r, v('inicial'))
     +(al.length?'<div class="nota">'+al.map(a=>'<b>'+esc(a)+':</b> '+esc(ALERTA_TXT[a]||'')).join(' · ')+'</div>':'')
     +'</div>';
 }
@@ -221,6 +340,12 @@ function edit(id, el){
     const a=num(d.hasOwnProperty('inicial')?d.inicial:r.inicial), b=num(d.hasOwnProperty('final')?d.final:r.final);
     const tot=(a!==null&&b!==null)?Math.round((b-a)*100)/100:null, tope=TOPES[r.medidor], box=f.querySelector('.tot');
     if(box){ box.className='tot '+(tot===null?'':tot<0||(tope&&tot>tope.bloquea)?'mal':(tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?esc(tope.unidad):'')+'</small>'; }
+    const ct=f.querySelector('.cont'); if(ct && k==='inicial') ct.outerHTML=continuidadHTML(r, d.inicial);   // D207: ¿empalma con el anterior?
+  }
+  if(k==='hora_de'||k==='hora_a'){   // D207: jornada y «(+1 día)» del turno noche al momento
+    const r=filaPorId(id)||{}, d=dirty[id], hDe=d.hasOwnProperty('hora_de')?d.hora_de:r.hora_de, hA=d.hasOwnProperty('hora_a')?d.hora_a:r.hora_a;
+    const j=f.querySelector('.jor'); if(j) j.outerHTML=jornadaHTML(hDe, hA);
+    const m=f.querySelector('.mas1'); if(m) m.classList.toggle('hidden', !esNoche(hDe, hA));
   }
   f.classList.add('dirty'); const g=f.querySelector('.btn-guardar'); if(g) g.classList.remove('hidden');
 }
@@ -234,11 +359,12 @@ async function revisar(id, estado){
   if(!d.ok){ toast(d.error||'No se guardó', true); return; }
   if(d.errores && d.errores.length){ toast('No se aplicó: '+d.errores.map(e=>e.error).join('; '), true); return; }
   delete dirty[id];
-  aplicarCambios(d.filas||[]);
+  aplicarCambios(d.filas||[], d.continuidad);
   toast(estado==='aprobado'?'Aprobado':estado==='descartado'?'Descartado':estado==='pendiente'?'Reabierto':'Guardado');
 }
 // mueve las filas devueltas por el servidor entre pendientes/revisadas sin recargar todo
-function aplicarCambios(filas){
+function aplicarCambios(filas, cont){
+  BAND.continuidad=Object.assign(BAND.continuidad||{}, cont||{});   // D207: continuidad recalculada por el servidor
   filas.forEach(nf=>{
     BAND.pendientes=(BAND.pendientes||[]).filter(r=>r.id_registro!==nf.id_registro);
     BAND.revisadas=(BAND.revisadas||[]).filter(r=>r.id_registro!==nf.id_registro);
@@ -262,7 +388,7 @@ async function aprobarSinAlertas(){
   if(caducada(d)) return;
   if(!d.ok){ toast(d.error||'No se guardó', true); return; }
   (d.filas||[]).forEach(f=>delete dirty[f.id_registro]);
-  aplicarCambios(d.filas||[]);
+  aplicarCambios(d.filas||[], d.continuidad);
   toast('Aprobadas '+d.cambiadas+(d.errores&&d.errores.length?' · '+d.errores.length+' con error':''), !!(d.errores&&d.errores.length));
 }
 
@@ -283,7 +409,7 @@ function abrirManual(codigo){
     +(q.medidor?'<div class="c"><label>Inicial</label><input type="number" step="0.1" id="m_ini" value="'+esc(ult)+'"></div><div class="c"><label>Final</label><input type="number" step="0.1" id="m_fin"></div>':'<div class="c w2"><label>Medidor</label><div class="tot" data-estilo="font-size:13px;color:var(--muted)">sin medidor en el catálogo</div></div>')
     +'<div class="c"><label>H. varada</label><input type="number" step="0.5" id="m_var"></div><div class="c"><label>H. lluvia</label><input type="number" step="0.5" id="m_llu"></div>'
     +'<div class="c"><label>PR</label><input type="number" id="m_pr"></div>'
-    +'<div class="c w3"><label>Centro de coste</label><select id="m_cc" data-on-change="setUfDesdeCC(\'m_uf\',this.value)">'+ccSelect('')+'</select></div>'
+    +'<div class="c w3"><label>Centro de coste</label>'+ccPickerHTML('', 'manual', ' id="m_cc"')+'</div>'
     +'<div class="c"><label>UF</label><select id="m_uf"><option value="">—</option><option>1</option><option>2</option><option>3</option></select></div>'
     +'<div class="c w2"><label>Descripción</label><textarea rows="2" id="m_desc"></textarea></div>'
     +'<div class="c w3"><label>Observaciones</label><textarea rows="2" id="m_obs"></textarea></div>';
@@ -401,7 +527,7 @@ function pintarRepartir(){
   const suma=repFilas.reduce((a,f)=>a+(num(f.pct)||0),0);
   document.getElementById('rpFilas').innerHTML='<div class="rp-cab"><span>Centro de coste</span><span>%</span><span>PR</span><span>Descripción</span><span></span></div>'
     +repFilas.map((f,j)=>'<div class="rp-fila">'
-      +'<select data-on-change="setRepartir('+j+',\'cc\',this.value)">'+ccSelect(f.cc)+'</select>'
+      +ccPickerHTML(f.cc, 'rep:'+j, '')
       +'<input type="number" min="0" max="100" step="1" value="'+esc(f.pct)+'" aria-label="porcentaje '+(j+1)+'" data-on-input="setRepartir('+j+',\'pct\',this.value)">'
       +'<input type="number" value="'+esc(f.pr===null||f.pr===undefined?'':f.pr)+'" placeholder="PR" data-on-input="setRepartir('+j+',\'pr\',this.value)">'
       +'<input type="text" value="'+esc(f.desc)+'" placeholder="(la de la fila original)" data-on-input="setRepartir('+j+',\'desc\',this.value)">'
@@ -429,7 +555,7 @@ async function guardarRepartir(){
   const id=repFila.id_registro; cerrarRepartir();
   // D197: con la Base visible se recarga (cargarBase pregunta si hay otros cambios sin guardar); oculta, se invalida.
   if(BASE && BASE.filas.some(x=>x.id_registro===id)){ if(!document.getElementById('vistaBase').classList.contains('hidden')) cargarBase(); else BASE=null; }
-  aplicarCambios([d.original].concat(d.filas||[]));
+  aplicarCambios([d.original].concat(d.filas||[]), d.continuidad);
   toast('Repartida en '+(d.filas||[]).length+' filas (pendientes); la original quedó descartada');
 }
 
