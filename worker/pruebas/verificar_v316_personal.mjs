@@ -187,8 +187,17 @@ async function main(){
   await asis(sql, { fecha: FC, codigo: 'C110', nombre: 'CARGO G', cc: '3701.02.05| EXC AM', cargo: 'Oficial de obra', hora_entrada: '07:00', hora_salida: '11:00' });
   await asis(sql, { fecha: FC, codigo: 'C110', nombre: 'CARGO G', cc: '3701.02.05| EXC PM', cargo: 'Ayudante de obra', hora_entrada: '11:00', hora_salida: '15:30' });
 
+  // Etiqueta con TILDES (texto original, D208): «Operador múltiple» y «Operador Multiple» comparten clave y la
+  // etiqueta es la de la primera fila vista, sin perder la tilde.
+  const FTILDE = '2026-09-25';
+  await asis(sql, { fecha: FTILDE, codigo: 'C120', nombre: 'TILDE A', cc: '3701.02.05| EXC', cargo: 'Operador múltiple', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql, { fecha: FTILDE, codigo: 'C121', nombre: 'TILDE B', cc: '3701.02.05| EXC', cargo: 'Operador Multiple', hora_entrada: '07:00', hora_salida: '15:30' });
+
   const rC = await tableroVivoLeer(c(sql), {});
   const gC = grupo(rC.personal, FC, 'UF1', 'excavacion');
+  const gT = grupo(rC.personal, FTILDE, 'UF1', 'excavacion');
+  ok('la etiqueta conserva las tildes del texto original («Operador múltiple», n=2 con la variante sin tilde)',
+    !!cargo(gT, 'Operador múltiple') && cargo(gT, 'Operador múltiple').n === 2 && gT.c.length === 1, gT && gT.c);
   ok('«Oficial De Obra» y «OFICIAL DE OBRA» agrupan: normaliza tildes/mayúsculas/espacios (más C110 abajo, n=3)',
     !!cargo(gC, 'Oficial de obra') && cargo(gC, 'Oficial de obra').n === 3, cargo(gC, 'Oficial de obra'));
   ok('«OFICIAL» NO se funde con «OFICIAL DE OBRA» (no inventa sinónimos): entrada aparte con n=1',

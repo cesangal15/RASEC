@@ -138,11 +138,14 @@ function sinTildes_(s){
     .replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ');
 }
 // Clave para agrupar variantes de escritura (sin tildes, MAYÚSCULAS, espacios colapsados) + etiqueta a mostrar
-// (la clave en minúsculas con la primera letra en mayúscula). NO corrige erratas ni inventa sinónimos.
+// (el texto ORIGINAL en minúsculas con la primera letra en mayúscula, CON sus tildes: «Operador múltiple»,
+// «Mecánico»; desde 012 la fuente ya trae el texto canónico). Si dos variantes comparten clave, la etiqueta es la
+// de la primera fila vista. NO corrige erratas ni inventa sinónimos.
 function normCargo_(s){
   const t = sinTildes_(s).toUpperCase().replace(/\s+/g, ' ').trim();
   if(!t) return { key:'', label:SIN_CARGO };
-  return { key:t, label: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() };
+  const o = String(s).replace(/\s+/g, ' ').trim().toLowerCase();
+  return { key:t, label: o.charAt(0).toUpperCase() + o.slice(1) };
 }
 // Mapa codigo/cedula -> cargo de PERSONAL, con la estancia de fecha_ingreso MÁS RECIENTE (NULL = la más
 // antigua; MISMO criterio que horasPersona, asistencias/lectura.js). Una sola consulta, sin filas repetidas.
