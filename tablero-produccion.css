@@ -139,7 +139,9 @@ body{background:var(--bg);color:var(--text);font-size:14px;
    dentro de .zona y toma de ella su altura: sin el `>` esta regla se la comía
    y las barras quedaban flotando a media altura del recuadro. */
 .plot>.bars{height:var(--altoEvo);border-bottom:1px solid var(--border);}
-.col{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;gap:1.5px;cursor:pointer;}
+/* V3-15(b): las barras grandes ya NO se clican (el selector único es la escala
+   de tiempo de abajo); se quedan solo con el tooltip (`title`). */
+.col{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;gap:1.5px;}
 .col i{flex:1;min-width:0;display:block;position:relative;transition:height .9s cubic-bezier(.2,.85,.25,1);}
 .xlab{display:flex;gap:6px;padding-top:4px;}
 .xlab>span{flex:1;min-width:0;text-align:center;font-size:10.5px;color:var(--muted);cursor:pointer;
@@ -351,6 +353,89 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .u-sub-cadena{font-size:13px;color:var(--muted);}
 .secA.u-nota-cadena{text-align:right;max-width:470px;}
 .u-eje-propio{color:var(--accent-txt);font-weight:700;}
+
+/* ---------- V3-15(a): nota de periodo bajo el título de la diaria (sin enlace:
+   el selector de mes vive arriba, en Evolución). */
+.notaPeriodo{color:var(--muted);}
+
+/* ---------- V3-15(b): escala de tiempo (selector) bajo la gráfica diaria ----
+   Reemplaza la antigua tira «Clima del día»: siempre el PERÍODO COMPLETO, un
+   día por celda, con su color de clima y el número del día. Único selector de
+   la diaria/personal (las barras grandes ya no clican, solo tooltip). */
+.escalaWrap{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+.escalaT{font-size:11px;color:var(--muted);}
+.escala{display:flex;gap:2px;touch-action:pan-y;}
+.ecell{flex:1;min-width:0;height:30px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;border:1px solid var(--border);box-sizing:border-box;user-select:none;
+  -webkit-user-select:none;}
+.ecell .num{font-size:10px;font-variant-numeric:tabular-nums;pointer-events:none;}
+.ecell.c-sol{background:var(--c-sol-b);}
+.ecell.c-sol .num{color:#241a08;}
+.ecell.c-par{background:var(--c-par-b);}
+.ecell.c-par .num{color:#fff;}
+.ecell.c-llu{background:var(--c-llu-b);}
+.ecell.c-llu .num{color:#fff;}
+.ecell.c-nd{background:var(--grid);}
+.ecell.c-nd .num{color:var(--mut);}
+/* Celda fuera de la selección: se atenúa, no desaparece (igual criterio que el
+   mes elegido en evolución, que se marca con fondo y no apaga el resto). */
+/* Fuera de la selección: un velo del fondo apaga el color del clima, pero el número
+   del día queda por encima y con el color de texto del tema (legible en claro y oscuro). */
+.ecell{position:relative;}
+.ecell.atenuado::after{content:'';position:absolute;inset:0;background:var(--bg);opacity:.62;pointer-events:none;}
+.ecell .num{position:relative;z-index:1;}
+.ecell.atenuado .num{color:var(--ink);}
+/* Recuadro visible sobre la selección: borde grueso arriba/abajo en todas las
+   celdas elegidas y grosor en los extremos, a modo de "tirador" continuo. */
+.ecell.sel{border-top:3px solid var(--ink);border-bottom:3px solid var(--ink);}
+.ecell.sel:first-of-type,.ecell.sel:not(.sel+.sel){border-left:3px solid var(--ink);}
+.ecell.sel+.ecell:not(.sel){border-left-color:var(--ink);}
+.ecell:focus-visible{outline:2px solid var(--accent);outline-offset:2px;z-index:1;position:relative;}
+/* Franja de resumen de la selección: título · totales por partida (mismos
+   colores/orden que la leyenda) · clima de los días · botón para quitar el filtro. */
+.franjaSel{display:flex;flex-direction:column;gap:8px;}
+.franjaSel:empty{display:none;}
+.selTit{font-size:13px;font-weight:700;}
+.selTots{display:flex;gap:18px;flex-wrap:wrap;}
+.selTots .it{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
+.selTots .sw{width:11px;height:11px;flex:none;}
+.selClima{font-size:11.5px;color:var(--muted);}
+.franjaSel .tbtn{align-self:flex-start;}
+
+/* ---------- V3-16: horas del personal por actividad ---------- */
+.phH,.ph,.phC{display:grid;grid-template-columns:150px 92px 118px 1fr;gap:0 13px;align-items:center;}
+.phH{padding-bottom:6px;border-bottom:1px solid var(--border);
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.phH>div:nth-child(2),.phH>div:nth-child(3){text-align:right;}
+.ph{margin-top:9px;}
+.ph .nm{font-size:13px;}
+.ph .num{font-size:13px;text-align:right;font-variant-numeric:tabular-nums;}
+.ph.phTot{margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-weight:700;}
+.phBar{position:relative;height:14px;background:var(--grid);overflow:hidden;}
+.phBar>i{display:block;height:100%;}
+/* Fila de partida desplegable (mismo patrón que `.chainR` de la cadena). */
+.ph.abrible{cursor:pointer;}
+.ph.abrible:hover{background:var(--card);}
+.ph.abrible:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;}
+.ph .flecha{display:inline-block;width:11px;color:var(--accent-txt);font-size:10px;}
+/* Desglose por cargo: subfilas más pequeñas, barra en tono más claro (opacidad)
+   del color de la partida. */
+.phDrop{display:flex;flex-direction:column;padding-left:18px;}
+.phC{margin-top:6px;}
+.phC .nm{font-size:12px;color:var(--muted);}
+.phC .num{font-size:12px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;}
+.phC.phCsin .nm{color:var(--mut);font-style:italic;}
+.phBarL{height:10px;}
+.phBarL>i{opacity:.5;}
+@media(max-width:620px){
+  .phH{display:none;}
+  .ph,.phC{grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto;
+    gap:4px 10px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  .ph .nm,.phC .nm{grid-column:1/4;}
+  .ph .phBar,.phC .phBar{grid-column:1/4;}
+  .ph.phTot{border-bottom:0;}
+  .phC{padding-bottom:8px;}
+}
 
 /* Marca Galca (D170): logotipo horizontal (img/galca-logotipo.svg, texto en
  * trazos) arriba del encabezado. Máscara sobre currentColor: el archivo es
