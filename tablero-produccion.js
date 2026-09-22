@@ -731,6 +731,11 @@ function etiquetaBarra(bar, valor, altoPx, colorLbl){
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
 
 let sel=TM2.per.length-1, uf='Todo', abierto=null;
+/* V3-15(b): filtro de un día/rango dentro del período, sobre la gráfica diaria.
+   `selDias` es null (sin filtro) o {a,b} con a<=b (a===b = un solo día), en fechas
+   ISO de la propia `p.d`. Se reinicia SOLO al cambiar de período (lo hace `pinta()`,
+   comparando contra `perActual`); el filtro de UF no lo toca. */
+let selDias=null, perActual=null;
 
 /* La excavación no viene desglosada por UF en el origen (DATOS trae una sola
    columna). Con filtro de UF se omite en vez de repetir el total en las dos. */
@@ -755,6 +760,39 @@ function rango(k){
   const[y,m]=k.split('-').map(Number), pm=m===1?12:m-1, py=m===1?y-1:y;
   return '16 '+MES[pm-1]+' '+py+' — 15 '+MES[m-1]+' '+y;
 }
+
+/* -------------------------------------------------- V3-15(b): filtro de días */
+/* Los días del período que caen dentro de la selección; sin selección, todos. */
+function diasFiltrados(p){
+  if(!selDias) return p.d;
+  return p.d.filter(d=>d.f>=selDias.a && d.f<=selDias.b);
+}
+/* '2026-09-15' -> '15 sep'; rango en el mismo mes -> '15–16 sep'; en meses
+   distintos -> '15 sep – 3 oct'. */
+function etiquetaSel(a,b){
+  const pa=a.split('-').map(Number), pb=b.split('-').map(Number);
+  if(a===b) return pa[2]+' '+MES[pa[1]-1];
+  if(pa[1]===pb[1] && pa[0]===pb[0]) return pa[2]+'–'+pb[2]+' '+MES[pa[1]-1];
+  return pa[2]+' '+MES[pa[1]-1]+' – '+pb[2]+' '+MES[pb[1]-1];
+}
+/* Clic/Enter en un día de la gráfica diaria:
+   · sin selección           -> selecciona ESE día (rango de 1).
+   · un solo día seleccionado y se clica OTRO día -> forma el rango entre los dos
+     (en cualquier orden: se ordenan al guardar).
+   · el mismo día ya seleccionado en solitario -> lo quita (mismo efecto que el
+     botón «Quitar filtro», evita dejar el clic sin salida en la propia gráfica).
+   · ya hay un rango formado -> el clic EMPIEZA una selección nueva en ese día. */
+function seleccionarDia(f){
+  if(!selDias){ selDias={a:f,b:f}; }
+  else if(selDias.a===selDias.b){
+    if(f===selDias.a) selDias=null;
+    else selDias = f<selDias.a ? {a:f,b:selDias.a} : {a:selDias.a,b:f};
+  } else {
+    selDias={a:f,b:f};
+  }
+  pinta();
+}
+function quitarFiltroDia(){ selDias=null; pinta(); }
 
 function controles(){
   const c=document.getElementById('uf');c.innerHTML='';
@@ -1131,6 +1169,15 @@ function diaria(p){
   document.getElementById('maxDia').innerHTML=f0(max)+'<span>m³ máx</span>';
   document.getElementById('capDia').textContent=
     'Producción diaria del período'+(uf==='Todo'?'':' · sólo '+uf);
+  /* V3-15(a): con el selector de mes ahora al final (Evolución), se deja aquí un
+     apunte de qué período se ve y un enlace ancla a esa sección. */
+  const nota=document.getElementById('capDiaNota');
+  if(nota){
+    nota.innerHTML='';
+    nota.appendChild(document.createTextNode('Periodo '+eti(p.p)+' · cambia el mes en '));
+    const a=document.createElement('a'); a.href='#secEvolucion'; a.textContent='Evolución ↓';
+    nota.appendChild(a);
+  }
   const bg=document.getElementById('diaBg'), g=document.getElementById('dia'),
         x=document.getElementById('diaX'), cl=document.getElementById('clima');
   bg.innerHTML='';g.innerHTML='';x.innerHTML='';cl.innerHTML='';
@@ -1139,9 +1186,21 @@ function diaria(p){
     if(d.t==='LLUVIAS')b.style.background='var(--lluvia)';
     else if(d.t==='LLUVIAS PARCIALES')b.style.background='var(--lluvia-par)';
     bg.appendChild(b);
-    const col=el('div','col');col.style.cursor='default';
+    const col=el('div','col');
     const tot=vals[i].reduce((s,v)=>s+v,0);
-    col.title=d.f+' · '+f0(tot)+' m³ · '+(CLIMA[d.t]||CLIMA[''])[0];
+    const climaTxt=(CLIMA[d.t]||CLIMA[''])[0];
+    col.title=d.f+' · '+f0(tot)+' m³ · '+climaTxt;
+    /* V3-15(b): un día es focusable y clicable; Enter/Espacio hacen lo mismo que
+       el clic. Fuera de la selección se atenúa (no desaparece). */
+    const enSel=!selDias || (d.f>=selDias.a && d.f<=selDias.b);
+    if(selDias && !enSel) col.classList.add('atenuado');
+    col.tabIndex=0; col.setAttribute('role','button');
+    col.setAttribute('aria-pressed', (selDias && enSel) ? 'true' : 'false');
+    col.setAttribute('aria-label','Día '+d.f+', '+f0(tot)+' m³, '+climaTxt+
+      (selDias && enSel ? ', dentro de la selección' : ''));
+    const activar=()=>seleccionarDia(d.f);
+    col.onclick=activar;
+    col.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); activar(); } };
     vis.forEach((a,j)=>{
       const s=el('i'), fr=vals[i][j]/max;
       s.style.height=(fr*100)+'%'; s.style.background=a.c;
@@ -1151,6 +1210,7 @@ function diaria(p){
     x.appendChild(el('span',null,d.f.slice(8)));
     const c=el('span',(CLIMA[d.t]||CLIMA[''])[1]);c.title=col.title;cl.appendChild(c);
   });
+  resumenDia(p);
   /* Curvas punteadas: media acumulada día a día, en EJE PROPIO Y LOGARÍTMICO.
      Vuelve a petición del usuario, y con un objetivo distinto del que tuvo la
      primera vez: aquí no se trata de comparar una actividad con otra —eso no
@@ -1241,6 +1301,124 @@ function diaria(p){
       f0(med(sec))+' en los '+sec.length+' soleados';
     lc.appendChild(s);
   }
+}
+
+/* Franja de resumen de la gráfica diaria (V3-15b): con selección, el día o rango
+   elegido; sin selección, el período completo — nunca se oculta, así siempre hay
+   un total a la vista. Los totales por partida respetan `visibles()`/`valDia()`,
+   igual que las barras (mismo filtro Todo/UF1/UF2). */
+function resumenDia(p){
+  const c=document.getElementById('diaResumen'); if(!c) return;
+  c.innerHTML='';
+  const dd=diasFiltrados(p), vis=visibles();
+  const etiqueta = selDias
+    ? etiquetaSel(selDias.a,selDias.b)+(selDias.a===selDias.b?'':' · '+dd.length+' días')
+    : 'Período completo · '+dd.length+' días';
+  c.appendChild(el('div','selTit',etiqueta));
+  const tots=el('div','selTots');
+  vis.forEach(a=>{
+    const v=dd.reduce((s,d)=>s+valDia(d,a),0);
+    const it=el('div','it'); const sw=el('span','sw'); sw.style.background=a.c;
+    it.append(sw, el('span',null,a.n+' '+f0(v)+' m³')); tots.appendChild(it);
+  });
+  c.appendChild(tots);
+  const cu={}; dd.forEach(d=>{ const k=d.t||''; cu[k]=(cu[k]||0)+1; });
+  const climaTxt=Object.keys(CLIMA).filter(k=>cu[k]).map(k=>cu[k]+' '+CLIMA[k][0].toLowerCase()).join(' · ');
+  if(climaTxt) c.appendChild(el('div','selClima',climaTxt));
+  if(selDias){
+    const b=document.createElement('button'); b.type='button'; b.className='tbtn';
+    b.textContent='✕ Quitar filtro'; b.onclick=quitarFiltroDia;
+    c.appendChild(b);
+  }
+}
+
+/* ============================================================================
+ * V3-16 — HORAS DEL PERSONAL POR ACTIVIDAD
+ *
+ * `TM2.personal`: [{f,uf,act,n,h}] (un renglón por fecha·UF·actividad, D316) o
+ * null (+ `TM2.personal_error`) si Galca no lo pudo traer, o simplemente ausente
+ * en una respuesta vieja / la foto de respaldo — los tres casos se tratan igual:
+ * "sin datos". Ámbito = los días del filtro V3-15(b) si hay selección, si no el
+ * período completo; UF = Todo (UF1+UF2) / UF1 / UF2, tal cual el filtro de la
+ * cabecera — aquí la excavación SÍ se reparte por UF (a diferencia de la
+ * producción), así que las cinco filas se ven en cualquier UF.
+ * ==========================================================================*/
+const ACT_PERS=[
+  {k:'excavacion',n:'Excavación',   c:'var(--s1)'},
+  {k:'terraplen', n:'Terraplén',    c:'var(--s2)'},
+  {k:'subbase',   n:'Subbase',      c:'var(--s3)'},
+  {k:'base',      n:'BTC / Base',   c:'var(--s4)'},
+  {k:'otras',     n:'Otras actividades', c:'var(--neutro)'}
+];
+function ambitoTxt(p){
+  return (selDias?etiquetaSel(selDias.a,selDias.b):rango(p.p))+(uf==='Todo'?'':' · '+uf);
+}
+function personal(p){
+  const sub=document.getElementById('perSub'), c=document.getElementById('perTabla');
+  if(!sub||!c) return;
+  const amb=ambitoTxt(p);
+  sub.textContent='personas y horas-hombre cargadas en la asistencia · '+amb;
+  c.innerHTML='';
+  if(!Array.isArray(TM2.personal)){
+    c.appendChild(el('div','nota', TM2.personal_error
+      ? 'Sin datos de asistencia (' + TM2.personal_error + ').'
+      : 'Sin datos de asistencia en esta fuente.'));
+    return;
+  }
+  const fechas=diasFiltrados(p).map(d=>d.f), enAmbito=new Set(fechas);
+  const ufOk=x=>uf==='Todo'||x.uf===uf;
+  const filas=[]; let maxH=0;
+  const totPorDia={};
+  ACT_PERS.forEach(a=>{
+    const porDia={};
+    TM2.personal.forEach(x=>{
+      if(!x || x.act!==a.k || !ufOk(x) || !enAmbito.has(x.f)) return;
+      const r=(porDia[x.f]=porDia[x.f]||{n:0,h:0});
+      r.n+=num(x.n); r.h+=num(x.h);
+      const rt=(totPorDia[x.f]=totPorDia[x.f]||{n:0,h:0});
+      rt.n+=num(x.n); rt.h+=num(x.h);
+    });
+    const claves=Object.keys(porDia);
+    const sn=claves.reduce((s,f)=>s+porDia[f].n,0);
+    const sh=claves.reduce((s,f)=>s+porDia[f].h,0);
+    if(sh>maxH) maxH=sh;
+    filas.push({a, prom:claves.length?sn/claves.length:0, sh, sn, nd:claves.length});
+  });
+  const clavesT=Object.keys(totPorDia);
+  const snT=clavesT.reduce((s,f)=>s+totPorDia[f].n,0);
+  const shT=clavesT.reduce((s,f)=>s+totPorDia[f].h,0);
+  /* Nota de corte: si la asistencia cargada no llega hasta el último día del
+     ámbito, se avisa (igual criterio que el resto de renglones de estado). */
+  const ultimoDia=fechas.length?fechas[fechas.length-1]:'';
+  if(TM2.personal_hasta && ultimoDia && TM2.personal_hasta<ultimoDia){
+    sub.textContent+=' · asistencia hasta el '+fechaCorta(TM2.personal_hasta);
+  }
+  if(!(shT>0 || snT>0)){
+    c.appendChild(el('div','nota','Sin asistencia registrada para '+amb+'.'));
+    return;
+  }
+  const head=el('div','phH');
+  head.append(el('div',null,'Actividad'),el('div',null,'Personas/día'),
+              el('div',null,'Horas-hombre'),el('div'));
+  c.appendChild(head);
+  filas.forEach(({a,prom,sh,sn,nd})=>{
+    const r=el('div','ph');
+    r.title=sn?'persona-días: '+f0(sn):'sin asistencia en '+amb;
+    r.append(el('div','nm',a.n));
+    r.append(el('div','num',nd?f1(prom):'—'));
+    r.append(el('div','num',f1(sh)));
+    const bar=el('div','phBar'); const i=el('i');
+    i.style.width=(maxH>0?sh/maxH*100:0)+'%'; i.style.background=a.c;
+    bar.appendChild(i); r.appendChild(bar);
+    c.appendChild(r);
+  });
+  const rt=el('div','ph phTot');
+  rt.title=snT?'persona-días: '+f0(snT):'';
+  rt.append(el('div','nm','Total'));
+  rt.append(el('div','num',clavesT.length?f1(snT/clavesT.length):'—'));
+  rt.append(el('div','num',f1(shT)));
+  rt.append(el('div'));
+  c.appendChild(rt);
 }
 
 /* --------------------------------- planificado vs ejecutado del período */
@@ -1553,6 +1731,14 @@ function calcularVivo(j){
   d.vivo={ datos_hasta:String(j.datos_hasta||d.corte_prod||''), generado:String(j.generado||''),
            horas_archivo:H?String(hm.archivo||''):'', horas_cargado:H?String(hm.cargado_ts||''):'' };
   d.vivo.firma=firma(d);
+  /* V3-16: personas/horas-hombre de la asistencia, sin nombres. `personal` viaja
+     TAL CUAL a la sección «Horas del personal» (personal() la lee de TM2.personal);
+     null/ausente cuando Galca no lo trajo (respuesta vieja o error), y ahí queda
+     dicho en `personal_error`. Se incluye en la foto de respaldo porque `respaldo()`
+     publica el objeto `d` completo — no hace falta nada más para que viaje. */
+  d.personal = Array.isArray(j.personal) ? j.personal : null;
+  d.personal_error = String(j.personal_error||'');
+  d.personal_hasta = String(j.personal_hasta||'');
   return { d, aviso };
 }
 
@@ -1770,10 +1956,13 @@ function wire(){
 
 function pinta(){
   const p=TM2.per[sel];
+  /* V3-15(b): el filtro de días es del PERÍODO, no de la sesión: cambiar de mes
+     lo reinicia (cambiar de UF, no — eso lo deja intacto `evolucion()`/`controles()`). */
+  if(perActual!==p.p){ perActual=p.p; selDias=null; }
   document.getElementById('perT').textContent=eti(p.p);
   document.getElementById('perR').textContent=rango(p.p)+' · '+p.d.length+' días registrados';
   document.getElementById('perC').textContent='';
-  controles();evolucion();cadena(p);diaria(p);planPeriodo(p);avance();aprov(p);pintaEstado();
+  controles();evolucion();cadena(p);diaria(p);personal(p);planPeriodo(p);avance();aprov(p);pintaEstado();
 }
 try{const g=localStorage.getItem('tm2-tema');if(g)document.documentElement.setAttribute('data-tema',g);}catch(e){}
 /* 1. Se pinta YA con lo último visto en este equipo (o la copia incluida)… */
