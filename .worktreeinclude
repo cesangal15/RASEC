@@ -1,0 +1,4 @@
+# Archivos ignorados por git que Claude Code copia a cada worktree nuevo (`claude -w <nombre>`).
+# Sintaxis de .gitignore; solo se copia lo que además está en .gitignore.
+.claude/settings.local.json
+.mcp.json

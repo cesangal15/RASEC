@@ -6,3 +6,10 @@ __pycache__/
 
 # Respaldos de DATA de importar_maestro.js (D186): llevan datos de producción, nunca al repo
 respaldo_data_*.csv
+
+# Sesiones paralelas de Claude Code: un worktree por sesión (`claude -w <nombre>`)
+.claude/worktrees/
+
+# MCP local: lleva el project_ref de Supabase, que el repo público no expone.
+# Se copia a cada worktree vía .worktreeinclude
+.mcp.json
