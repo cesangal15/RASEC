@@ -26,17 +26,20 @@
  *          horas_meta  = {archivo, cargado_ts ('YYYY-MM-DD HH:MM' Bogotá)} o null. Sin `cargado_por`.
  *          datos_hasta = la última FECHA de la DATA ('' si no hay); generado = ahora en Bogotá 'YYYY-MM-DD HH:MM'.
  *          personal    = V3-16: horas-hombre y nº de personas por partida, desde ASISTENCIA (solo UF1/UF2, presentes,
- *                        con CC). [{f, uf:'UF1'|'UF2', act:'excavacion'|'terraplen'|'subbase'|'base'|'otras', n, h,
- *                        c:[{k, n, h}]}], una entrada por (f, uf, act) con n>0 o h>0, ordenada por f/uf/act. `h` con
- *                        el MISMO clasificador del Parte de Navision (horas-nomina.js, D112: una sola fuente) — nunca
- *                        copiado. `c` = desglose por CARGO normalizado (sin tildes/mayúsculas/espacios de más;
- *                        etiqueta capitalizada), ordenado por h desc y luego k asc; Σn/Σh de `c` = n/h de la entrada
- *                        (con redondeo). Cargo = asistencia.cargo si no está vacío, si no la ficha de PERSONAL (la
- *                        estancia de fecha_ingreso más reciente); vacío en ambos → 'Sin cargo registrado'. Una
- *                        persona con 2 filas de cargo distinto el mismo (f,uf,act) cuenta en `c` por el cargo de su
- *                        PRIMERA fila. null (+ `personal_error`) si ASISTENCIA no se pudo leer: el resto de
- *                        tablero_vivo sigue igual. Sin ningún nombre/cédula/código/cuadrilla/CC crudo (D161: lectura
- *                        pública sin token); `c` solo lleva etiquetas de cargo y cifras agregadas.
+ *                        con CC). [{f, uf:'UF1'|'UF2', act:'excavacion'|'terraplen'|'subbase'|'base'|'transporte'|
+ *                        'otras', n, h, c:[{k, n, h}]}], una entrada por (f, uf, act) con n>0 o h>0, ordenada por
+ *                        f/uf/act. `h` con el MISMO clasificador del Parte de Navision (horas-nomina.js, D112: una
+ *                        sola fuente) — nunca copiado. `c` = desglose por CARGO normalizado (sin tildes/mayúsculas/
+ *                        espacios de más; etiqueta capitalizada), ordenado por h desc y luego k asc; Σn/Σh de `c` =
+ *                        n/h de la entrada (con redondeo). Cargo = asistencia.cargo si no está vacío, si no la ficha
+ *                        de PERSONAL (la estancia de fecha_ingreso más reciente); vacío en ambos → 'Sin cargo
+ *                        registrado'. Una persona con 2 filas de cargo distinto el mismo (f,uf,act) cuenta en `c`
+ *                        por el cargo de su PRIMERA fila. **Personal INDIRECTO fuera (V3-16, decisión del jefe:
+ *                        solo personal directo):** la fila cuyo cargo EFECTIVO (mismo que decide `c`) normaliza a
+ *                        una clave de `INDIRECTOS` no cuenta ni en `n`, ni en `h`, ni en `c` — las filas SIN cargo
+ *                        (`SIN_CARGO`) sí siguen contando. null (+ `personal_error`) si ASISTENCIA no se pudo leer:
+ *                        el resto de tablero_vivo sigue igual. Sin ningún nombre/cédula/código/cuadrilla/CC crudo
+ *                        (D161: lectura pública sin token); `c` solo lleva etiquetas de cargo y cifras agregadas.
  *          personal_hasta = la última fecha con filas de asistencia incluidas ('' si ninguna).
  *   POST {action:'tablero_horas_guardar', horas, archivo}  TOKEN, admin/jefe → guarda la salida de leerHoras del libro
  *        de partes (una vez, cuando llega uno nuevo) → {ok, horas_meta:{archivo, cargado_ts, partes, corte}, version}
@@ -73,8 +76,9 @@ const H_ACTS   = ['excavacion','terraplen','subbase','base'];                   
 const H_TIPOS  = ['EXCAVADORA','BULLDOZER','MOTONIVELADORA','FINISHER'];        // NOMTIPO del motor
 const H_COD_RE = /^[A-Z]{1,8}[0-9]{1,6}$/;         // código de máquina ya normalizado (normCod): EXC001, MO03, NH69…
 const TV_SIN_008 = 'El Tablero en vivo todavía no está en la base de datos (falta aplicar worker/sql/008_tablero_vivo.sql).';
-// V3-16: partida por el SUFIJO del CC (mismo mapeo que CC_ACT de tablero-produccion.js). Solo estos dos
-// pares abren excavacion/terraplen/subbase/base; cualquier otro sufijo (I010305, tres segmentos…) = 'otras'.
+// V3-16: partida por el SUFIJO del CC (mismo mapeo que CC_ACT de tablero-produccion.js). Estos pares abren
+// excavacion/terraplen/subbase/base y MANDAN sobre cualquier otra regla; lo que no matchea aquí se decide
+// por la DESCRIPCIÓN del CC (actDeCC_): 'transporte' si empieza por esa palabra, si no 'otras'.
 const PERS_ACT = { '02.05':'excavacion', '02.06':'excavacion', '02.07':'terraplen', '03.01':'subbase', '03.03':'base' };
 
 /* ---------- utilidades ---------- */
@@ -101,20 +105,31 @@ function jsonbObjeto_(v){
 }
 
 /* ---------- V3-16: personal (horas-hombre y nº de personas) por (fecha, UF, partida) ----------
- * Del CC crudo de ASISTENCIA ('3701.02.05| EXCAVACION…') solo el código antes de '|' importa: el prefijo
- * (3701→UF1, 3702→UF2; cualquier otro —3703, etc.— se EXCLUYE) y, si el código completo es «NNNN.NN.NN»,
- * el sufijo decide la partida (PERS_ACT); cualquier otra forma (I010305, más segmentos…) es 'otras'.
- * El Tablero es de TIERRAS: las filas de drenajes (deriveArea de comun.js, D70: capítulo 06.* ODT, 07.* ODL)
- * no entran, así que «otras» son solo los demás CC de tierras (conformación, transporte, encargados…). */
+ * Del CC crudo de ASISTENCIA ('3701.02.05| EXCAVACION…') el prefijo decide la UF (3701→UF1, 3702→UF2;
+ * cualquier otro —3703, etc.— se EXCLUYE). La partida sale del código: si es «NNNN.NN.NN», el sufijo manda
+ * (PERS_ACT); si no matchea PERS_ACT (código de otra forma, o sufijo sin mapeo — p. ej. 02.10/02.11/03.02/
+ * 03.04, cuyo código CAMBIA entre UF), se mira la DESCRIPCIÓN (lo que va tras '|', normalizada sin tildes/
+ * mayúsculas): si empieza por 'TRANSPORTE' → 'transporte'; si no, 'otras'. El Tablero es de TIERRAS: las
+ * filas de drenajes (deriveArea de comun.js, D70: capítulo 06.* ODT, 07.* ODL) no entran. */
 function ufDeCC_(cod){
   const m = /^(3701|3702)\./.exec(cod);
   return m ? (m[1]==='3701' ? 'UF1' : 'UF2') : '';
 }
-function actDeCC_(cod){
+function normDesc_(s){
+  return sinTildes_(s).toUpperCase().replace(/\s+/g, ' ').trim();
+}
+function actDeCC_(cod, desc){
   const m = /^(?:3701|3702)\.(\d{2}\.\d{2})$/.exec(cod);
-  return m ? (PERS_ACT[m[1]] || 'otras') : 'otras';
+  const p = m ? PERS_ACT[m[1]] : undefined;
+  if(p) return p;
+  return normDesc_(desc).indexOf('TRANSPORTE')===0 ? 'transporte' : 'otras';
 }
 export const SIN_CARGO = 'Sin cargo registrado';        // etiqueta cuando el cargo falta en asistencia y en la ficha
+// V3-16 (decisión del jefe, personal directo): el cargo EFECTIVO de la fila (el mismo que decide `c` — el
+// de la fila, o el de la ficha si falta) que normalice a una de estas claves NO cuenta en `personal` (ni n,
+// ni h, ni c). Incluye las variantes previas a la unificación de worker/sql/012_unificar_cargos.sql, por si
+// el Worker corre antes de aplicarla en producción. Las filas SIN cargo (SIN_CARGO) siguen contando.
+export const INDIRECTOS = new Set(['CAPATAZ DE OBRA','CAPATAZ','ENCARGADO','AUXILIAR ADMINISTRATIVO','INGENIERO RESIDENTE','RESIDENTE']);
 // 'ñ'/'Ñ' se preservan (D112-style, sin tocar la lógica de terceros): NFD descompondría la tilde de la eñe
 // junto con los acentos normales, así que se protege antes de quitar diacríticos.
 function sinTildes_(s){
@@ -123,11 +138,14 @@ function sinTildes_(s){
     .replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ');
 }
 // Clave para agrupar variantes de escritura (sin tildes, MAYÚSCULAS, espacios colapsados) + etiqueta a mostrar
-// (la clave en minúsculas con la primera letra en mayúscula). NO corrige erratas ni inventa sinónimos.
+// (el texto ORIGINAL en minúsculas con la primera letra en mayúscula, CON sus tildes: «Operador múltiple»,
+// «Mecánico»; desde 012 la fuente ya trae el texto canónico). Si dos variantes comparten clave, la etiqueta es la
+// de la primera fila vista. NO corrige erratas ni inventa sinónimos.
 function normCargo_(s){
   const t = sinTildes_(s).toUpperCase().replace(/\s+/g, ' ').trim();
   if(!t) return { key:'', label:SIN_CARGO };
-  return { key:t, label: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() };
+  const o = String(s).replace(/\s+/g, ' ').trim().toLowerCase();
+  return { key:t, label: o.charAt(0).toUpperCase() + o.slice(1) };
 }
 // Mapa codigo/cedula -> cargo de PERSONAL, con la estancia de fecha_ingreso MÁS RECIENTE (NULL = la más
 // antigua; MISMO criterio que horasPersona, asistencias/lectura.js). Una sola consulta, sin filas repetidas.
@@ -166,13 +184,19 @@ async function personalDelTablero_(c){
     const uf = ufDeCC_(cod);
     if(!uf) continue;                                    // no es UF1/UF2 (p. ej. 3703 = UF3): se excluye
     if(deriveArea(cod)!=='tierras') continue;            // el Tablero es de TIERRAS: drenajes ODT (.06.*) y ODL (.07.*) fuera (D70)
+    const codigo = String(r.codigo||'').trim(), cedula = String(r.cedula||'').trim();
+    // Cargo EFECTIVO de la fila (asistencia.cargo, si no la ficha de PERSONAL) — el mismo que decide `c` más
+    // abajo — decide también si la fila es personal INDIRECTO (V3-16): esas filas quedan fuera del todo.
+    const cargoTxt = String(r.cargo||'').trim() || cargoDeFicha_(codigo, cedula);
+    const nc = normCargo_(cargoTxt);
+    if(INDIRECTOS.has(nc.key)) continue;
     const f = fdate(r.fecha);
     if(f > hasta) hasta = f;
-    const act = actDeCC_(cod);
+    const desc = String(r.cc||'').split('|')[1] || '';
+    const act = actDeCC_(cod, desc);
     const key = f+'|'+uf+'|'+act;
     let g = grupos.get(key);
     if(!g){ g = { f:f, uf:uf, act:act, personas:new Set(), h:0, cargos:new Map(), asig:new Map() }; grupos.set(key, g); }
-    const codigo = String(r.codigo||'').trim(), cedula = String(r.cedula||'').trim();
     const idPersona = codigo || cedula || String(r.nombre||'').trim();
     if(idPersona) g.personas.add(idPersona);              // dedupe por identidad (por seguridad; D126)
     // Sin identidad (codigo/cedula/nombre vacíos, caso raro): cada fila es su propia "persona" para el
@@ -183,12 +207,10 @@ async function personalDelTablero_(c){
     const cl = clasificarHoras(tipoJ, r.hora_entrada, r.hora_salida, cfg, tr);
     const horasFila = (cl.ordinarias||0) + (cl.ord_domfest||0) + (cl.extra_diurna||0) + (cl.extra_nocturna||0) + (cl.extra_domfest||0);
     g.h += horasFila;
-    // Cargo por fila: asistencia.cargo si no está vacío, si no la ficha de PERSONAL. Dos filas de la MISMA
-    // persona con cargos distintos el mismo (f,uf,act): manda el cargo de su PRIMERA fila (regla 3).
+    // Cargo por fila: el ya calculado arriba (asistencia.cargo, si no la ficha de PERSONAL). Dos filas de la
+    // MISMA persona con cargos distintos el mismo (f,uf,act): manda el cargo de su PRIMERA fila (regla 3).
     let clave = g.asig.get(id);
     if(clave === undefined){
-      const cargoTxt = String(r.cargo||'').trim() || cargoDeFicha_(codigo, cedula);
-      const nc = normCargo_(cargoTxt);
       clave = nc.key;
       g.asig.set(id, clave);
       if(!g.cargos.has(clave)) g.cargos.set(clave, { label:nc.label, personas:new Set(), h:0 });
