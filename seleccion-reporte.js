@@ -50,7 +50,9 @@ const TILES = {
   // el formulario le muestra el selector de cuadrilla igual que al admin, porque el backend le entrega
   // las cuatro (cuadrillasDeUsuario acota por área) — y revisa el resumen combinado ODT+ODL.
   'duvan':      [{href:'asistencia.html', ico:'👷', t:'Asistencia de drenajes', p:'Reporta la asistencia de cualquier cuadrilla ODT/ODL'},
-                 {href:'resumen-asistencia.html', ico:'📋', t:'Resumen de asistencias', p:'Resumen del día y Excel Navision de ODT y ODL'}],
+                 {href:'resumen-asistencia.html', ico:'📋', t:'Resumen de asistencias', p:'Resumen del día y Excel Navision de ODT y ODL'},
+                 // D193: también revisa los partes de maquinaria (lo usa Stiven); abre filtrado en Drenajes.
+                 {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Partes del día de los equipos de drenajes: aprobar, corregir y equipos sin parte'}],
   // D101: residente de UF3 — mismo par de tiles que duvan, pero sobre el área `uf3` (proyecto 3703).
   // Reporta por CUALQUIER cuadrilla de UF3 porque hoy ninguna tiene capataz con login; el backend le
   // entrega solo las suyas (cuadrillasDeUsuario acota por área). Exactamente DOS tiles: nada de obra.
@@ -75,7 +77,9 @@ const TILES = {
   // el tablero le esconde los botones de actualizar a todo el que no es admin.
   'residente_dren': [{href:'residente-drenajes.html', ico:'🌧️', t:'Panel de Drenajes', p:'Bandeja combinada ODT + ODL, envío a DATA y WhatsApp'},
                      {href:'resumen-asistencia.html', ico:'📋', t:'Resumen de asistencias', p:'Resumen del día y Excel Navision de ODT y ODL'},
-                     {href:'tablero-produccion.html', ico:'📊', t:'Tablero de Producción (mensual)', p:'Velocidad contra meta, avance del contrato y clima de la obra'}]
+                     {href:'tablero-produccion.html', ico:'📊', t:'Tablero de Producción (mensual)', p:'Velocidad contra meta, avance del contrato y clima de la obra'},
+                     // D193: revisa los partes de SUS equipos (la pantalla abre filtrada en Drenajes; puede cambiar a Todos).
+                     {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Partes del día de los equipos de drenajes: aprobar, corregir y equipos sin parte'}]
 };
 const ASISTENCIA_TILE = {href:'asistencia.html', ico:'👷', t:'Asistencia de personal', p:'Reporta la asistencia de tu cuadrilla'};
 // Admin tiene acceso a todo el sistema (D65): si llega aquí (p. ej. con "atrás" del navegador en vez

@@ -31,6 +31,12 @@
   <div class="tabs">
     <button class="tab on" id="tabPend" data-on-click="verTab('pend')">Pendientes <span class="n" id="nPend">0</span></button>
     <button class="tab" id="tabBase" data-on-click="verTab('base')">Base (aprobados)</button>
+    <!-- D193: qué equipos se ven (grupo de la flota, D190). Vale para Pendientes, Equipos sin parte y Base. -->
+    <div class="seg-grupo" id="segGrupo" role="group" aria-label="Equipos">
+      <button type="button" data-g="todos" data-on-click="setGrupo('todos')">Todos</button>
+      <button type="button" data-g="tierras" data-on-click="setGrupo('tierras')">Tierras</button>
+      <button type="button" data-g="drenajes" data-on-click="setGrupo('drenajes')">Drenajes</button>
+    </div>
   </div>
 
   <!-- ================= PENDIENTES ================= -->

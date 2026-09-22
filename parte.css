@@ -106,6 +106,25 @@
   .rep-quick button{background:var(--input-bg);border:1px solid var(--border);border-radius:20px;padding:8px 12px;font-size:12px;color:var(--accent-txt);cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;}
   .btn-add{width:100%;padding:14px;background:var(--input-bg);border:1px dashed var(--border);border-radius:10px;color:var(--accent-txt);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;min-height:52px;}
   .btn-add.mini{min-height:44px;padding:10px;font-size:11px;}
+  /* V3-18: varias actividades = tarjetas numeradas, botón grande para sumar otra y ayuda visible */
+  .btn-add-act{margin-top:6px;border-style:solid;border-color:var(--accent);background:rgba(245,166,35,0.08);font-size:14px;letter-spacing:.5px;text-transform:none;display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .btn-add-act small{font-family:'DM Sans',sans-serif;font-weight:400;font-size:12px;letter-spacing:0;color:var(--muted);}
+  .rep-ayuda{background:rgba(245,166,35,0.10);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.35;margin-bottom:10px;}
+  .rep-quick span{font-size:12px;color:var(--muted);align-self:center;}
+  .rep-row.act-card{grid-template-columns:minmax(0,1fr);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px 12px;margin-bottom:10px;}
+  .rep-row.act-card .pr,.rep-row.act-card .acts{grid-column:1;}
+  .act-cab{display:flex;align-items:center;gap:8px;font-size:14px;}
+  .act-cab .btn-del{margin-left:auto;font-size:13px;}
+  .act-n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#111;font-family:'Syne',sans-serif;font-weight:800;font-size:13px;flex-shrink:0;}
+  .pct{display:grid;grid-template-columns:auto 84px auto minmax(0,1fr);gap:8px;align-items:center;}
+  .pct label{margin:0;}
+  .pct input{min-height:44px;font-size:17px;}
+  .pct-u{font-weight:600;}
+  .pct-h{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .rep-sum em{font-style:normal;font-weight:600;color:var(--error-txt);}
+  .rep-row.nueva{animation:actNueva 1.6s ease-out;}
+  @keyframes actNueva{0%{box-shadow:0 0 0 3px var(--accent);}100%{box-shadow:0 0 0 0 transparent;}}
+  @media (prefers-reduced-motion:reduce){ .rep-row.nueva{animation:none;} }
   .btn-add:hover{border-color:var(--accent);background:rgba(245,166,35,0.05);}
   .btn-sec{width:100%;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;text-transform:uppercase;min-height:52px;margin-top:10px;}
   .btn-sec:hover{border-color:var(--accent);}

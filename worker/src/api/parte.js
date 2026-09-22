@@ -58,8 +58,10 @@ const PARTE_CC_PSEUDO = [
 ];
 
 /* ---------- reglas (idénticas a CodigoParte.gs) ---------- */
-const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria'];
-const PARTE_USUARIOS_REVISAN = ['jeisson'];
+// D193: el residente de drenajes también revisa (con el filtro Tierras/Drenajes de la pantalla).
+const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria','residente_dren'];
+// D193: duvan (asistencias de drenajes; lo usa Stiven) también revisa — enmienda D178, que lo dejaba fuera.
+const PARTE_USUARIOS_REVISAN = ['jeisson','duvan'];
 const PARTE_MAX_HABITUALES = 5;
 const PARTE_OPERADORES_ALIAS = {
   'ALEYXER RINCON':'Aleyxer Rincon',
@@ -245,6 +247,22 @@ function parteEtiquetaItem_(item, filasTipo, tabla, ccs){
   if(f) return f.actividad;
   return parteNombreItem_(item, ccs) || item;
 }
+// V3-19: dos chips nunca llevan la MISMA frase (p. ej. cuatro «Excavacion» con CC distintos en la retro de
+// llantas): si la frase ya la usa un chip anterior, se toma otra frase de ese ítem (primero las del tipo, luego
+// cualquiera), luego el nombre de catálogo y, en último caso, la frase con el ítem al lado. El orden no cambia.
+function parteEtiquetasUnicas_(lista, filasTipo, tabla, ccs){
+  const usadas={};
+  lista.forEach(function(a){
+    let lab=a.actividad;
+    if(usadas[normTexto(lab)]){
+      const frases=function(fs){ return fs.filter(function(x){ return x.item===a.item && x.actividad; }).sort(function(p,q){ return q.veces-p.veces; }).map(function(x){ return x.actividad; }); };
+      const cands=frases(filasTipo||[]).concat(frases(tabla), [a.nombre||parteNombreItem_(a.item, ccs)]);
+      lab=cands.filter(function(t){ return t && !usadas[normTexto(t)]; })[0] || (a.actividad+" · "+a.item);
+    }
+    usadas[normTexto(lab)]=1; a.actividad=lab;
+  });
+  return lista;
+}
 async function parteActividades_(c, q, hist){
   const tabla=await parteItems_(c), ccs=await parteCC_(c), hoy=parteHoy_(), desde=parteFechaMasDias_(hoy, -PARTE_DIAS_CC_RECIENTE);
   const propios={}; let ultimoProy='', ultimaFecha='';
@@ -272,7 +290,7 @@ async function parteActividades_(c, q, hist){
     todas.push({ item:x.item, actividad:x.actividad, nombre:parteNombreItem_(x.item, ccs) });
   });
   todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:normTexto(a.actividad)>normTexto(b.actividad)?1:(a.item<b.item?-1:1); });
-  return { habituales:habituales.slice(0,PARTE_MAX_HABITUALES), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
+  return { habituales:parteEtiquetasUnicas_(habituales.slice(0,PARTE_MAX_HABITUALES), delTipo, tabla, ccs), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
 }
 async function parteEquipoVigente_(c, cod, fecha){
   const k=parteNormCod_(cod);

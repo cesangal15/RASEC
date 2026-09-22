@@ -19,6 +19,12 @@
   .tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);}
   .tab{padding:12px 18px;background:none;border:none;border-bottom:3px solid transparent;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:-1px;}
   .tab.on{color:var(--accent-txt);border-bottom-color:var(--accent);}
+  /* D193: filtro Todos / Tierras / Drenajes */
+  .seg-grupo{margin-left:auto;align-self:center;display:inline-flex;border:1px solid var(--border);border-radius:20px;overflow:hidden;margin-bottom:6px;}
+  .seg-grupo button{background:var(--surface);border:none;border-left:1px solid var(--border);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;padding:7px 14px;cursor:pointer;min-height:36px;}
+  .seg-grupo button:first-child{border-left:none;}
+  .seg-grupo button.on{background:var(--accent);color:#111;}
+  @media (max-width:560px){ .tabs{flex-wrap:wrap;} .seg-grupo{margin-left:0;width:100%;} .seg-grupo button{flex:1;} }
   .tab .n{display:inline-block;margin-left:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:11px;font-family:'DM Sans',sans-serif;}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;}
   .section-title{font-family:'Syne',sans-serif;font-size:12px;letter-spacing:2px;color:var(--accent-txt);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
