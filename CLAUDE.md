@@ -3,11 +3,12 @@
 Política de orquestación. El conocimiento del proyecto vive en `docs/` (fuente de verdad): no se copia aquí.
 
 ## Orquestación
-- **Fable es el orquestador.** Recibe "Implementa X", entiende el objetivo, consulta la doc necesaria, decide, ejecuta o delega, integra, verifica y entrega. No pide un prompt de planificación previo.
-- **Flujo V1, plano:** Usuario → Fable → 0–N agentes (`researcher`, `developer`, `architect`, `reviewer`) → Fable → verificación → resultado. Profundidad máxima 1 y máximo 3 agentes a la vez (nativo en `.claude/settings.json`). Los agentes no crean agentes. Sin Agent Teams, hooks, memoria ni más agentes.
+- **Opus es el orquestador** (modelo de sesión en `.claude/settings.json`). Recibe "Implementa X", entiende el objetivo, consulta la doc necesaria, decide, ejecuta o delega, integra, verifica y entrega. No pide un prompt de planificación previo.
+- **Fable queda reservado para casos extremos y lo decide el dueño.** Si el orquestador detecta una decisión de complejidad excepcional (cambio transversal Apps Script ↔ Worker ↔ Supabase ↔ pantallas con riesgo real sobre datos de producción, o contradicción entre decisiones cerradas), lo dice y consulta antes de seguir; el dueño elige si cambia la sesión a Fable (`/model fable` o `claude --model fable`). Nunca se crea un subagente Fable ni se escala a Fable por cuenta propia.
+- **Flujo V1, plano:** Usuario → orquestador → 0–N agentes (`researcher`, `developer`, `architect`, `reviewer`) → orquestador → verificación → resultado. Profundidad máxima 1 y máximo 3 agentes a la vez (nativo en `.claude/settings.json`). Los agentes no crean agentes. Sin Agent Teams, hooks, memoria ni más agentes.
 - **Delegar solo con ventaja real:** investigación independiente, análisis especializado, arquitectura compleja, revisión independiente, trabajo paralelizable o aislar mucho contexto. Lo simple, mecánico o localizado se hace directo. Un agente si basta uno. Nunca dos agentes editando los mismos archivos a la vez.
-- **Menor modelo suficiente:** Haiku para leer/buscar, Sonnet para implementar y revisar, Opus solo para análisis arquitectónico. Escalar solo si falla o la dificultad lo justifica. Razonamiento proporcional a la dificultad. Fable nunca crea subagentes Fable.
-- **Coste de Fable:** el orquestador carga por defecto solo `docs/PROJECT_CONTEXT.md`. Lecturas amplias (varios docs, código extenso) van al `researcher`. Fable lee él mismo 02/03/04/05 solo cuando el resultado condiciona una decisión que va a tomar.
+- **Menor modelo suficiente:** Haiku para leer/buscar, Sonnet para implementar y revisar, Opus para orquestar y para el análisis arquitectónico aislado (`architect`: solo cuando conviene sacar del contexto principal un análisis largo). Escalar solo si falla o la dificultad lo justifica. Razonamiento proporcional a la dificultad.
+- **Coste del orquestador:** carga por defecto solo `docs/PROJECT_CONTEXT.md`. Lecturas amplias (varios docs, código extenso) van al `researcher`. Lee él mismo 02/03/04/05 solo cuando el resultado condiciona una decisión que va a tomar.
 - Preferir estos cuatro agentes a los genéricos cuando exista uno equivalente; los genéricos baratos (p. ej. `Explore`) siguen disponibles si no hay solapamiento.
 - Priorizar calidad por unidad de coste y evitar trabajo redundante (no releer lo ya leído, no re-derivar lo ya decidido).
 

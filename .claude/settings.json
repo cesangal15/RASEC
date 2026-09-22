@@ -1,5 +1,5 @@
 {
-  "model": "fable",
+  "model": "opus",
   "env": {
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "3"
@@ -21,9 +21,7 @@
       "Bash(*rm *TM2_SUR_REPORTE*)",
       "Bash(*rm *Partes_Diarios_de_Maquinaria*)",
       "Edit(**/TM2_SUR_REPORTE*)",
-      "Write(**/TM2_SUR_REPORTE*)",
       "Edit(**/Partes_Diarios_de_Maquinaria*)",
-      "Write(**/Partes_Diarios_de_Maquinaria*)",
       "mcp__Supabase__execute_sql",
       "mcp__Supabase__apply_migration",
       "mcp__Supabase__deploy_edge_function",
