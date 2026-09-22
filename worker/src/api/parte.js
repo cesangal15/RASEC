@@ -356,20 +356,30 @@ async function parteSugerencias_(c, tipo){
 async function parteHistorial_(c, codigo){
   const k=parteNormCod_(codigo);
   return memo_(c, 'hist|'+k, async function(){
-    const filas=await c.sql`SELECT id_registro, estado, fecha, codigo, final, hora_de, hora_a, centro_coste, "timestamp"
+    const filas=await c.sql`SELECT id_registro, estado, fecha, codigo, reporte_num, final, hora_de, hora_a, centro_coste, "timestamp"
       FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND upper(regexp_replace(codigo, '[^A-Za-z0-9]', '', 'g'))=${k}`;
     return filas.map(function(r){ r.fecha=fdate(r.fecha); return r; });
   });
 }
 function parteEstadoDe_(r){ return parteTexto_(r.estado).toLowerCase() || 'pendiente'; }
-// Último `final` del equipo a partir de su historial (misma regla que el .gs: fecha, hora_a, timestamp).
-function parteUltimoFinalDe_(hist, equipo){
+// Minuto de FIN del turno tratando el cruce de medianoche (D188 — turno noche). Un turno que arranca 18:00
+// y termina 06:00 se reporta en el día que EMPIEZA, así que su hora_a (06:00) es del día siguiente y en
+// realidad ocurrió DESPUÉS que la de entrada: se le suman 24 h para que ordene como lo que es, lo último.
+// Sin hora_de válida (o sin cruce) es el minuto de hora_a tal cual, como antes.
+export function parteFinMin_(horaDe, horaA){
+  const mA=parteHoraMin_(horaA); if(mA<0) return -1;
+  const mDe=parteHoraMin_(horaDe);
+  return (mDe>=0 && mA<mDe) ? mA+1440 : mA;
+}
+// Último `final` del equipo a partir de su historial (misma regla que el .gs: fecha, hora de FIN, timestamp;
+// D188: la hora de fin cruza medianoche por parteFinMin_, así el turno noche cuenta como el más reciente).
+export function parteUltimoFinalDe_(hist, equipo){
   let mejor=null;
   (hist||[]).forEach(function(r){
     if(parteEstadoDe_(r)==='descartado') return;
     const fin=parteNum_(r.final); if(fin===null) return;
     const ts = (r.timestamp && typeof r.timestamp==='object' && typeof r.timestamp.getTime==='function') ? r.timestamp.getTime() : 0;
-    const cand={ final:fin, fecha:r.fecha, hora_a:parteHoraStr_(r.hora_a), min:parteHoraMin_(r.hora_a), ts:ts, id_registro:parteTexto_(r.id_registro), origen:'bandeja' };
+    const cand={ final:fin, fecha:r.fecha, hora_a:parteHoraStr_(r.hora_a), min:parteFinMin_(r.hora_de, r.hora_a), ts:ts, id_registro:parteTexto_(r.id_registro), origen:'bandeja' };
     if(!mejor || cand.fecha>mejor.fecha || (cand.fecha===mejor.fecha && (cand.min>mejor.min || (cand.min===mejor.min && cand.ts>=mejor.ts)))) mejor=cand;
   });
   if(mejor) return { final:mejor.final, fecha:mejor.fecha, hora_a:mejor.hora_a, origen:'bandeja', id_registro:mejor.id_registro };
@@ -381,9 +391,14 @@ async function parteUltimoFinal_(c, equipo){ return parteUltimoFinalDe_(await pa
 // Para los faltantes de la bandeja: el último final de TODOS los equipos en una sola consulta (índice parte_bandeja_ultimo_idx).
 async function parteUltimosFinales_(c){
   return memo_(c, 'ultimos', async function(){
-    const filas=await c.sql`SELECT DISTINCT ON (codigo) id_registro, fecha, codigo, final, hora_a, "timestamp"
+    // D188 (turno noche): entre filas del MISMO día, la que cruza medianoche (hora_a < hora_de) terminó al
+    // día siguiente, así que ordena como la más reciente (CASE … DESC antes de hora_a). hora_de viaja en el
+    // SELECT para que parteUltimoFinalDe_ recompute lo mismo en JS sobre la fila elegida.
+    const filas=await c.sql`SELECT DISTINCT ON (codigo) id_registro, fecha, codigo, final, hora_de, hora_a, "timestamp"
       FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND estado<>'descartado' AND final IS NOT NULL
-      ORDER BY codigo, fecha DESC, hora_a DESC, "timestamp" DESC`;
+      ORDER BY codigo, fecha DESC,
+        (CASE WHEN hora_a<>'' AND hora_de<>'' AND hora_a<hora_de THEN 1 ELSE 0 END) DESC,
+        hora_a DESC, "timestamp" DESC`;
     const porCod={};
     filas.forEach(function(r){ r.fecha=fdate(r.fecha); const k=parteNormCod_(r.codigo); (porCod[k]=porCod[k]||[]).push(r); });
     return porCod;
@@ -429,7 +444,9 @@ export function parteExpandirReparto_(c, tramos){
     if(Math.abs(suma-100)>0.5) return { error:'Tramo '+n+': los porcentajes del reparto suman '+parteRedondea_(suma)+' % y deben sumar 100 %. No se guardó nada.' };
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const total=(ini!==null && fin!==null) ? fin-ini : null;
-    const mDe=parteHoraMin_(t.hora_de), mA=parteHoraMin_(t.hora_a), conHoras=(mDe>=0 && mA>=0 && mA>mDe);
+    const mDe=parteHoraMin_(t.hora_de); let mA=parteHoraMin_(t.hora_a);
+    if(mA>=0 && mDe>=0 && mA<mDe) mA+=1440;   // D188: turno que cruza medianoche, el fin es del día siguiente
+    const conHoras=(mDe>=0 && mA>=0 && mA>mDe);
     let acum=0, iniAct=ini, minAct=mDe;
     for(let j=0;j<rep.length;j++){
       const r=rep[j], pct=parteNum_(r.pct), ultimo=(j===rep.length-1); acum+=pct;
@@ -512,11 +529,20 @@ export async function parteReporte(c, body, ses){
   const ultimo=parteUltimoFinalDe_(hist, q);
   const idsEx={}; hist.forEach(function(r){ const id=parteTexto_(r.id_registro); if(id) idsEx[id]=1; });
   const ccRecientes={}; let hayHistorialCC=false;
+  // D188 (turno noche): nº de parte físico → días en que ya está registrado (no descartado). Si el mismo
+  // parte llega con OTRA fecha es casi seguro el mismo turno subido dos veces (el riesgo del turno que cruza
+  // medianoche); se marca PARTE_REPETIDO para que revisión lo mire y no se facture dos veces. Un reenvío de
+  // la cola offline (mismo id_registro y misma fecha) no dispara nada: idsEx lo deduplica y la fecha coincide.
+  const reportesPrevios={};
   hist.forEach(function(r){
     if(parteEstadoDe_(r)==='descartado' || !r.fecha) return;
-    const cc=normTexto(r.centro_coste); if(!cc || parteEsPseudoCC_(cc)) return;
-    hayHistorialCC=true;
-    if(r.fecha>=parteFechaMasDias_(hoy, -PARTE_DIAS_CC_RECIENTE)) ccRecientes[cc]=1;
+    const cc=normTexto(r.centro_coste);
+    if(cc && !parteEsPseudoCC_(cc)){
+      hayHistorialCC=true;
+      if(r.fecha>=parteFechaMasDias_(hoy, -PARTE_DIAS_CC_RECIENTE)) ccRecientes[cc]=1;
+    }
+    const rn=parteTexto_(r.reporte_num);
+    if(rn) (reportesPrevios[rn]=reportesPrevios[rn]||{})[r.fecha]=1;
   });
 
   const ts=new Date();
@@ -549,6 +575,8 @@ export async function parteReporte(c, body, ses){
     const dup = !!hDe && (hist.some(function(r){ return parteEstadoDe_(r)!=='descartado' && r.fecha===fecha && parteHoraStr_(r.hora_de)===hDe; })
              || filas.some(function(f){ return f[3]===fecha && parteHoraStr_(f[15])===hDe; }));
     if(dup) alertas.push('DUPLICADO');
+    // Mismo nº de parte físico ya subido en OTRO día (D188): posible doble carga del mismo turno noche.
+    if(reporte && reportesPrevios[reporte] && !reportesPrevios[reporte][fecha]) alertas.push('PARTE_REPETIDO');
     if(sinCC) alertas.push('SIN_CC');
     else if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');
     if(sinMedidor) alertas.push('SIN_MEDIDOR');
@@ -605,10 +633,10 @@ export async function parteBandeja(c, params){
   const vigentes=await parteEquiposActivos_(c, fecha);
   const ultimos=await parteUltimosFinales_(c);
   const faltantes=vigentes.filter(function(q){ return !conParte[parteNormCod_(q.codigo)]; })
-    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q), sin_ficha:!!q.sin_ficha }; });
+    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras', ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q), sin_ficha:!!q.sin_ficha }; });
   return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes,
     flota_fuente: (await parteFlotaVigente_(c, fecha)) ? 'hoja' : 'activo',
-    listas:{ operadores:await parteOperadores_(c), cc:await parteCC_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor }; }) },
+    listas:{ operadores:await parteOperadores_(c), cc:await parteCC_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras' }; }) },
     topes:PARTE_TOPES });
 }
 

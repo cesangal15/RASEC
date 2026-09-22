@@ -57,10 +57,11 @@ async function cargarBandeja(){
   pintarBandeja();
 }
 function alertasDe(r){ return String(r.alertas||'').split(';').map(s=>s.trim()).filter(Boolean); }
-const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC', SIN_CC:'Texto libre sin centro de coste: léelo, elige el CC (se puede editar aquí) y aprueba; sin CC no se deja aprobar', FUERA_DE_FLOTA:'Reportó sin estar vigente ese día en la flota (Maquinaria › Flota): reemplazo de un día, equipo devuelto o de otro frente. Si se queda, dale el alta' };
+const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC', SIN_CC:'Texto libre sin centro de coste: léelo, elige el CC (se puede editar aquí) y aprueba; sin CC no se deja aprobar', FUERA_DE_FLOTA:'Reportó sin estar vigente ese día en la flota (Maquinaria › Flota): reemplazo de un día, equipo devuelto o de otro frente. Si se queda, dale el alta', PARTE_REPETIDO:'El mismo nº de parte físico ya se subió en OTRO día: posible doble carga del mismo turno (típico del turno noche que cruza medianoche). Revisa antes de aprobar para no facturarlo dos veces' };
 function pintarBandeja(){
   const p=BAND.pendientes||[], rv=BAND.revisadas||[], falt=BAND.faltantes||[];
   const conAl=p.filter(r=>alertasDe(r).length).length;
+  pintarFueraDeFlota(p.concat(rv));
   document.getElementById('nPend').textContent=p.length; document.getElementById('kPend').textContent=p.length;
   document.getElementById('kAlert').textContent=conAl; document.getElementById('kAprob').textContent=rv.filter(r=>r.estado==='aprobado').length;
   document.getElementById('kFalt').textContent=falt.length; document.getElementById('cntFalt').textContent=falt.length;
@@ -73,9 +74,44 @@ function pintarBandeja(){
   // selección para «Día sin operación»: por defecto todos; se conserva lo desmarcado entre repintados
   const vivos={}; falt.forEach(q=>{ vivos[q.codigo]=1; if(!selFalt.hasOwnProperty(q.codigo)) selFalt[q.codigo]=true; });
   Object.keys(selFalt).forEach(c=>{ if(!vivos[c]) delete selFalt[c]; });
-  document.getElementById('faltantes').innerHTML = falt.length ? falt.map(q=>'<div class="falt'+(selFalt[q.codigo]?' sel':'')+'"><input type="checkbox" aria-label="incluir '+esc(q.codigo)+'"'+(selFalt[q.codigo]?' checked':'')+' data-on-change="toggleFalt('+esc(JSON.stringify(q.codigo))+',this.checked)"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+(q.sin_ficha?' · <b title="Vigente en la flota pero sin ficha en PARTE_EQUIPOS: el QR no le abre el parte. Corrige la estancia en Maquinaria › Flota y guarda placa y medidor.">⚠ sin ficha</b>':'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>').join('') : '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  document.getElementById('faltantes').innerHTML = faltantesHTML(falt);
   document.getElementById('sinopBar').classList.toggle('hidden', !falt.length);
   pintarSel();
+}
+// Apartado consolidado (pedido del dueño, sep-2026): equipos que REPORTARON hoy sin estar vigentes en la
+// flota (alerta FUERA_DE_FLOTA). Son el otro lado de «Equipos sin parte»: reportaron pero no se les esperaba
+// —reemplazo de un varado, equipo devuelto que volvió a trabajar, o máquina que nunca se dio de alta—. Si se
+// quedan, van al alta en Maquinaria › Flota; si fue un día suelto, se revisa y aprueba y ya. Solo agrupa lo
+// que ya viene en los partes del día; no consulta nada nuevo.
+function pintarFueraDeFlota(filas){
+  const cont=document.getElementById('fueraFlota'); if(!cont) return;
+  const porCod={};
+  (filas||[]).forEach(r=>{ if(alertasDe(r).indexOf('FUERA_DE_FLOTA')>=0){ const c=r.codigo||'?'; (porCod[c]=porCod[c]||{tipo:r.tipo||'',n:0}).n++; } });
+  const cods=Object.keys(porCod);
+  if(!cods.length){ cont.innerHTML=''; return; }
+  const chips=cods.sort().map(c=>'<b>'+esc(c)+'</b>'+(porCod[c].tipo?' ('+esc(porCod[c].tipo)+')':'')).join(' · ');
+  cont.innerHTML='<div class="aviso-fuera card">'
+    +'<div class="section-title">⚠ Reportaron sin estar en la flota <span class="count">'+cods.length+'</span></div>'
+    +'<div class="intro">Estos equipos enviaron parte hoy pero <b>no figuran vigentes en la flota</b> (Maquinaria › Flota). '
+    +'Si se quedan en la obra, <b>dales de alta</b> allí (así el sistema los espera y se les imprime el QR); '
+    +'si fue un día suelto (reemplazo de un varado, préstamo), revisa su parte y apruébalo sin más. '
+    +'Sus filas van marcadas abajo con <b>FUERA_DE_FLOTA</b>.</div>'
+    +'<div class="chips-fuera">'+chips+'</div>'
+    +'<button class="btn mini" data-on-click="irA(\'produccion-maquinaria.html#flota\')">Abrir Maquinaria › Flota →</button>'
+    +'</div>';
+}
+// Una fila de «Equipos sin parte». D190: chip «Drenajes» cuando la máquina es de esa disciplina.
+function faltFilaHTML(q){
+  return '<div class="falt'+(selFalt[q.codigo]?' sel':'')+'"><input type="checkbox" aria-label="incluir '+esc(q.codigo)+'"'+(selFalt[q.codigo]?' checked':'')+' data-on-change="toggleFalt('+esc(JSON.stringify(q.codigo))+',this.checked)"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+(q.ultimo?' · últ. '+fmt(q.ultimo.final):'')+(q.grupo==='drenajes'?' <span class="grchip-r">Drenajes</span>':'')+(q.sin_ficha?' · <b title="Vigente en la flota pero sin ficha en PARTE_EQUIPOS: el QR no le abre el parte. Corrige la estancia en Maquinaria › Flota y guarda placa y medidor.">⚠ sin ficha</b>':'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>';
+}
+// D190: si hay faltantes de drenajes Y de tierras, se separan en dos secciones; si no, lista plana (igual que antes).
+function faltantesHTML(falt){
+  if(!falt.length) return '<div class="vacio">Todos los equipos activos tienen parte.</div>';
+  const dren=falt.filter(q=>q.grupo==='drenajes'), tie=falt.filter(q=>q.grupo!=='drenajes');
+  if(dren.length && tie.length)
+    return '<div class="falt-grupo">Tierras <span>'+tie.length+'</span></div>'+tie.map(faltFilaHTML).join('')+
+           '<div class="falt-grupo">Drenajes <span>'+dren.length+'</span></div>'+dren.map(faltFilaHTML).join('');
+  return falt.map(faltFilaHTML).join('');
 }
 let selFalt={};   // codigo → true/false (incluido en «Día sin operación»)
 function faltSeleccionados(){ return (BAND.faltantes||[]).filter(q=>selFalt[q.codigo]); }

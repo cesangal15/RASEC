@@ -193,3 +193,37 @@
     .tr .cacts{grid-column:2;grid-row:1/4;align-self:center;}
   }
   @media(max-width:480px){.maq-row{grid-template-columns:52px 1fr;}.edits{grid-column:1/-1;}.est-acts{margin-left:0;width:100%;}}
+
+  /* ===== Grupo/disciplina de la flota (tierras/drenajes), D190 ===== */
+  .grupo-chips{margin-top:-6px;}
+  .tr .cid .grchip{border:1px solid rgba(59,130,246,0.55);color:#3b82f6;border-radius:10px;padding:0 6px;font-size:9.5px;letter-spacing:.5px;margin-left:4px;font-weight:600;}
+
+  /* ===== QR del parte digital, dentro de la app (sep-2026) ===== */
+  .btn-mini.qr{border-color:var(--accent);color:var(--accent-txt);}
+  .qr-modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+            background:rgba(0,0,0,0.55);padding:16px;overflow:auto;}
+  .qr-modal.hidden{display:none;}
+  .qr-box{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;
+          padding:22px 20px 18px;width:100%;max-width:360px;max-height:92vh;overflow:auto;}
+  .qr-x{position:absolute;top:10px;right:12px;background:transparent;border:none;color:var(--muted);
+        font-size:18px;line-height:1;cursor:pointer;padding:4px;}
+  .qr-x:hover{color:var(--accent-txt);}
+  .qr-ok{font-size:14px;font-weight:600;color:var(--success-txt);margin-bottom:6px;}
+  .qr-inc{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:12px;}
+  .qr-inc.warn{color:var(--accent-txt);background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.4);
+               border-radius:8px;padding:8px 10px;}
+  .qr-inc b,.qr-ok b{color:inherit;}
+  .qr-tit{font-family:'Syne',sans-serif;font-size:13px;letter-spacing:1px;text-transform:uppercase;
+          color:var(--accent-txt);margin:2px 0 12px;}
+  .qr-tit .qr-tipo{color:var(--muted);font-size:11px;letter-spacing:0;}
+  .qr-lienzo{background:#fff;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:center;
+             min-height:120px;margin-bottom:12px;}
+  .qr-lienzo canvas,.qr-lienzo img{display:block;max-width:100%;height:auto;}
+  .qr-fail{color:#b00;font-size:12.5px;text-align:center;line-height:1.5;padding:14px;}
+  .qr-link input{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--input-bg);
+                 color:var(--text);font-size:12px;margin-bottom:10px;}
+  .qr-acts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .qr-acts .btn-action{min-width:0;flex:1 1 46%;padding:11px;text-decoration:none;text-align:center;
+                       display:inline-flex;align-items:center;justify-content:center;}
+  .qr-pie{font-size:11px;color:var(--muted);line-height:1.5;}
+  .qr-pie code{background:var(--surface2);padding:1px 5px;border-radius:4px;}
