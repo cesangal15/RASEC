@@ -35,7 +35,7 @@ const APPS_SCRIPT_URL = GALCA_ENV.url.obra;
 const ROLES_VER  = ['admin','jefe','residente'];
 const ROLES_EDIT = ['admin','jefe','residente'];
 const USUARIOS_OK = ['jeisson'];
-const VOLVER = { admin:'menu.html', jefe:'jefe.html', residente:'residente.html' };
+const VOLVER = { admin:'menu.html', jefe:'hub-jefe.html', residente:'residente.html' };
 
 const rol = localStorage.getItem('rol')||'', usuario = (localStorage.getItem('usuario')||'').trim().toLowerCase();
 if(!rol || (ROLES_VER.indexOf(rol)<0 && USUARIOS_OK.indexOf(usuario)<0) || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }

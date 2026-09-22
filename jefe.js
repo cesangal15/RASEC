@@ -37,6 +37,10 @@ window.onload = function(){
   const rol=localStorage.getItem('rol'), usuario=localStorage.getItem('usuario');
   // Guard: jefe, admin, residente (entra desde su panel) o residente de drenajes (D131). Otro rol -> login.
   if(!rol || (rol!=='jefe' && rol!=='admin' && rol!=='residente' && ROLES_DREN.indexOf(rol)<0)){ window.location.href='index.html'; return; }
+  // D194: el jefe y el admin trabajan en el Hub (Resumen · DATA · BASE · Proyección en pestañas). Si
+  // abren esta pantalla suelta (login con el `redirige` viejo, un marcador), se les lleva al Hub; dentro
+  // del Hub llega con ?embed=1 y no se redirige.
+  if((rol==='jefe' || rol==='admin') && !document.documentElement.classList.contains('embed')){ location.replace('hub-jefe.html'); return; }
   document.getElementById('userDisplay').textContent=usuario||'jefe';
   // Botón de regreso según de dónde viene: admin -> menú; residente -> su panel; drenajes -> el suyo.
   var _bm=document.getElementById('btnMenu');

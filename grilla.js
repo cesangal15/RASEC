@@ -16,7 +16,7 @@ const APPS_SCRIPT_URL = GALCA_ENV.url.obra;         // entorno.js (D168): produc
 const ROLES_VER   = ['admin','jefe','residente'];   // quién ENTRA a la grilla
 const ROLES_EDIT  = ['admin','jefe','residente'];   // quién EDITA (el servidor manda; D181)
 const USUARIOS_OK = ['jeisson'];
-const VOLVER = { admin:'menu.html', jefe:'jefe.html', residente:'residente.html' };
+const VOLVER = { admin:'menu.html', jefe:'hub-jefe.html', residente:'residente.html' };
 
 /* ---------- sesión (D109) ---------- */
 const rol = localStorage.getItem('rol')||'', usuario = (localStorage.getItem('usuario')||'').trim().toLowerCase();

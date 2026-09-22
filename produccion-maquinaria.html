@@ -27,15 +27,14 @@
 </div>
 
 <div class="container" id="contenedor">
-  <!-- D139: dos pestañas sobre el MISMO modelo de datos y la misma audiencia (un día de máquinas),
-       no dos pantallas: la entrada de las dos es la misma (una fecha), que es justo el criterio con
-       el que D112 sí justificó pantalla propia para `horas-persona.html` (allá la entrada es otra). -->
-  <div class="tabs">
+  <!-- D139: dos pestañas sobre el mismo modelo de datos. D194: «Producción del día» desactivada (no se
+       usa); la pantalla abre en la Flota y esta barra se oculta desde el JS. -->
+  <div class="tabs" data-estilo="display:none">
     <button class="tab active" id="tabProd"  data-on-click="verTab('prod')">Producción del día</button>
     <button class="tab"        id="tabFlota" data-on-click="verTab('flota')">Flota</button>
   </div>
 
-  <div id="panelProd">
+  <div id="panelProd" data-estilo="display:none">
     <div class="filtro-card">
       <div class="filtro-row">
         <div class="field"><label>Fecha</label><input type="date" id="fecha"></div>
@@ -47,7 +46,7 @@
     </div>
   </div>
 
-  <div id="panelFlota" data-estilo="display:none">
+  <div id="panelFlota">
     <!-- Cabecera (resumen, avisos, alta, buscador) y LISTA van en dos contenedores: el buscador
          filtra repintando solo la lista, así el campo no pierde el foco a cada tecla. -->
     <div id="flotaCont"><div class="loading">⏳ Cargando la flota...</div></div>

@@ -62,7 +62,7 @@ function entrar(sesion){
  * login — justo en campo y quizá sin señal. Tras el siguiente login con señal manda el `redirige` que
  * responde el servidor, que es el exacto. No es un secreto: es navegación. */
 const REDIRIGE_POR_ROL = {
-  admin:'menu.html', encargado:'encargado.html', residente:'residente.html', jefe:'jefe.html',
+  admin:'menu.html', encargado:'encargado.html', residente:'residente.html', jefe:'hub-jefe.html',
   digitadora:'digitadora.html', chequeadora:'seleccion-reporte.html', capataz:'seleccion-reporte.html',
   capataz_odt:'seleccion-reporte.html', capataz_odl:'seleccion-reporte.html',
   residente_dren:'seleccion-reporte.html', residente_odt:'seleccion-reporte.html',

@@ -28,7 +28,7 @@ let MAQPROG = {};   // id_maquina -> horas programadas (para mostrar el motivo s
  * redirección, registro de horas, altas y bajas). El guard de verdad está en el SERVIDOR (D109): esto
  * es la cara visible, no el cerrojo. */
 let ROL='', USUARIO='', PUEDE_PRODUCCION=false, PUEDE_FLOTA=false, SOLO_LECTURA=false;
-const VOLVER={ admin:'menu.html', residente:'residente.html', jefe:'jefe.html' };
+const VOLVER={ admin:'menu.html', residente:'residente.html', jefe:'hub-jefe.html' };
 
 window.onload = function(){
   ROL=localStorage.getItem('rol')||''; USUARIO=(localStorage.getItem('usuario')||'').trim().toLowerCase();
@@ -49,13 +49,10 @@ window.onload = function(){
     }
   }
   document.getElementById('fecha').value=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
-  // `jeisson` solo tiene la flota: se le esconde la pestaña de producción y se abre la suya.
-  if(!PUEDE_PRODUCCION && !SOLO_LECTURA){
-    document.getElementById('tabProd').style.display='none';
-    verTab('flota');
-  }
-  // Enlace directo a la flota (revisión → «Abrir Maquinaria › Flota», o el flujo de alta): #flota abre esa pestaña.
-  else if((location.hash||'').toLowerCase().indexOf('flota')>=0){ verTab('flota'); }
+  // La pestaña «Producción del día» queda DESACTIVADA (ya no se usa): la pantalla abre directo en la
+  // Flota para todos y la barra de pestañas se oculta. El código de producción se conserva dormido.
+  const _tabs=document.querySelector('.tabs'); if(_tabs) _tabs.style.display='none';
+  verTab('flota');
 };
 
 // Pestañas. La flota se pide la PRIMERA vez que se abre: quien solo viene a ajustar producción no

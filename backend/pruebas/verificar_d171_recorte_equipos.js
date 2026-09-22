@@ -257,7 +257,7 @@ console.log('\n8 · Frontend: formulario, flota.js, encargado, estado, menú, sw
     const enc=leer('encargado.js');
     ok('encargado.js: bandeja y WhatsApp de equipos sin horas ni operador', !/maqResumen|horas_operadas|s\/op/.test(enc) && /D171/.test(enc));
     ok('estado.html: aviso de obsoleto que remite a revision-maquinaria.html, sin style= en línea', /obsoleta \(D171\)/.test(leer('estado.html')) && /revision-maquinaria\.html/.test(leer('estado.html')) && !/aviso-obsoleto"[^>]*style=/.test(leer('estado.html')) && /\.aviso-obsoleto/.test(leer('estado.css')));
-    ok('menu.html: «Estado maquinaria (capataz, obsoleto)» sin style= en línea', /Estado maquinaria \(capataz, obsoleto\)/.test(leer('menu.html')) && !/tile-obsoleto" href="estado.html" style=/.test(leer('menu.html')) && /\.tile-obsoleto/.test(leer('menu.css')));
+    ok('menu.html: sin el acceso obsoleto a estado.html (D194)', !/href="estado\.html"/.test(leer('menu.html')));
     ok('sw.js: CACHE_V subido (flota.js cambió y el formulario nuevo depende de él)', /CACHE_V = 'tm2-v12'/.test(leer('sw.js')));
     console.log('\n'+(fallos?('✗ '+fallos+' de '+casos+' casos fallan'):('✓ '+casos+' casos pasan')));
     process.exit(fallos?1:0);
