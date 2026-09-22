@@ -102,7 +102,7 @@ const server=http.createServer((req,res)=>{
     return pg;
   }
   const $=(pg,sel)=>pg.locator(sel);
-  // D206: el CC de revisión es un selector con buscador (botón .cc-pick → escribir → Enter), ya no un <select>.
+  // D207: el CC de revisión es un selector con buscador (botón .cc-pick → escribir → Enter), ya no un <select>.
   const elegirCC=async(pg,boton,cc)=>{ await boton.click(); await pg.locator('.cc-pop .cc-q').fill(cc); await pg.locator('.cc-pop .cc-q').press('Enter'); };
   const post=(c,b,token)=>c.doPost({ postData:{ contents:JSON.stringify(token?Object.assign({token:token},b):b) } });   // directo al backend en banco
 
@@ -258,19 +258,19 @@ const server=http.createServer((req,res)=>{
     ok('«Equipos sin parte» = WNW030', (await $(pg,'#faltantes .falt').count())===1 && (await $(pg,'#faltantes').textContent()).includes('WNW030'));
     ok('el botón «Aprobar todo lo sin alertas» cuenta 5', /\(5\)/.test(await $(pg,'#btnAprobarTodo').textContent()));
     await pg.screenshot({ path:path.join(OUT,'revision_1440_pendientes.png'), fullPage:true });
-    // D206: el CC se elige con un buscador agrupado por UF (también con el backend .gs, que no manda uf/area)
+    // D207: el CC se elige con un buscador agrupado por UF (también con el backend .gs, que no manda uf/area)
     {
       const b=$(pg,'#pendientes .fila .cc-pick').first(); await b.click(); await pg.waitForSelector('.cc-pop:not(.hidden)');
       await $(pg,'.cc-pop .cc-uf button[data-uf=""]').click();
       const grupos=await $(pg,'.cc-pop .cc-grupo').allTextContents();
-      ok('D206: selector de CC agrupado (UF1 antes que UF2, «Sin operación» al final, sin encabezados repetidos)',
+      ok('D207: selector de CC agrupado (UF1 antes que UF2, «Sin operación» al final, sin encabezados repetidos)',
         grupos.length>=3 && grupos[0].startsWith('UF1') && grupos.indexOf('Sin operación')===grupos.length-1 && new Set(grupos).size===grupos.length, grupos);
       await $(pg,'.cc-pop .cc-q').fill('terraplen');
-      ok('D206: buscar «terraplen» deja solo 3701.02.07', JSON.stringify(await $(pg,'.cc-pop .cc-op b').allTextContents())==='["3701.02.07"]');
+      ok('D207: buscar «terraplen» deja solo 3701.02.07', JSON.stringify(await $(pg,'.cc-pop .cc-op b').allTextContents())==='["3701.02.07"]');
       await $(pg,'.cc-pop .cc-q').fill('2.11');
-      ok('D206: «2.11» encuentra 3701.02.11 y 3702.02.11 (código abreviado)', (await $(pg,'.cc-pop .cc-op b').allTextContents()).join()==='3701.02.11,3702.02.11');
+      ok('D207: «2.11» encuentra 3701.02.11 y 3702.02.11 (código abreviado)', (await $(pg,'.cc-pop .cc-op b').allTextContents()).join()==='3701.02.11,3702.02.11');
       await $(pg,'.cc-pop .cc-q').press('Escape');
-      ok('D206: Escape cierra sin cambiar el CC ni marcar la tarjeta', await $(pg,'.cc-pop.hidden').count()===1 && await $(pg,'.fila.dirty').count()===0);
+      ok('D207: Escape cierra sin cambiar el CC ni marcar la tarjeta', await $(pg,'.cc-pop.hidden').count()===1 && await $(pg,'.fila.dirty').count()===0);
     }
     // editar PR en la fila de VOL048 07:00 y aprobarla (campos + estado en una llamada)
     const filaV=$(pg,'#pendientes .fila').filter({ has: pg.locator('input[data-k=hora_de][value="07:00"]') }).filter({ hasText:'VOL048' }).first();

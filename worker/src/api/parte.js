@@ -319,7 +319,7 @@ async function precargar_(c){
   if(c.memo.ccConocidos) return;
   const set={};
   (await parteCCCrudos_(c)).forEach(function(r){ const s=parteTexto_(r.centro_coste); if(/^37\d\d\.\d\d\.\d\d$/.test(s)) set[s]=1; });
-  (await parteBaseCCs_(c)).forEach(function(r){ const s=parteTexto_(r.cc); if(/^37\d\d\.\d\d\.\d\d$/.test(s)) set[s]=1; });   // D206
+  (await parteBaseCCs_(c)).forEach(function(r){ const s=parteTexto_(r.cc); if(/^37\d\d\.\d\d\.\d\d$/.test(s)) set[s]=1; });   // D207
   c.memo.ccConocidos=set;
 }
 async function parteCC_(c){
@@ -428,7 +428,7 @@ async function parteUltimosFinales_(c){
   });
 }
 
-/* ============ D206 — continuidad del medidor y horario, EN VIVO para revisión ============
+/* ============ D207 — continuidad del medidor y horario, EN VIVO para revisión ============
  * INICIAL_DISTINTO se sellaba al RECIBIR el parte contra el último final que había en ese momento (de cualquier
  * fecha): si el parte anterior llegaba después, se corregía en revisión o el operador subía un día atrasado, el
  * aviso quedaba mal para siempre (datos reales sep-2026: 7 avisos falsos y 9 diferencias sin aviso). Ahora quien
@@ -494,7 +494,7 @@ export async function parteContinuidad_(c, filas){
   return out;
 }
 
-/* ============ D206 — lista de CC para REVISIÓN: PARTE_CC + todos los CC de la BASE, en orden ============
+/* ============ D207 — lista de CC para REVISIÓN: PARTE_CC + todos los CC de la BASE, en orden ============
  * PARTE_CC nació de los CC usados en los partes de los últimos meses (122); la BASE tiene más (156) y quien
  * revisa necesita poder poner cualquiera. Orden: UF → área (tierras, ODT 06, ODL 07) → código; los pseudo-CC
  * (Taller, Disponible, Domingo/Festivo) al final. El formulario del operador sigue con parteCC_ (sin cambios). */
@@ -647,7 +647,7 @@ export async function parteReporte(c, body, ses){
   const origen = (parteTexto_(body.origen).toLowerCase()==='manual' && revisor) ? 'manual' : 'qr';
   if(origen==='manual'){ logIdentidad_(c, ses.usuario, ses.rol); logMarcar_(c, 'ok', 'origen manual · equipo '+q.codigo); }
   const hoy=parteHoy_();
-  const ccValidos={}; (await parteCCRevision_(c)).forEach(function(x){ ccValidos[normTexto(x.centro_coste)]=x; });   // D206: + CC de la BASE
+  const ccValidos={}; (await parteCCRevision_(c)).forEach(function(x){ ccValidos[normTexto(x.centro_coste)]=x; });   // D207: + CC de la BASE
   const tope=PARTE_TOPES[q.medidor] || null;
 
   const hist=await parteHistorial_(c, q.codigo);
@@ -759,7 +759,7 @@ export async function parteBandeja(c, params){
   const ultimos=await parteUltimosFinales_(c);
   const faltantes=vigentes.filter(function(q){ return !conParte[parteNormCod_(q.codigo)]; })
     .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras', ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q), sin_ficha:!!q.sin_ficha }; });
-  const continuidad=await parteContinuidad_(c, pendientes.concat(revisadas));   // D206: en vivo
+  const continuidad=await parteContinuidad_(c, pendientes.concat(revisadas));   // D207: en vivo
   return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes, continuidad:continuidad,
     flota_fuente: (await parteFlotaVigente_(c, fecha)) ? 'hoja' : 'activo',
     listas:{ operadores:await parteOperadores_(c), cc:await parteCCRevision_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras' }; }) },
@@ -819,7 +819,7 @@ export async function parteRevisar(c, body, ses){
       hechos.push(parteFilaSalida_(c, obj));
     }
   });
-  return json(c, { ok:true, cambiadas:hechos.length, filas:hechos, errores:errores, continuidad:await parteContinuidad_(c, hechos) });   // D206
+  return json(c, { ok:true, cambiadas:hechos.length, filas:hechos, errores:errores, continuidad:await parteContinuidad_(c, hechos) });   // D207
 }
 
 /* ============ D178 — repartir una fila desde revisión (TOKEN) ============ */
@@ -830,7 +830,7 @@ export async function parteRepartir(c, body, ses){
   const rep=(Array.isArray(body.reparto)?body.reparto:[]).filter(function(r){ return r && (parteTexto_(r.centro_coste) || parteNum_(r.pct)!==null || parteTexto_(r.descripcion_trabajo)); });
   if(rep.length<2) return json(c, { ok:false, error:'Un reparto necesita al menos dos centros de coste.' });
   await precargar_(c);
-  const ccValidos={}; (await parteCCRevision_(c)).forEach(function(x){ ccValidos[normTexto(x.centro_coste)]=1; });   // D206: + CC de la BASE
+  const ccValidos={}; (await parteCCRevision_(c)).forEach(function(x){ ccValidos[normTexto(x.centro_coste)]=1; });   // D207: + CC de la BASE
   const quien=String((ses&&ses.usuario)||''), ts=new Date();
   let respuesta=null;
   await c.sql.begin(async function(sql){
@@ -871,7 +871,7 @@ export async function parteRepartir(c, body, ses){
     for(const f of filas){ const o=filaDesde_(f); await insertarFila_(sql, o); salida.push(parteFilaSalida_(c, o)); }
     respuesta={ ok:true, original:parteFilaSalida_(c, obj), filas:salida, cambiadas:1+salida.length };
   });
-  if(respuesta && respuesta.ok) respuesta.continuidad=await parteContinuidad_(c, respuesta.filas);   // D206
+  if(respuesta && respuesta.ok) respuesta.continuidad=await parteContinuidad_(c, respuesta.filas);   // D207
   return json(c, respuesta);
 }
 
@@ -901,7 +901,7 @@ export async function parteBase(c, params){
     : await c.sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND fecha BETWEEN ${desde} AND ${hasta} AND lower(estado)=${estado}`;
   const filas=crudas.map(function(r){ return parteFilaSalida_(c, r); })
     .sort(function(a,b){ const ka=a.fecha+'|'+a.codigo+'|'+a.hora_de, kb=b.fecha+'|'+b.codigo+'|'+b.hora_de; return ka<kb?-1:ka>kb?1:0; });
-  const continuidad=await parteContinuidad_(c, filas);   // D206: alertas en vivo también en la Base
+  const continuidad=await parteContinuidad_(c, filas);   // D207: alertas en vivo también en la Base
   return json(c, { ok:true, desde:desde, hasta:hasta, estado:estado, filas:filas, continuidad:continuidad,
     excel:{ primera:PARTE_EXCEL_PRIMERA, ultima:PARTE_EXCEL_ULTIMA, columnas:parteExcelColumnas_(), mapa:PARTE_EXCEL_MAPA, filas:filas.map(parteExcelFila_) },
     listas:{ operadores:await parteOperadores_(c), cc:await parteCCRevision_(c),

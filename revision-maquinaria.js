@@ -159,7 +159,7 @@ function opSelect(v, lista, extra){
   if(v && !vistos[v]) html='<option value="'+esc(v)+'" selected>'+esc(v)+' (no está en la lista)</option>'+html;
   return html;
 }
-/* ---------- D206: continuidad del medidor y turno noche en la tarjeta ----------
+/* ---------- D207: continuidad del medidor y turno noche en la tarjeta ----------
  * El servidor manda, por fila, el parte ANTERIOR real del equipo (fecha + hora de fin, con el cruce de medianoche
  * de D188) y la jornada. Aquí se muestra para poder verificarlo a ojo: «anterior 1358 → este inicial 1358 ✓». */
 function horaMin(h){ const m=/^(\d{1,2}):(\d{2})/.exec(String(h||'')); return m ? (+m[1])*60+(+m[2]) : -1; }
@@ -180,7 +180,7 @@ function continuidadHTML(r, inicial){
     +(ok?'<span class="si">✓ empalma</span>':dif===null?'':'<span class="no">✕ '+(dif>0?'salto de +':'retrocede ')+esc(fmt(Math.abs(dif)))+' '+esc(u)+'</span>')+'</div>';
 }
 
-/* ---------- D206: selector de centro de coste con buscador ----------
+/* ---------- D207: selector de centro de coste con buscador ----------
  * Antes era un <select> de ~120 CC ordenados por uso: UF1, UF2 y drenajes mezclados y sin poder escribir. Ahora
  * la lista llega completa del servidor (PARTE_CC + BASE) en orden UF → área → código; aquí se agrupa por esos
  * encabezados, se filtra por UF y se busca escribiendo código («02.03», «2.3») o palabras («terraplen odt»). */
@@ -340,9 +340,9 @@ function edit(id, el){
     const a=num(d.hasOwnProperty('inicial')?d.inicial:r.inicial), b=num(d.hasOwnProperty('final')?d.final:r.final);
     const tot=(a!==null&&b!==null)?Math.round((b-a)*100)/100:null, tope=TOPES[r.medidor], box=f.querySelector('.tot');
     if(box){ box.className='tot '+(tot===null?'':tot<0||(tope&&tot>tope.bloquea)?'mal':(tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?esc(tope.unidad):'')+'</small>'; }
-    const ct=f.querySelector('.cont'); if(ct && k==='inicial') ct.outerHTML=continuidadHTML(r, d.inicial);   // D206: ¿empalma con el anterior?
+    const ct=f.querySelector('.cont'); if(ct && k==='inicial') ct.outerHTML=continuidadHTML(r, d.inicial);   // D207: ¿empalma con el anterior?
   }
-  if(k==='hora_de'||k==='hora_a'){   // D206: jornada y «(+1 día)» del turno noche al momento
+  if(k==='hora_de'||k==='hora_a'){   // D207: jornada y «(+1 día)» del turno noche al momento
     const r=filaPorId(id)||{}, d=dirty[id], hDe=d.hasOwnProperty('hora_de')?d.hora_de:r.hora_de, hA=d.hasOwnProperty('hora_a')?d.hora_a:r.hora_a;
     const j=f.querySelector('.jor'); if(j) j.outerHTML=jornadaHTML(hDe, hA);
     const m=f.querySelector('.mas1'); if(m) m.classList.toggle('hidden', !esNoche(hDe, hA));
@@ -364,7 +364,7 @@ async function revisar(id, estado){
 }
 // mueve las filas devueltas por el servidor entre pendientes/revisadas sin recargar todo
 function aplicarCambios(filas, cont){
-  BAND.continuidad=Object.assign(BAND.continuidad||{}, cont||{});   // D206: continuidad recalculada por el servidor
+  BAND.continuidad=Object.assign(BAND.continuidad||{}, cont||{});   // D207: continuidad recalculada por el servidor
   filas.forEach(nf=>{
     BAND.pendientes=(BAND.pendientes||[]).filter(r=>r.id_registro!==nf.id_registro);
     BAND.revisadas=(BAND.revisadas||[]).filter(r=>r.id_registro!==nf.id_registro);
