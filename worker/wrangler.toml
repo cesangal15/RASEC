@@ -70,6 +70,13 @@ AUTH_V = "1"
 binding = "HYPERDRIVE"
 id = "fe977e189b484b6a97dce50edb0c4d63"
 
+# Placement (D201): correr el Worker junto a la base (Supabase galca-tm2sur está en AWS us-east-1). Una petición
+# del Parte hace ~10 consultas SEGUIDAS; sin esto cada una cruzaba desde el nodo del usuario (MIA ~60 ms, y EZE
+# —Buenos Aires, ~1 de cada 4 peticiones desde Colombia— mucho más): _ms 600 ms en MIA y 2.500 ms en EZE.
+# Vuelta atrás: borrar este bloque y `npx wrangler deploy`.
+[placement]
+region = "aws:us-east-1"
+
 # Rate limit por IP (120/min). Binding nativo de Cloudflare: cuenta entre TODOS los nodos de la red.
 # `namespace_id` es un entero cualquiera, único dentro de la cuenta. `period` solo admite 10 o 60.
 [[unsafe.bindings]]
