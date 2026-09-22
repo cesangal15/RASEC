@@ -227,3 +227,62 @@
                        display:inline-flex;align-items:center;justify-content:center;}
   .qr-pie{font-size:11px;color:var(--muted);line-height:1.5;}
   .qr-pie code{background:var(--surface2);padding:1px 5px;border-radius:4px;}
+
+  /* ---- D203: QR a la carta — selección en la lista + hoja de etiquetas (formato de tools/generar_qr.py) ---- */
+  .qr-selbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-4px 0 16px;padding:10px 12px;
+             border:1px solid var(--accent);border-radius:12px;background:var(--surface);position:sticky;top:0;z-index:5;}
+  .qr-selbar .qs-n{font-size:13px;}
+  .qr-selbar .qs-hint{flex:1 1 220px;font-size:11.5px;color:var(--muted);}
+  .tr .cid .qrchk{display:inline-flex;align-items:center;margin-right:6px;vertical-align:middle;cursor:pointer;}
+  .tr .cid .qrchk input{width:18px;height:18px;margin:0;accent-color:var(--accent);cursor:pointer;}
+
+  /* Pantalla: la hoja se muestra encima, con las páginas a tamaño real (se desplazan si no caben). */
+  .qr-hoja{position:fixed;inset:0;z-index:70;overflow:auto;background:rgba(0,0,0,0.72);}
+  .qr-hoja.hidden{display:none;}
+  body.con-hoja-qr{overflow:hidden;}
+  .qh-barra{max-width:640px;margin:16px auto;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;}
+  .qh-tit{font-family:'Syne',sans-serif;font-size:13px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+  .qh-ayuda{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px;}
+  .qh-paginas{display:flex;flex-direction:column;align-items:center;gap:16px;padding:0 16px 24px;width:max-content;min-width:100%;box-sizing:border-box;}
+
+  /* Hoja carta 21,59 × 27,94 cm. Bloque 2×3 de 7 cm con 1 cm entre etiquetas, centrado:
+     x0 = (21,59 − 15) / 2 = 3,295 cm · y0 = (27,94 − 23) / 2 = 2,47 cm (igual que generar_qr.py). */
+  .qh-pag{position:relative;width:21.59cm;height:27.94cm;background:#fff;color:#000;flex:0 0 auto;
+          box-shadow:0 4px 24px rgba(0,0,0,0.45);overflow:hidden;
+          -webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .qh-cx,.qh-cy{position:absolute;display:block;border:0 dashed #8c8c8c;}
+  .qh-cx{top:0.6cm;bottom:0.6cm;width:0;border-left-width:0.4pt;}
+  .qh-cy{left:0.6cm;right:0.6cm;height:0;border-top-width:0.4pt;}
+  .qh-cx1{left:3.295cm;} .qh-cx2{left:10.295cm;} .qh-cx3{left:11.295cm;} .qh-cx4{left:18.295cm;}
+  .qh-cy1{top:2.47cm;} .qh-cy2{top:9.47cm;} .qh-cy3{top:10.47cm;} .qh-cy4{top:17.47cm;} .qh-cy5{top:18.47cm;} .qh-cy6{top:25.47cm;}
+  /* Etiqueta 7×7 cm: fondo blanco (tapa las líneas de corte) y marco negro de 1 mm hacia dentro. */
+  .qh-etq{position:absolute;width:7cm;height:7cm;box-sizing:border-box;border:1mm solid #000;background:#fff;z-index:1;
+          font-family:Helvetica,Arial,sans-serif;color:#000;text-align:center;}
+  .qh-p0{left:3.295cm;top:2.47cm;}  .qh-p1{left:11.295cm;top:2.47cm;}
+  .qh-p2{left:3.295cm;top:10.47cm;} .qh-p3{left:11.295cm;top:10.47cm;}
+  .qh-p4{left:3.295cm;top:18.47cm;} .qh-p5{left:11.295cm;top:18.47cm;}
+  /* Medidas internas descontando el marco (1 mm): QR de 4,5 cm a 0,25 cm del borde superior. */
+  /* La librería dibuja el QR SIN zona de silencio; generar_qr.py la trae dentro de los 4,5 cm (border=4
+     módulos ≈ 0,4 cm con estas URL). Se reproduce con padding blanco: mismo tamaño útil y se lee igual. */
+  .qh-qr{position:absolute;top:0.15cm;left:1.15cm;width:4.5cm;height:4.5cm;box-sizing:border-box;padding:0.4cm;background:#fff;}
+  .qh-qr canvas,.qh-qr img{width:100%;height:100%;}
+  .qh-qr .qr-fail{font-size:9pt;padding:1cm 0.2cm;}
+  .qh-cod,.qh-sub,.qh-url,.qh-ley{position:absolute;left:0.3cm;right:0.3cm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;}
+  .qh-cod{bottom:1.2cm;font-family:'Arial Black','Helvetica Neue',Helvetica,Arial,sans-serif;font-weight:900;font-size:30pt;letter-spacing:0;}
+  .qh-cod.m{font-size:24pt;} .qh-cod.s{font-size:19pt;} .qh-cod.xs{font-size:15pt;}
+  .qh-sub{bottom:0.85cm;font-size:8pt;font-weight:700;color:#595959;}
+  .qh-url{bottom:0.5cm;font-size:5.5pt;}
+  .qh-ley{bottom:0.18cm;font-size:6.5pt;font-weight:700;}
+
+  /* Impresión: solo las páginas de etiquetas, a tamaño real, una por hoja. `@page` no se puede acotar a una
+     clase: rige para toda la pantalla, que hoy solo imprime la hoja de etiquetas (flQRImprimir). */
+  @page{size:letter;margin:0;}
+  @media print{
+    body.con-hoja-qr > *:not(#qrHoja){display:none !important;}
+    body.con-hoja-qr{background:#fff !important;margin:0;padding:0;overflow:visible;}
+    body.con-hoja-qr .qr-hoja{position:static;overflow:visible;background:#fff;}
+    body.con-hoja-qr .qh-barra{display:none;}
+    body.con-hoja-qr .qh-paginas{display:block;padding:0;gap:0;width:auto;min-width:0;}
+    body.con-hoja-qr .qh-pag{box-shadow:none;margin:0;break-after:page;page-break-after:always;}
+    body.con-hoja-qr .qh-pag:last-child{break-after:auto;page-break-after:auto;}
+  }

@@ -28,12 +28,17 @@ let MAQPROG = {};   // id_maquina -> horas programadas (para mostrar el motivo s
  * redirección, registro de horas, altas y bajas). El guard de verdad está en el SERVIDOR (D109): esto
  * es la cara visible, no el cerrojo. */
 let ROL='', USUARIO='', PUEDE_PRODUCCION=false, PUEDE_FLOTA=false, SOLO_LECTURA=false;
-const VOLVER={ admin:'menu.html', residente:'residente.html', jefe:'hub-jefe.html' };
+// D203: el residente de drenajes y `duvan` administran la flota de SU grupo (drenajes): ven toda la flota,
+// pero solo escriben estancias de drenajes. '' = sin acotar. El cerrojo de verdad es el Worker.
+let FLOTA_GRUPO_PROPIO='';
+const VOLVER={ admin:'menu.html', residente:'residente.html', residente_dren:'seleccion-reporte.html', jefe:'hub-jefe.html' };
 
 window.onload = function(){
   ROL=localStorage.getItem('rol')||''; USUARIO=(localStorage.getItem('usuario')||'').trim().toLowerCase();
   PUEDE_PRODUCCION = (ROL==='admin' || ROL==='residente');
-  PUEDE_FLOTA      = (PUEDE_PRODUCCION || USUARIO==='jeisson');
+  FLOTA_GRUPO_PROPIO = (ROL==='residente_dren' || USUARIO==='duvan') ? 'drenajes' : '';
+  PUEDE_FLOTA      = (PUEDE_PRODUCCION || USUARIO==='jeisson' || !!FLOTA_GRUPO_PROPIO);
+  if(FLOTA_GRUPO_PROPIO) FL.grupo=FLOTA_GRUPO_PROPIO;   // abre filtrada en su grupo (puede cambiar a Todos)
   SOLO_LECTURA     = (ROL==='jefe');
   if(!PUEDE_FLOTA && !SOLO_LECTURA){ window.location.href='index.html'; return; }
   document.getElementById('userDisplay').textContent=USUARIO||ROL;
@@ -41,7 +46,7 @@ window.onload = function(){
     SOLO_LECTURA ? 'Maquinaria · Consulta' : ('Maquinaria · '+(USUARIO||ROL));
   var _bm=document.getElementById('btnMenu');
   if(_bm){
-    const destino = VOLVER[ROL] || (USUARIO==='jeisson' ? 'seleccion-reporte.html' : '');
+    const destino = VOLVER[ROL] || ((USUARIO==='jeisson' || USUARIO==='duvan') ? 'seleccion-reporte.html' : '');
     if(destino){
       if(ROL!=='admin') _bm.textContent='← Volver';
       _bm.onclick=function(){ location.href=destino; };
@@ -363,7 +368,8 @@ let FLOTA={ cargada:false, fecha:'', estancias:[], avisos:[], tipos:[], tiposPro
 // vuelve a pintar entera después de cada cambio, como en el resto de la pantalla.
 // `q` = filtro del buscador · `pleg` = qué bloques plegados están abiertos · `hist` = qué máquinas
 // muestran sus estancias anteriores. Nada de esto viaja al servidor: es solo cómo se está mirando.
-let FL={ op:'', clave:null, vals:{}, hist:{}, pleg:{fuera:false}, q:'', frente:'todos', grupo:'todos', msg:null, guardando:false };
+// `qrSel` = null (modo normal) | { CODIGO:true } mientras se eligen QR para la hoja de etiquetas.
+let FL={ op:'', clave:null, vals:{}, hist:{}, pleg:{fuera:false}, q:'', frente:'todos', grupo:'todos', msg:null, guardando:false, qrSel:null };
 
 function hoyCol(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
 function flTipos(){ return (FLOTA.tipos&&FLOTA.tipos.length)?FLOTA.tipos:TIPOS_FLOTA_RESPALDO; }
@@ -375,6 +381,8 @@ function flEsProd(tipo){ return flTiposProd().indexOf(String(tipo||'').toUpperCa
 function flFrenteDe(e){ return e.frente || FLOTA.frenteDef || 'UF1-UF2'; }
 function flGrupoDe(e){ return e.grupo || FLOTA.grupoDef || 'tierras'; }   // D190: disciplina de la máquina
 function flGrupoLabel(g){ return g==='drenajes' ? 'Drenajes' : 'Tierras'; }
+// D203: ¿este usuario puede tocar ESTA estancia? (acotado a su grupo si es de drenajes)
+function flEditable(e){ return PUEDE_FLOTA && (!FLOTA_GRUPO_PROPIO || !e || flGrupoDe(e)===FLOTA_GRUPO_PROPIO); }
 
 async function cargarFlota(){
   const cont=document.getElementById('flotaCont');
@@ -431,10 +439,11 @@ function flEstancia(id, ing){
 function flAbrir(op, id, ing){
   const e = id ? flEstancia(id, ing) : null;
   if(op!=='alta' && !e) return;
+  if(e && !flEditable(e)) return;   // D203
   FL.op=(op==='reingreso'?'alta':op); FL.msg=null;
   FL.clave = (op==='corregir'||op==='baja') ? { id_maquina:e.id_maquina, fecha_ingreso:e.fecha_ingreso } : null;
   const fr=(FL.frente!=='todos' && FL.frente) ? FL.frente : (FLOTA.frenteDef||'UF1-UF2');
-  const gr=(FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras');   // D190: hereda el filtro de grupo activo
+  const gr=FLOTA_GRUPO_PROPIO || ((FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras'));   // D190: hereda el filtro de grupo activo (D203: fijo si está acotado)
   if(op==='alta')      FL.vals={ id_maquina:'', tipo:'', propiedad:'propia', fecha_ingreso:hoyCol(), horas_prog:'', notas:'',
                                  frente:fr, grupo:gr, placa:'', proveedor:'', medidor:'' };
   if(op==='reingreso') FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
@@ -464,6 +473,7 @@ function flSelFrente(){
     '</select>';
 }
 function flSelGrupo(){   // D190: disciplina de la máquina (tierras/drenajes)
+  if(FLOTA_GRUPO_PROPIO) return '<select disabled><option value="'+esc(FLOTA_GRUPO_PROPIO)+'" selected>'+esc(flGrupoLabel(FLOTA_GRUPO_PROPIO))+'</option></select>';   // D203
   return '<select data-on-change="flSet(\'grupo\',this.value)">'+
     flListaGrupos().map(function(g){ return '<option value="'+esc(g)+'"'+(g===FL.vals.grupo?' selected':'')+'>'+esc(flGrupoLabel(g))+'</option>'; }).join('')+
     '</select>';
@@ -666,8 +676,22 @@ function renderFlotaCabecera(){
           ? '<button class="btn-action primary" data-estilo="flex:0 0 auto;min-width:210px;padding:11px 18px" data-on-click="flAbrir(\'alta\')">➕ DAR DE ALTA UNA MÁQUINA</button>'
           : '')+
         '<div class="buscador"><input type="text" id="flQ" placeholder="🔍 Buscar código, tipo o nota…" value="'+esc(FL.q||'')+'" data-on-input="flFiltro(this.value)"></div>'+
+        (FL.qrSel ? '' : '<button class="btn-action" data-estilo="flex:0 0 auto;padding:11px 16px" data-on-click="flQRModo(true)">▦ Elegir QR para imprimir</button>')+
         (puede?'':'<span class="est-note" data-estilo="color:var(--muted);font-size:11.5px">Vista de solo lectura: las altas y las bajas las hacen el residente, el administrador o jeisson.</span>')+
+        (FLOTA_GRUPO_PROPIO?'<span class="est-note" data-estilo="color:var(--muted);font-size:11.5px">Administras las máquinas de <b>Drenajes</b>: las de tierras se ven, pero no se tocan desde tu usuario.</span>':'')+
         '</div>';
+  // Selección de QR (etiquetas): barra con el conteo y las acciones mientras el modo está activo.
+  if(FL.qrSel){
+    const n=flQRElegidos().length;
+    html+='<div class="qr-selbar">'+
+            '<span class="qs-n"><b>'+n+'</b> QR elegido'+(n===1?'':'s')+'</span>'+
+            '<span class="qs-hint">Marca las máquinas en la lista (los filtros y el buscador ayudan a encontrarlas).</span>'+
+            '<button class="btn-mini" data-on-click="flQRTodas()">✓ Todas las de la lista</button>'+
+            '<button class="btn-mini" data-on-click="flQRNinguna()">Ninguna</button>'+
+            '<button class="btn-action primary" data-estilo="flex:0 0 auto;padding:9px 16px" data-on-click="flQRHoja()"'+(n?'':' disabled')+'>🖨 Generar etiquetas ('+n+')</button>'+
+            '<button class="btn-mini" data-on-click="flQRModo(false)">Salir</button>'+
+          '</div>';
+  }
   cont.innerHTML=html;
 }
 // Etiqueta corta para los chips del resumen (la lista de tipos completa vive en la tabla).
@@ -782,7 +806,7 @@ function flAbrirQR(codigo, modoAlta){
           '<a class="btn-action" href="'+esc(url)+'" target="_blank" rel="noopener">Abrir parte ↗</a>'+
           '<button class="btn-action primary" id="qrDl" data-on-click="flDescargarQR(\''+esc(cod)+'\')">⬇ Descargar PNG</button>'+
         '</div>';
-  html+='<div class="qr-pie">La imagen apunta a <b>'+esc(PARTE_URL_BASE)+'</b> (producción). Para las etiquetas en vinilo se sigue usando la herramienta de QR del PC (<code>tools/generar_qr.py</code>).</div>';
+  html+='<div class="qr-pie">La imagen apunta a <b>'+esc(PARTE_URL_BASE)+'</b> (producción). Para imprimir etiquetas de 7×7 cm de varias máquinas, cierra y usa <b>▦ Elegir QR para imprimir</b> en la flota.</div>';
   document.getElementById('qrCuerpo').innerHTML=html;
   document.getElementById('qrModal').classList.remove('hidden');
   // Dibuja el QR (o cae al enlace si la librería no cargó).
@@ -817,6 +841,96 @@ function flDescargarQR(cod){
   }catch(err){ alert('No se pudo descargar la imagen.'); }
 }
 
+/* ============ QR a la carta: elegir equipos → hoja de etiquetas (D203) ============
+ * Se marcan las máquinas en la lista (con los filtros de frente/grupo y el buscador) y se genera la hoja
+ * carta con el MISMO formato de las etiquetas en vinilo de tools/generar_qr.py: rejilla 2×3 de 7×7 cm,
+ * marco negro de 1 mm, líneas de corte punteadas, QR de 4,5 cm, código grande, tipo · placa, URL y
+ * leyenda. Se imprime (o se guarda como PDF) desde el navegador: la geometría la fija el CSS en cm, así
+ * que sale a tamaño real con la escala al 100 %. */
+const QR_LEYENDA='Escanea para reportar tu parte';   // = LEYENDA de generar_qr.py
+const QR_POR_HOJA=6;
+function flQRModo(on){ FL.qrSel = on ? (FL.qrSel||{}) : null; renderFlota(); }
+function flQRElegidos(){
+  if(!FL.qrSel) return [];
+  const orden=flPorMaquina().ids;   // mismo orden que la lista (tipo, luego código)
+  return orden.filter(function(id){ return FL.qrSel[id]; });
+}
+function flQRMarcar(id, on){
+  if(!FL.qrSel) return;
+  if(on) FL.qrSel[id]=true; else delete FL.qrSel[id];
+  renderFlotaCabecera();   // solo el conteo: la lista no se repinta (no se pierde la posición)
+}
+// «Todas las de la lista» = lo que se ve con los filtros activos: en obra hoy + por llegar (+ las que ya
+// no están, si ese bloque está abierto).
+function flQRTodas(){
+  if(!FL.qrSel) return;
+  const g=flGrupos();
+  g.tiposHoy.forEach(function(t){ g.hoy[t].forEach(function(x){ FL.qrSel[x.id]=true; }); });
+  g.porLlegar.forEach(function(x){ FL.qrSel[x.id]=true; });
+  if(FL.pleg.fuera) g.fuera.forEach(function(x){ FL.qrSel[x.id]=true; });
+  renderFlota();
+}
+function flQRNinguna(){ if(FL.qrSel){ FL.qrSel={}; renderFlota(); } }
+// Texto gris bajo el código: tipo · placa (sin N/A ni PENDIENTE), como generar_qr.py.
+function flQRSub(info){
+  if(!info) return '';
+  let sub=String(info.tipo||'');
+  const pl=String(info.placa||'').trim();
+  if(pl && ['N/A','PENDIENTE'].indexOf(pl.toUpperCase())<0) sub+=(sub?'  ·  ':'')+pl;
+  return sub;
+}
+function flQRClaseCodigo(cod){ const n=String(cod).length; return n<=7?'':(n<=9?' m':(n<=11?' s':' xs')); }
+function flQRHoja(){
+  const ids=flQRElegidos(); if(!ids.length) return;
+  const paginas=Math.ceil(ids.length/QR_POR_HOJA);
+  const sinFicha=ids.filter(function(id){ const i=flInfoMaquina(id); return i && i.con_ficha===false; });
+  const sinLib=(typeof QRCode==='undefined');
+  let html='<div class="qh-barra">'+
+             '<div class="qh-tit">▦ Etiquetas QR · <b>'+ids.length+'</b> equipo'+(ids.length===1?'':'s')+' · '+paginas+' hoja'+(paginas===1?'':'s')+' carta</div>'+
+             (sinLib ? '<div class="qr-inc warn">No cargó el generador de QR (¿sin señal?): vuelve a cargar la pantalla con conexión.</div>' : '')+
+             (sinFicha.length ? '<div class="qr-inc warn">⚠ Sin ficha en el catálogo del parte: <b>'+esc(sinFicha.join(', '))+'</b>. Su QR abrirá con error hasta que corrijas la estancia y guardes placa y medidor.</div>' : '')+
+             '<div class="qh-ayuda">Al imprimir: papel <b>Carta</b>, escala <b>100 %</b> (sin «ajustar a la página») y márgenes <b>ninguno</b>, para que cada etiqueta mida 7×7 cm. Para el PDF elige el destino «Guardar como PDF».</div>'+
+             '<div class="qr-acts">'+
+               '<button class="btn-action primary" data-on-click="flQRImprimir()"'+(sinLib?' disabled':'')+'>🖨 Imprimir / Guardar PDF</button>'+
+               '<button class="btn-action" data-on-click="flQRCerrarHoja()">Cerrar</button>'+
+             '</div>'+
+           '</div><div class="qh-paginas">';
+  for(let p=0;p<paginas;p++){
+    html+='<div class="qh-pag">';
+    for(let k=1;k<=4;k++) html+='<i class="qh-cx qh-cx'+k+'"></i>';
+    for(let k=1;k<=6;k++) html+='<i class="qh-cy qh-cy'+k+'"></i>';
+    ids.slice(p*QR_POR_HOJA, (p+1)*QR_POR_HOJA).forEach(function(cod, k){
+      const i=p*QR_POR_HOJA+k;
+      html+='<div class="qh-etq qh-p'+k+'">'+
+              '<div class="qh-qr" id="qhqr'+i+'"></div>'+
+              '<div class="qh-cod'+flQRClaseCodigo(cod)+'">'+esc(cod)+'</div>'+
+              '<div class="qh-sub">'+esc(flQRSub(flInfoMaquina(cod)))+'</div>'+
+              '<div class="qh-url">'+esc(parteLinkDe(cod))+'</div>'+
+              '<div class="qh-ley">'+esc(QR_LEYENDA)+'</div>'+
+            '</div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  const cont=document.getElementById('qrHoja');
+  cont.innerHTML=html;
+  cont.classList.remove('hidden');
+  document.body.classList.add('con-hoja-qr');
+  if(sinLib) return;
+  ids.forEach(function(cod, i){
+    const el=document.getElementById('qhqr'+i);
+    // 540 px sobre 4,5 cm ≈ 300 ppp: nítido en la impresora. Corrección H, como la etiqueta en vinilo.
+    try{ new QRCode(el, { text:parteLinkDe(cod), width:540, height:540, correctLevel:QRCode.CorrectLevel.H }); }
+    catch(err){ el.innerHTML='<div class="qr-fail">No se pudo generar este QR.</div>'; }
+  });
+}
+function flQRImprimir(){ window.print(); }
+function flQRCerrarHoja(){
+  const cont=document.getElementById('qrHoja');
+  cont.classList.add('hidden'); cont.innerHTML='';
+  document.body.classList.remove('con-hoja-qr');
+}
+
 /* Una fila de máquina. `modo` decide qué columnas y qué botones:
  *   hoy   — propiedad · prog · desde        → Dar de baja / Corregir
  *   llega — tipo · prog · llega el          → Corregir
@@ -827,7 +941,7 @@ function flFila(e, puede, modo, ls){
   const id=e.id_maquina, arg="'"+esc(id)+"','"+esc(e.fecha_ingreso)+"'";
   const nEst=(ls||[]).filter(function(x){ return x.valida; }).length;
   const acts=[];
-  if(puede){
+  if(puede && flEditable(e)){   // D203: acotado a su grupo
     if(modo==='hoy')   acts.push('<button class="btn-mini danger" data-on-click="flAbrir(\'baja\','+arg+')">Dar de baja</button>');
     if(modo==='fuera') acts.push('<button class="btn-mini" data-on-click="flAbrir(\'reingreso\','+arg+')">↩ Reingreso</button>');
     acts.push('<button class="btn-mini" data-on-click="flAbrir(\'corregir\','+arg+')">Corregir</button>');
@@ -854,7 +968,12 @@ function flFila(e, puede, modo, ls){
             '</small>';
   const prog = flEsProd(e.tipo) ? esc(e.prog)+' h' : '—';
   let html='<div class="tr'+(modo==='fuera'?' fuera-fila':'')+'">'+
-             '<span class="cid">'+esc(id)+sub+'</span>'+
+             '<span class="cid">'+
+               (FL.qrSel && modo!=='rota'
+                 ? '<label class="qrchk" title="Incluir en la hoja de etiquetas QR"><input type="checkbox"'+(FL.qrSel[id]?' checked':'')+
+                   ' data-on-change="flQRMarcar(\''+esc(id)+'\',this.checked)"></label>'
+                 : '')+
+               esc(id)+sub+'</span>'+
              '<span class="cmut">'+col2+marca+'</span>'+
              '<span class="cmut">'+prog+'</span>'+
              '<span class="cfecha'+(modo==='rota'?' cmut':'')+'">'+col4+'</span>'+
@@ -871,7 +990,7 @@ function flFila(e, puede, modo, ls){
                '<span class="cmut">'+esc(x.prog)+' h</span>'+
                '<span class="cfecha">'+esc(x.fecha_ingreso)+' → '+esc(x.fecha_retiro||'sigue en obra')+'</span>'+
                '<span class="cnota" title="'+esc(x.notas||'')+'">'+esc(x.notas||'')+' <span class="cmut">fila '+esc(x.fila)+'</span></span>'+
-               '<span class="cacts">'+(puede&&!esta?'<button class="btn-mini" data-on-click="flAbrir(\'corregir\',\''+esc(id)+'\',\''+esc(x.fecha_ingreso)+'\')">Corregir</button>':'')+'</span>'+
+               '<span class="cacts">'+(puede&&flEditable(x)&&!esta?'<button class="btn-mini" data-on-click="flAbrir(\'corregir\',\''+esc(id)+'\',\''+esc(x.fecha_ingreso)+'\')">Corregir</button>':'')+'</span>'+
              '</div>';
     }).join('');
   }

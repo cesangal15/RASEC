@@ -54,6 +54,12 @@ import {
  * Cableado, como en el .gs (decisión 12). `jeisson` (asistencia_plus) es el único usuario suelto. */
 const FLOTA_ROLES_ESCRIBEN    = ['admin','residente'];
 const FLOTA_USUARIOS_ESCRIBEN = ['jeisson'];
+/* D203: el residente de drenajes y `duvan` administran la flota de SU grupo. Escriben (alta · baja ·
+ * corregir) SOLO estancias con grupo `drenajes`: el alta y la corrección tienen que quedar en drenajes y
+ * la baja/corrección solo toca una estancia que ya era de drenajes. Leen toda la flota, como todos. */
+const FLOTA_ROLES_DRENAJES    = ['residente_dren'];
+const FLOTA_USUARIOS_DRENAJES = ['duvan'];
+const FLOTA_GRUPO_ACOTADO     = 'drenajes';
 
 /* ---------- Codigo.gs L1957–L1961: mensajes literales de fecha (D106) ---------- */
 const ERROR_FECHA_INGRESO = 'La fecha de ingreso llegó vacía o con un formato que no se entiende. '
@@ -64,7 +70,16 @@ const ERROR_FECHA_RETIRO = 'La fecha de retiro llegó con un formato que no se e
 
 // Codigo.gs L1950–L1952 — puedeEscribirFlota_ (permiso_ sobre la sesión del token, no sobre `body._rol`).
 export function puedeEscribirFlota_(ses){
-  return permiso_(ses, FLOTA_ROLES_ESCRIBEN, FLOTA_USUARIOS_ESCRIBEN, 'dar de alta ni de baja máquinas');
+  const p=permiso_(ses, FLOTA_ROLES_ESCRIBEN, FLOTA_USUARIOS_ESCRIBEN, 'dar de alta ni de baja máquinas');
+  if(p.ok) return p;
+  // D203: permiso ACOTADO al grupo drenajes (el guard por estancia lo hace flotaGuardar con `soloGrupo`).
+  const d=permiso_(ses, FLOTA_ROLES_DRENAJES, FLOTA_USUARIOS_DRENAJES, 'dar de alta ni de baja máquinas');
+  if(d.ok) return { ok:true, soloGrupo:FLOTA_GRUPO_ACOTADO };
+  return p;
+}
+function _errGrupo_(id){
+  return 'Tu usuario solo administra la flota de DRENAJES'+(id?(' y «'+id+'» no es de ese grupo'):'')+'. '
+    + 'Las máquinas de tierras las cambia el residente de tierras, jeisson o el administrador. No se guardó nada.';
 }
 
 /* ---------- Codigo.gs L1722–L1734: `?action=maquinas&fecha=` — flota VIGENTE del día (SOLO LECTURA) ----------
@@ -249,6 +264,7 @@ export async function flotaGuardar(c, body, ses){
     if(halladas.length>1) return json(c, { ok:false, error:'Hay '+halladas.length+' estancias de '+id+' con el mismo ingreso '+ing
       + '. Arregla los datos antes: la estancia se identifica por máquina + fecha de ingreso.' });
     const est=halladas[0];
+    if(permiso.soloGrupo && normGrupo_(est.grupo)!==permiso.soloGrupo){ logMarcar_(c, 'rechazado', 'flota: grupo'); return json(c, { ok:false, error:_errGrupo_(id) }); }
     if(est.ret) return json(c, { ok:false, error:'Esa estancia de '+id+' ya está cerrada el '+est.ret+'. '
       + 'Si la fecha está mal, usa "Corregir"; si la máquina volvió a la obra, va un ALTA nueva (nunca editar la vieja: se perdería el hueco en que no estuvo).' });
     if(ret<=ing) return json(c, { ok:false, error:'La fecha de retiro ('+ret+') tiene que ser POSTERIOR al ingreso ('+ing+'). '
@@ -282,6 +298,7 @@ export async function flotaGuardar(c, body, ses){
   if(FLOTA_FRENTES.indexOf(frente)<0) return json(c, { ok:false, error:'El frente "'+(body.frente||'')+'" no se reconoce. Opciones: '+FLOTA_FRENTES.join(' · ')+'.' });
   const grupo=normGrupo_(body.grupo);   // D190: disciplina (tierras/drenajes), ortogonal al frente
   if(FLOTA_GRUPOS.indexOf(grupo)<0) return json(c, { ok:false, error:'El grupo "'+(body.grupo||'')+'" no se reconoce. Opciones: '+FLOTA_GRUPOS.join(' · ')+'.' });
+  if(permiso.soloGrupo && grupo!==permiso.soloGrupo){ logMarcar_(c, 'rechazado', 'flota: grupo'); return json(c, { ok:false, error:_errGrupo_('') }); }
   const ficha={ placa:String(body.placa==null?'':body.placa).trim().toUpperCase(),
                 proveedor:String(body.proveedor==null?'':body.proveedor).trim(),
                 medidor:String(body.medidor==null?'':body.medidor).trim().toUpperCase() };
@@ -311,6 +328,7 @@ export async function flotaGuardar(c, body, ses){
     if(halladas.length>1) return json(c, { ok:false, error:'Hay '+halladas.length+' estancias de '+cid+' con el mismo ingreso '+cing
       + '. Arregla los datos antes: la estancia se identifica por máquina + fecha de ingreso.' });
     original=halladas[0];
+    if(permiso.soloGrupo && normGrupo_(original.grupo)!==permiso.soloGrupo){ logMarcar_(c, 'rechazado', 'flota: grupo'); return json(c, { ok:false, error:_errGrupo_(cid) }); }
   }
   // ¿La fila que estamos tocando? (para excluirla de dup/choque): la misma (id, ing) de la clave a corregir.
   const esOriginal=function(r){ return !!original && r.id===cid && r.ing===cing; };

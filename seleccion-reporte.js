@@ -52,7 +52,9 @@ const TILES = {
   'duvan':      [{href:'asistencia.html', ico:'👷', t:'Asistencia de drenajes', p:'Reporta la asistencia de cualquier cuadrilla ODT/ODL'},
                  {href:'resumen-asistencia.html', ico:'📋', t:'Resumen de asistencias', p:'Resumen del día y Excel Navision de ODT y ODL'},
                  // D193: también revisa los partes de maquinaria (lo usa Stiven); abre filtrado en Drenajes.
-                 {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Partes del día de los equipos de drenajes: aprobar, corregir y equipos sin parte'}],
+                 {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Partes del día de los equipos de drenajes: aprobar, corregir y equipos sin parte'},
+                 // D203: administra la flota de DRENAJES (alta, baja, corrección y QR); las de tierras solo las ve.
+                 {href:'produccion-maquinaria.html', ico:'🚜', t:'Flota de maquinaria', p:'Alta, baja y QR de los equipos de drenajes'}],
   // D101: residente de UF3 — mismo par de tiles que duvan, pero sobre el área `uf3` (proyecto 3703).
   // Reporta por CUALQUIER cuadrilla de UF3 porque hoy ninguna tiene capataz con login; el backend le
   // entrega solo las suyas (cuadrillasDeUsuario acota por área). Exactamente DOS tiles: nada de obra.
@@ -79,7 +81,9 @@ const TILES = {
                      {href:'resumen-asistencia.html', ico:'📋', t:'Resumen de asistencias', p:'Resumen del día y Excel Navision de ODT y ODL'},
                      {href:'tablero-produccion.html', ico:'📊', t:'Tablero de Producción (mensual)', p:'Velocidad contra meta, avance del contrato y clima de la obra'},
                      // D193: revisa los partes de SUS equipos (la pantalla abre filtrada en Drenajes; puede cambiar a Todos).
-                     {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Partes del día de los equipos de drenajes: aprobar, corregir y equipos sin parte'}]
+                     {href:'revision-maquinaria.html', ico:'🗂️', t:'Revisión de partes de maquinaria', p:'Partes del día de los equipos de drenajes: aprobar, corregir y equipos sin parte'},
+                     // D203: administra la flota de DRENAJES (alta, baja, corrección y QR); las de tierras solo las ve.
+                     {href:'produccion-maquinaria.html', ico:'🚜', t:'Flota de maquinaria', p:'Alta, baja y QR de los equipos de drenajes'}]
 };
 const ASISTENCIA_TILE = {href:'asistencia.html', ico:'👷', t:'Asistencia de personal', p:'Reporta la asistencia de tu cuadrilla'};
 // Admin tiene acceso a todo el sistema (D65): si llega aquí (p. ej. con "atrás" del navegador en vez
