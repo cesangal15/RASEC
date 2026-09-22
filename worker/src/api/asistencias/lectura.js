@@ -46,7 +46,7 @@ function isoTs_(v){
 }
 // turnos para el cliente: mismo map que el .gs (L1615/L1751/L1974) — tipo_dia norm, 4 horas ftime,
 // cruza_medianoche 'SI' → boolean. turnos_ ya aplicó ftime (idempotente).
-async function turnosCliente_(c){
+export async function turnosCliente_(c){
   return (await turnos_(c)).map(function(t){
     return { turno:String(t.turno||''), tipo_dia:norm(t.tipo_dia),
       entrada:ftime(t.entrada), salida:ftime(t.salida), descanso_ini:ftime(t.descanso_ini), descanso_fin:ftime(t.descanso_fin),

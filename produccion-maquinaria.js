@@ -28,7 +28,7 @@ let MAQPROG = {};   // id_maquina -> horas programadas (para mostrar el motivo s
  * redirección, registro de horas, altas y bajas). El guard de verdad está en el SERVIDOR (D109): esto
  * es la cara visible, no el cerrojo. */
 let ROL='', USUARIO='', PUEDE_PRODUCCION=false, PUEDE_FLOTA=false, SOLO_LECTURA=false;
-// D203: el residente de drenajes y `duvan` administran la flota de SU grupo (drenajes): ven toda la flota,
+// D205: el residente de drenajes y `duvan` administran la flota de SU grupo (drenajes): ven toda la flota,
 // pero solo escriben estancias de drenajes. '' = sin acotar. El cerrojo de verdad es el Worker.
 let FLOTA_GRUPO_PROPIO='';
 const VOLVER={ admin:'menu.html', residente:'residente.html', residente_dren:'seleccion-reporte.html', jefe:'hub-jefe.html' };
@@ -381,7 +381,7 @@ function flEsProd(tipo){ return flTiposProd().indexOf(String(tipo||'').toUpperCa
 function flFrenteDe(e){ return e.frente || FLOTA.frenteDef || 'UF1-UF2'; }
 function flGrupoDe(e){ return e.grupo || FLOTA.grupoDef || 'tierras'; }   // D190: disciplina de la máquina
 function flGrupoLabel(g){ return g==='drenajes' ? 'Drenajes' : 'Tierras'; }
-// D203: ¿este usuario puede tocar ESTA estancia? (acotado a su grupo si es de drenajes)
+// D205: ¿este usuario puede tocar ESTA estancia? (acotado a su grupo si es de drenajes)
 function flEditable(e){ return PUEDE_FLOTA && (!FLOTA_GRUPO_PROPIO || !e || flGrupoDe(e)===FLOTA_GRUPO_PROPIO); }
 
 async function cargarFlota(){
@@ -439,11 +439,11 @@ function flEstancia(id, ing){
 function flAbrir(op, id, ing){
   const e = id ? flEstancia(id, ing) : null;
   if(op!=='alta' && !e) return;
-  if(e && !flEditable(e)) return;   // D203
+  if(e && !flEditable(e)) return;   // D205
   FL.op=(op==='reingreso'?'alta':op); FL.msg=null;
   FL.clave = (op==='corregir'||op==='baja') ? { id_maquina:e.id_maquina, fecha_ingreso:e.fecha_ingreso } : null;
   const fr=(FL.frente!=='todos' && FL.frente) ? FL.frente : (FLOTA.frenteDef||'UF1-UF2');
-  const gr=FLOTA_GRUPO_PROPIO || ((FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras'));   // D190: hereda el filtro de grupo activo (D203: fijo si está acotado)
+  const gr=FLOTA_GRUPO_PROPIO || ((FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras'));   // D190: hereda el filtro de grupo activo (D205: fijo si está acotado)
   if(op==='alta')      FL.vals={ id_maquina:'', tipo:'', propiedad:'propia', fecha_ingreso:hoyCol(), horas_prog:'', notas:'',
                                  frente:fr, grupo:gr, placa:'', proveedor:'', medidor:'' };
   if(op==='reingreso') FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
@@ -473,7 +473,7 @@ function flSelFrente(){
     '</select>';
 }
 function flSelGrupo(){   // D190: disciplina de la máquina (tierras/drenajes)
-  if(FLOTA_GRUPO_PROPIO) return '<select disabled><option value="'+esc(FLOTA_GRUPO_PROPIO)+'" selected>'+esc(flGrupoLabel(FLOTA_GRUPO_PROPIO))+'</option></select>';   // D203
+  if(FLOTA_GRUPO_PROPIO) return '<select disabled><option value="'+esc(FLOTA_GRUPO_PROPIO)+'" selected>'+esc(flGrupoLabel(FLOTA_GRUPO_PROPIO))+'</option></select>';   // D205
   return '<select data-on-change="flSet(\'grupo\',this.value)">'+
     flListaGrupos().map(function(g){ return '<option value="'+esc(g)+'"'+(g===FL.vals.grupo?' selected':'')+'>'+esc(flGrupoLabel(g))+'</option>'; }).join('')+
     '</select>';
@@ -841,7 +841,7 @@ function flDescargarQR(cod){
   }catch(err){ alert('No se pudo descargar la imagen.'); }
 }
 
-/* ============ QR a la carta: elegir equipos → hoja de etiquetas (D203) ============
+/* ============ QR a la carta: elegir equipos → hoja de etiquetas (D205) ============
  * Se marcan las máquinas en la lista (con los filtros de frente/grupo y el buscador) y se genera la hoja
  * carta con el MISMO formato de las etiquetas en vinilo de tools/generar_qr.py: rejilla 2×3 de 7×7 cm,
  * marco negro de 1 mm, líneas de corte punteadas, QR de 4,5 cm, código grande, tipo · placa, URL y
@@ -941,7 +941,7 @@ function flFila(e, puede, modo, ls){
   const id=e.id_maquina, arg="'"+esc(id)+"','"+esc(e.fecha_ingreso)+"'";
   const nEst=(ls||[]).filter(function(x){ return x.valida; }).length;
   const acts=[];
-  if(puede && flEditable(e)){   // D203: acotado a su grupo
+  if(puede && flEditable(e)){   // D205: acotado a su grupo
     if(modo==='hoy')   acts.push('<button class="btn-mini danger" data-on-click="flAbrir(\'baja\','+arg+')">Dar de baja</button>');
     if(modo==='fuera') acts.push('<button class="btn-mini" data-on-click="flAbrir(\'reingreso\','+arg+')">↩ Reingreso</button>');
     acts.push('<button class="btn-mini" data-on-click="flAbrir(\'corregir\','+arg+')">Corregir</button>');

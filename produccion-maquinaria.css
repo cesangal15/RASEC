@@ -228,7 +228,7 @@
   .qr-pie{font-size:11px;color:var(--muted);line-height:1.5;}
   .qr-pie code{background:var(--surface2);padding:1px 5px;border-radius:4px;}
 
-  /* ---- D203: QR a la carta — selección en la lista + hoja de etiquetas (formato de tools/generar_qr.py) ---- */
+  /* ---- D205: QR a la carta — selección en la lista + hoja de etiquetas (formato de tools/generar_qr.py) ---- */
   .qr-selbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-4px 0 16px;padding:10px 12px;
              border:1px solid var(--accent);border-radius:12px;background:var(--surface);position:sticky;top:0;z-index:5;}
   .qr-selbar .qs-n{font-size:13px;}

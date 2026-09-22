@@ -1,5 +1,6 @@
 /**
- * api/obra/tablero_vivo.js — el Tablero de Producción EN VIVO desde la DATA de Galca (V3-11 Fases B+C · D185, sep-2026).
+ * api/obra/tablero_vivo.js — el Tablero de Producción EN VIVO desde la DATA de Galca (V3-11 Fases B+C · D185, sep-2026;
+ * V3-16 añade `personal`, sep-2026).
  *
  * Lo que decidió el dueño (18-sep-2026): «la DATA en línea que actualice plenamente el Tablero». El Tablero deja de
  * leer la hoja DATOS del Excel (toda la producción, de todos los periodos, sale de la DATA de Galca) y se calcula AL
@@ -9,7 +10,7 @@
  *
  *   GET  ?action=tablero_vivo                   PÚBLICO (sin token, como `tablero`: ampliación de D161 decidida por el
  *                                               dueño; index.js lo deja pasar sin token, no escribe LOG y lo cachea 60 s)
- *        → {ok, fuente:'galca', dias, proy, horas, horas_meta, datos_hasta, generado, fc_dias}
+ *        → {ok, fuente:'galca', dias, proy, horas, horas_meta, datos_hasta, generado, fc_dias, personal, personal_hasta}
  *          dias        = la MISMA forma que leerProduccion del motor: [{f, p, exc, apr, pre, nap, ter1, ter2, ter, sub1,
  *                        sub2, sub, bas1, bas2, bas, t}] — una por FECHA de la DATA (cualquier área; sin partida = ceros),
  *                        en SUELTO-EQUIVALENTE = Σ CANTIDAD compacta × fc de la Proyección (pliegue.js). El motor divide
@@ -24,6 +25,19 @@
  *                        cualquier otra clave, así que no puede colarse un nombre de operador.
  *          horas_meta  = {archivo, cargado_ts ('YYYY-MM-DD HH:MM' Bogotá)} o null. Sin `cargado_por`.
  *          datos_hasta = la última FECHA de la DATA ('' si no hay); generado = ahora en Bogotá 'YYYY-MM-DD HH:MM'.
+ *          personal    = V3-16: horas-hombre y nº de personas por partida, desde ASISTENCIA (solo UF1/UF2, presentes,
+ *                        con CC). [{f, uf:'UF1'|'UF2', act:'excavacion'|'terraplen'|'subbase'|'base'|'otras', n, h,
+ *                        c:[{k, n, h}]}], una entrada por (f, uf, act) con n>0 o h>0, ordenada por f/uf/act. `h` con
+ *                        el MISMO clasificador del Parte de Navision (horas-nomina.js, D112: una sola fuente) — nunca
+ *                        copiado. `c` = desglose por CARGO normalizado (sin tildes/mayúsculas/espacios de más;
+ *                        etiqueta capitalizada), ordenado por h desc y luego k asc; Σn/Σh de `c` = n/h de la entrada
+ *                        (con redondeo). Cargo = asistencia.cargo si no está vacío, si no la ficha de PERSONAL (la
+ *                        estancia de fecha_ingreso más reciente); vacío en ambos → 'Sin cargo registrado'. Una
+ *                        persona con 2 filas de cargo distinto el mismo (f,uf,act) cuenta en `c` por el cargo de su
+ *                        PRIMERA fila. null (+ `personal_error`) si ASISTENCIA no se pudo leer: el resto de
+ *                        tablero_vivo sigue igual. Sin ningún nombre/cédula/código/cuadrilla/CC crudo (D161: lectura
+ *                        pública sin token); `c` solo lleva etiquetas de cargo y cifras agregadas.
+ *          personal_hasta = la última fecha con filas de asistencia incluidas ('' si ninguna).
  *   POST {action:'tablero_horas_guardar', horas, archivo}  TOKEN, admin/jefe → guarda la salida de leerHoras del libro
  *        de partes (una vez, cuando llega uno nuevo) → {ok, horas_meta:{archivo, cargado_ts, partes, corte}, version}
  *
@@ -35,10 +49,17 @@
  *
  * Contexto `c` = { sql, env, secreto, authV, pet:{t0, log}, memo }. Lo arma src/index.js por petición.
  */
-import { OBRA_ID, ZONA_HORARIA, json, permiso_, logMarcar_, fdateValida_ } from '../../comun.js';
+import { OBRA_ID, ZONA_HORARIA, json, permiso_, logMarcar_, fdateValida_, fdate, deriveArea } from '../../comun.js';
 import { sumaPorDia_ } from './pliegue.js';
 import { proyeccionTableroDatos_ } from './proyeccion.js';
 import { gzipB64_, gunzipB64_ } from './tablero.js';
+import { getConfigMap, getFestivos } from '../asistencias/catalogos.js';
+import { turnosCliente_ } from '../asistencias/lectura.js';
+// D112: una sola fuente para el clasificador de horas (Parte de Navision / horas-persona); NUNCA se copia
+// su lógica. horas-nomina.js es un script CJS-condicional (module.exports guardado por typeof) pensado
+// para <script> en el navegador; esbuild (wrangler) detecta ese module.exports como objeto literal y
+// sintetiza los named exports de abajo sin tocar una línea del archivo.
+import { clasificarHoras, turnoRowFor, tipoJornadaDeFecha } from '../../../../horas-nomina.js';
 
 const PERIODO_PISO = '2025-06';                    // MAPEO!B19: DATOS!C = MAX(B19, mes de cierre)
 const HORAS_ROLES = ['admin','jefe'];              // D185: suben el libro de partes los mismos que publicaban la foto
@@ -52,6 +73,9 @@ const H_ACTS   = ['excavacion','terraplen','subbase','base'];                   
 const H_TIPOS  = ['EXCAVADORA','BULLDOZER','MOTONIVELADORA','FINISHER'];        // NOMTIPO del motor
 const H_COD_RE = /^[A-Z]{1,8}[0-9]{1,6}$/;         // código de máquina ya normalizado (normCod): EXC001, MO03, NH69…
 const TV_SIN_008 = 'El Tablero en vivo todavía no está en la base de datos (falta aplicar worker/sql/008_tablero_vivo.sql).';
+// V3-16: partida por el SUFIJO del CC (mismo mapeo que CC_ACT de tablero-produccion.js). Solo estos dos
+// pares abren excavacion/terraplen/subbase/base; cualquier otro sufijo (I010305, tres segmentos…) = 'otras'.
+const PERS_ACT = { '02.05':'excavacion', '02.06':'excavacion', '02.07':'terraplen', '03.01':'subbase', '03.03':'base' };
 
 /* ---------- utilidades ---------- */
 function txt_(v){ return String(v==null?'':v).trim(); }
@@ -74,6 +98,112 @@ function jsonbObjeto_(v){
   if(v && typeof v==='object' && !Array.isArray(v)) return v;
   if(typeof v==='string' && v){ try{ const o=JSON.parse(v); return (o && typeof o==='object' && !Array.isArray(o)) ? o : null; }catch(err){ return null; } }
   return null;
+}
+
+/* ---------- V3-16: personal (horas-hombre y nº de personas) por (fecha, UF, partida) ----------
+ * Del CC crudo de ASISTENCIA ('3701.02.05| EXCAVACION…') solo el código antes de '|' importa: el prefijo
+ * (3701→UF1, 3702→UF2; cualquier otro —3703, etc.— se EXCLUYE) y, si el código completo es «NNNN.NN.NN»,
+ * el sufijo decide la partida (PERS_ACT); cualquier otra forma (I010305, más segmentos…) es 'otras'.
+ * El Tablero es de TIERRAS: las filas de drenajes (deriveArea de comun.js, D70: capítulo 06.* ODT, 07.* ODL)
+ * no entran, así que «otras» son solo los demás CC de tierras (conformación, transporte, encargados…). */
+function ufDeCC_(cod){
+  const m = /^(3701|3702)\./.exec(cod);
+  return m ? (m[1]==='3701' ? 'UF1' : 'UF2') : '';
+}
+function actDeCC_(cod){
+  const m = /^(?:3701|3702)\.(\d{2}\.\d{2})$/.exec(cod);
+  return m ? (PERS_ACT[m[1]] || 'otras') : 'otras';
+}
+export const SIN_CARGO = 'Sin cargo registrado';        // etiqueta cuando el cargo falta en asistencia y en la ficha
+// 'ñ'/'Ñ' se preservan (D112-style, sin tocar la lógica de terceros): NFD descompondría la tilde de la eñe
+// junto con los acentos normales, así que se protege antes de quitar diacríticos.
+function sinTildes_(s){
+  return String(s||'').replace(/[ñÑ]/g, function(ch){ return ch==='ñ' ? '\u0001' : '\u0002'; })
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ');
+}
+// Clave para agrupar variantes de escritura (sin tildes, MAYÚSCULAS, espacios colapsados) + etiqueta a mostrar
+// (la clave en minúsculas con la primera letra en mayúscula). NO corrige erratas ni inventa sinónimos.
+function normCargo_(s){
+  const t = sinTildes_(s).toUpperCase().replace(/\s+/g, ' ').trim();
+  if(!t) return { key:'', label:SIN_CARGO };
+  return { key:t, label: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() };
+}
+// Mapa codigo/cedula -> cargo de PERSONAL, con la estancia de fecha_ingreso MÁS RECIENTE (NULL = la más
+// antigua; MISMO criterio que horasPersona, asistencias/lectura.js). Una sola consulta, sin filas repetidas.
+function fichaCargoMapa_(filasPersonal){
+  const porCodigo = new Map(), porCedula = new Map();
+  filasPersonal.forEach(function(p){
+    const codigo = String(p.codigo||'').trim(), cedula = String(p.cedula||'').trim(), fi = fdate(p.fecha_ingreso);
+    const cargo = String(p.cargo||'').trim();
+    if(codigo){ const a = porCodigo.get(codigo); if(!a || fi >= a.fi) porCodigo.set(codigo, { cargo:cargo, fi:fi }); }
+    if(cedula){ const a = porCedula.get(cedula); if(!a || fi >= a.fi) porCedula.set(cedula, { cargo:cargo, fi:fi }); }
+  });
+  return function(codigo, cedula){
+    if(codigo && porCodigo.has(codigo)) return porCodigo.get(codigo).cargo;
+    if(cedula && porCedula.has(cedula)) return porCedula.get(cedula).cargo;
+    return '';
+  };
+}
+// {personal, personal_hasta} o {personal:null, personal_error}. Nunca tumba tablero_vivo: el que llama
+// atrapa cualquier excepción (tabla sin migrar, columna que falte…) y sigue sin este bloque.
+async function personalDelTablero_(c){
+  const filas = await c.sql`SELECT fecha, codigo, cedula, nombre, cargo, cc, hora_entrada, hora_salida, turno, id_registro
+    FROM asistencia WHERE obra_id=${OBRA_ID} AND presente='Si' AND cc<>'' ORDER BY fecha, id_registro`;
+  const cfg = await getConfigMap(c), festivos = await getFestivos(c), turnos = await turnosCliente_(c);
+  // Respaldo de cargo desde la FICHA (PERSONAL): si esta consulta falla, se sigue sin ese respaldo (regla 1).
+  let cargoDeFicha_ = function(){ return ''; };
+  try{
+    const fp = await c.sql`SELECT codigo, cedula, cargo, fecha_ingreso FROM personal WHERE obra_id=${OBRA_ID}`;
+    cargoDeFicha_ = fichaCargoMapa_(fp);
+  }catch(err){ /* sin respaldo de ficha; el cargo de la fila (o SIN_CARGO) sigue funcionando */ }
+
+  const grupos = new Map();       // 'f|uf|act' -> { f, uf, act, personas:Set, h, cargos:Map<clave,{label,personas,h}>, asig:Map<id,clave> }
+  let hasta = '';
+  for(let i=0;i<filas.length;i++){
+    const r = filas[i];
+    const cod = String(r.cc||'').split('|')[0].trim();
+    const uf = ufDeCC_(cod);
+    if(!uf) continue;                                    // no es UF1/UF2 (p. ej. 3703 = UF3): se excluye
+    if(deriveArea(cod)!=='tierras') continue;            // el Tablero es de TIERRAS: drenajes ODT (.06.*) y ODL (.07.*) fuera (D70)
+    const f = fdate(r.fecha);
+    if(f > hasta) hasta = f;
+    const act = actDeCC_(cod);
+    const key = f+'|'+uf+'|'+act;
+    let g = grupos.get(key);
+    if(!g){ g = { f:f, uf:uf, act:act, personas:new Set(), h:0, cargos:new Map(), asig:new Map() }; grupos.set(key, g); }
+    const codigo = String(r.codigo||'').trim(), cedula = String(r.cedula||'').trim();
+    const idPersona = codigo || cedula || String(r.nombre||'').trim();
+    if(idPersona) g.personas.add(idPersona);              // dedupe por identidad (por seguridad; D126)
+    // Sin identidad (codigo/cedula/nombre vacíos, caso raro): cada fila es su propia "persona" para el
+    // desglose por cargo, así una fila anónima nunca se funde con otra (no cuenta en `n`, igual que antes).
+    const id = idPersona || ('__anon'+i);
+    const tipoJ = tipoJornadaDeFecha(f, festivos);
+    const tr = turnoRowFor(r.turno, f, turnos, tipoJ);
+    const cl = clasificarHoras(tipoJ, r.hora_entrada, r.hora_salida, cfg, tr);
+    const horasFila = (cl.ordinarias||0) + (cl.ord_domfest||0) + (cl.extra_diurna||0) + (cl.extra_nocturna||0) + (cl.extra_domfest||0);
+    g.h += horasFila;
+    // Cargo por fila: asistencia.cargo si no está vacío, si no la ficha de PERSONAL. Dos filas de la MISMA
+    // persona con cargos distintos el mismo (f,uf,act): manda el cargo de su PRIMERA fila (regla 3).
+    let clave = g.asig.get(id);
+    if(clave === undefined){
+      const cargoTxt = String(r.cargo||'').trim() || cargoDeFicha_(codigo, cedula);
+      const nc = normCargo_(cargoTxt);
+      clave = nc.key;
+      g.asig.set(id, clave);
+      if(!g.cargos.has(clave)) g.cargos.set(clave, { label:nc.label, personas:new Set(), h:0 });
+      if(idPersona) g.cargos.get(clave).personas.add(idPersona);
+    }
+    g.cargos.get(clave).h += horasFila;
+  }
+  const claves = [...grupos.keys()].sort();
+  const personal = claves.map(function(k){
+    const g = grupos.get(k);
+    const c2 = [...g.cargos.values()].map(function(x){ return { k:x.label, n:x.personas.size, h:Math.round(x.h*100)/100 }; })
+      .sort(function(a, b){ return b.h !== a.h ? b.h - a.h : (a.k < b.k ? -1 : (a.k > b.k ? 1 : 0)); });
+    return { f:g.f, uf:g.uf, act:g.act, n:g.personas.size, h:Math.round(g.h*100)/100, c:c2 };
+  }).filter(function(x){ return x.n>0 || x.h>0; });
+  return { personal:personal, personal_hasta:hasta };
 }
 
 /* ---------- GET ?action=tablero_vivo (PÚBLICO) ---------- */
@@ -108,11 +238,19 @@ export async function tableroVivoLeer(c, params){
     horasMeta = { archivo:txt_(hr[0].archivo), cargado_ts:txt_(hr[0].ts) };
   }
 
+  // V3-16: personal (horas-hombre y nº de personas) por (fecha, UF, partida) desde ASISTENCIA. Público y
+  // sin ningún dato de persona (D161): si falla, el Tablero sigue funcionando sin este bloque.
+  let personal = null, personalHasta = '', personalError = '';
+  try{ const pd = await personalDelTablero_(c); personal = pd.personal; personalHasta = pd.personal_hasta; }
+  catch(err){ personalError = esSinTablas_(err) ? 'La asistencia todavía no está en la base de datos.' : 'La asistencia no se pudo leer.'; }
+
   // `ok` va PRIMERO: index.js reconoce una respuesta cacheable por el prefijo '{"ok":true'.
   const out = { ok:true, fuente:'galca', dias:dias, proy:proy, horas:horas, horas_meta:horasMeta,
-                datos_hasta: dias.length ? dias[dias.length-1].f : '', generado:ahoraBogota_(), fc_dias:pl.fc };
+                datos_hasta: dias.length ? dias[dias.length-1].f : '', generado:ahoraBogota_(), fc_dias:pl.fc,
+                personal:personal, personal_hasta:personalHasta };
   if(proyError) out.proy_error = proyError;
   if(horasError) out.horas_error = horasError;
+  if(personalError) out.personal_error = personalError;
   return json(c, out);
 }
 

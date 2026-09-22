@@ -46,7 +46,10 @@
     <input type="file" id="filPartes" accept=".xlsx,.xlsm" hidden>
   </div>
 
-  <div class="blk">
+  <!-- V3-15(a) enmendado: orden decidido por el dueño — evolución (arriba, ahí se
+       elige el mes) · diaria (+ escala/filtro de días) · [plan vs ejecutado ‖
+       aprovechamiento] · avance · cadena · personal (al final). -->
+  <div class="blk" id="secEvolucion">
     <div class="secH">
       <div class="syne secK" id="capEvo">Evolución período a período</div>
       <div class="rule"></div>
@@ -59,6 +62,62 @@
       <div></div>
       <div class="xlab" id="evoX"></div>
     </div>
+  </div>
+
+  <div class="blk">
+    <div class="secH">
+      <div class="syne secT" id="capDia">Producción diaria del período</div>
+      <div class="secN">m³ compactos</div>
+      <div class="rule"></div>
+      <div class="secN" id="capCurva"></div>
+    </div>
+    <div class="secN notaPeriodo" id="capDiaNota"></div>
+    <div class="franjaSel" id="diaResumen"></div>
+    <div class="plot3">
+      <div class="ymax" id="maxDia"></div>
+      <div class="zona">
+        <div class="fondo" id="diaBg"></div>
+        <div class="bars" id="dia"></div>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" id="curvas"></svg>
+      </div>
+      <div class="eje" id="ejeMed"></div>
+      <div class="bajo">
+        <div class="xlab" id="diaX"></div>
+      </div>
+    </div>
+    <!-- V3-15(b): la tira de clima ES AHORA la escala de tiempo/selector — siempre
+         con TODO el período, clic/arrastre/teclado eligen día o rango; la gráfica
+         de arriba se amplía a lo elegido. -->
+    <div class="escalaWrap">
+      <div class="escalaT">Escala de tiempo · elige un día o arrastra un rango</div>
+      <div class="escala" id="escala" role="group" aria-label="Selector de días del período"></div>
+      <div class="leg" id="legClima"></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="secH">
+        <div class="syne secT2">Planificado vs ejecutado del período</div>
+        <div class="rule"></div>
+      </div>
+      <div id="planPer" class="u-mt13"></div>
+    </div>
+    <div>
+      <div class="secH">
+        <div class="syne secT2">Aprovechamiento de la excavación</div>
+        <div class="rule"></div>
+      </div>
+      <div id="aprov" class="u-mt13"></div>
+    </div>
+  </div>
+
+  <div class="blk">
+    <div class="secH">
+      <div class="syne secT2">Avance acumulado contra el contrato</div>
+      <div class="rule"></div>
+    </div>
+    <div id="avance" class="u-mt13"></div>
   </div>
 
   <div class="blk">
@@ -77,48 +136,11 @@
 
   <div class="blk">
     <div class="secH">
-      <div class="syne secT" id="capDia">Producción diaria del período</div>
-      <div class="secN">m³ compactos</div>
+      <div class="syne secT">Horas del personal por actividad</div>
       <div class="rule"></div>
-      <div class="secN" id="capCurva"></div>
     </div>
-    <div class="plot3">
-      <div class="ymax" id="maxDia"></div>
-      <div class="zona">
-        <div class="fondo" id="diaBg"></div>
-        <div class="bars" id="dia"></div>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" id="curvas"></svg>
-      </div>
-      <div class="eje" id="ejeMed"></div>
-      <div class="bajo">
-        <div class="xlab" id="diaX"></div>
-        <div class="climaT">Clima del día</div>
-        <div class="clima" id="clima"></div>
-        <div class="leg" id="legClima"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="cols">
-    <div>
-      <div class="secH">
-        <div class="syne secT2">Planificado vs ejecutado del período</div>
-        <div class="rule"></div>
-      </div>
-      <div id="planPer" class="u-mt13"></div>
-      <div class="secH mt">
-        <div class="syne secT2">Avance acumulado contra el contrato</div>
-        <div class="rule"></div>
-      </div>
-      <div id="avance" class="u-mt13"></div>
-    </div>
-    <div>
-      <div class="secH">
-        <div class="syne secT2">Aprovechamiento de la excavación</div>
-        <div class="rule"></div>
-      </div>
-      <div id="aprov" class="u-mt13"></div>
-    </div>
+    <div class="secN" id="perSub"></div>
+    <div id="perTabla" class="u-mt13"></div>
   </div>
 </div></div>
 

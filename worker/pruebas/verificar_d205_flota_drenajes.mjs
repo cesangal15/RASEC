@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verificación D203 — el residente de drenajes y `duvan` administran la flota de SU grupo.
+ * Verificación D205 — el residente de drenajes y `duvan` administran la flota de SU grupo.
  * flotaGuardar REAL del Worker sobre Postgres en memoria (PGlite) con el esquema 001–009:
  *
  *   1 · residente_dren / duvan: alta, baja y corrección de estancias de DRENAJES → se guardan.
@@ -9,7 +9,7 @@
  *   3 · Sin regresión: admin, residente (tierras) y jeisson siguen escribiendo cualquier grupo; jefe y
  *       otros usuarios siguen sin escribir.
  *
- *   node worker/pruebas/verificar_d203_flota_drenajes.mjs
+ *   node worker/pruebas/verificar_d205_flota_drenajes.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';

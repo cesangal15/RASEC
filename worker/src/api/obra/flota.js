@@ -54,7 +54,7 @@ import {
  * Cableado, como en el .gs (decisión 12). `jeisson` (asistencia_plus) es el único usuario suelto. */
 const FLOTA_ROLES_ESCRIBEN    = ['admin','residente'];
 const FLOTA_USUARIOS_ESCRIBEN = ['jeisson'];
-/* D203: el residente de drenajes y `duvan` administran la flota de SU grupo. Escriben (alta · baja ·
+/* D205: el residente de drenajes y `duvan` administran la flota de SU grupo. Escriben (alta · baja ·
  * corregir) SOLO estancias con grupo `drenajes`: el alta y la corrección tienen que quedar en drenajes y
  * la baja/corrección solo toca una estancia que ya era de drenajes. Leen toda la flota, como todos. */
 const FLOTA_ROLES_DRENAJES    = ['residente_dren'];
@@ -72,7 +72,7 @@ const ERROR_FECHA_RETIRO = 'La fecha de retiro llegó con un formato que no se e
 export function puedeEscribirFlota_(ses){
   const p=permiso_(ses, FLOTA_ROLES_ESCRIBEN, FLOTA_USUARIOS_ESCRIBEN, 'dar de alta ni de baja máquinas');
   if(p.ok) return p;
-  // D203: permiso ACOTADO al grupo drenajes (el guard por estancia lo hace flotaGuardar con `soloGrupo`).
+  // D205: permiso ACOTADO al grupo drenajes (el guard por estancia lo hace flotaGuardar con `soloGrupo`).
   const d=permiso_(ses, FLOTA_ROLES_DRENAJES, FLOTA_USUARIOS_DRENAJES, 'dar de alta ni de baja máquinas');
   if(d.ok) return { ok:true, soloGrupo:FLOTA_GRUPO_ACOTADO };
   return p;
