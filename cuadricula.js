@@ -85,9 +85,12 @@
     }
     function pintar(){
       if(editando) cerrarEditor(false);
+      // La selección se ancla a la FILA, no a la posición: tras ordenar/filtrar se busca la misma fila; si ya no
+      // se ve, se quita (si no, Ctrl+−, Supr o Enter caerían sobre otra fila que ocupó ese lugar).
+      const fa=act&&VIS[act.r], fb=anc&&VIS[anc.r];
       VIS=visibles();
+      if(act){ const ia=VIS.indexOf(fa), ib=VIS.indexOf(fb); if(ia<0||ib<0){ act=anc=null; } else { act={r:ia,c:act.c}; anc={r:ib,c:anc.c}; } }
       cuerpo.innerHTML=VIS.length ? VIS.map(filaH).join('') : '<tr><td class="cq-vacio" colspan="'+(COLS.length+1)+'">'+escH(FILAS.length?'Sin filas con ese filtro.':(cfg.textoVacio||'Sin datos.'))+'</td></tr>';
-      if(act && act.r>=VIS.length) act=anc=null;
       aplicaSel(); pintarEtiquetas();
       if(cfg.alPintar) cfg.alPintar(VIS);
       avisarDirty();
@@ -131,7 +134,7 @@
     /* ---------- deshacer ---------- */
     function snap(){ return JSON.stringify(FILAS); }
     function pushUndo(){ undo.push(snap()); if(undo.length>80) undo.shift(); redo.length=0; }
-    function restaurar(js){ FILAS=JSON.parse(js); act=anc=null; pintar(); }
+    function restaurar(js){ cerrarMenu(); FILAS=JSON.parse(js); act=anc=null; pintar(); }
     function deshacer(){ if(!undo.length){ aviso('Nada que deshacer.'); return; } redo.push(snap()); restaurar(undo.pop()); aviso('Deshecho.'); }
     function rehacer(){ if(!redo.length){ aviso('Nada que rehacer.'); return; } undo.push(snap()); restaurar(redo.pop()); aviso('Rehecho.'); }
     function aviso(m,err){ if(cfg.aviso) cfg.aviso(m,err); }
@@ -301,7 +304,8 @@
     wrap.addEventListener('keydown', function(ev){
       if(editando) return;
       const k=ev.key, ctrl=ev.ctrlKey||ev.metaKey, sh=ev.shiftKey, F={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};
-      if(ev.key==='Escape'){ cerrarMenu(); return; }
+      cerrarMenu();                                                     // el menú abierto no sobrevive a otra acción
+      if(ev.key==='Escape') return;
       if(!act){ if(F[k]){ ev.preventDefault(); activar(0,0,false,true); } return; }
       if(cfg.teclas && cfg.teclas(ev, api)===true){ ev.preventDefault(); return; }
       const mR=VIS.length-1, mC=COLS.length-1;
@@ -332,12 +336,12 @@
       cargar:function(filas){
         FILAS=(filas||[]).map(function(r){ const o=Object.assign({},r); o._orig=Object.assign({},r); return o; });
         FILT.forEach(function(f){ const hay={}; FILAS.forEach(function(r){ hay[val(r,f.k)]=1; }); Array.from(FSEL[f.id]).forEach(function(v){ if(!hay[v]) FSEL[f.id].delete(v); }); });
-        act=anc=null; undo=[]; redo=[]; pintar();
+        cerrarMenu(); act=anc=null; undo=[]; redo=[]; pintar();
       },
       // Sustituye filas por las que devolvió el servidor (misma clave) y las da por guardadas.
       reemplazar:function(nuevas){ const m={}; (nuevas||[]).forEach(function(n){ m[String(n[CLAVE])]=n; });
         FILAS=FILAS.map(function(r){ const n=m[String(r[CLAVE])]; if(!n) return r; const o=Object.assign({},n); o._orig=Object.assign({},n); return o; });
-        undo=[]; redo=[]; pintar(); },                               // lo guardado ya no se deshace (como DATA al guardar)
+        cerrarMenu(); undo=[]; redo=[]; pintar(); },                               // lo guardado ya no se deshace (como DATA al guardar)
       cambios:function(){ return FILAS.filter(sucia).map(function(r){ const c={}; COLS.forEach(function(col){ if(col.edita && String(r[col.k]==null?'':r[col.k])!==String(r._orig[col.k]==null?'':r._orig[col.k])) c[col.k]=r[col.k]; }); return { fila:r, campos:c }; }); },
       pendientes:function(){ return FILAS.filter(pendiente); },
       filas:function(){ return FILAS; }, visibles:function(){ return VIS; }, marcadas:marcadas,

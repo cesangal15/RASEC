@@ -415,7 +415,8 @@ async function guardarRepartir(){
   if(caducada(d)) return;
   if(!d.ok){ toast(d.error||'No se guardó', true); return; }
   const id=repFila.id_registro; cerrarRepartir();
-  if(BASE && BASE.filas.some(x=>x.id_registro===id)){ BASE=null; if(!document.getElementById('vistaBase').classList.contains('hidden')) cargarBase(); }
+  // D197: con la Base visible se recarga (cargarBase pregunta si hay otros cambios sin guardar); oculta, se invalida.
+  if(BASE && BASE.filas.some(x=>x.id_registro===id)){ if(!document.getElementById('vistaBase').classList.contains('hidden')) cargarBase(); else BASE=null; }
   aplicarCambios([d.original].concat(d.filas||[]));
   toast('Repartida en '+(d.filas||[]).length+' filas (pendientes); la original quedó descartada');
 }
@@ -500,7 +501,7 @@ function menuBase(sel, row){
   const n=sel.length, txt=n===1?'fila':(n+' filas'), items=[];
   const conCambios=row && GB.pendientes().indexOf(row)>=0;
   items.push({ t:'Repartir en varios CC…', fn:function(){ abrirRepartir(row.id_registro); },
-    deshabilitado: n!==1 ? 'Marca una sola fila' : row.estado==='descartado' ? 'La fila está descartada' : conCambios ? 'Guarda primero los cambios de esta fila' : '' });
+    deshabilitado: n!==1 ? 'Marca una sola fila' : conCambios ? 'Guarda primero los cambios de esta fila' : row.estado==='descartado' ? 'La fila está descartada' : '' });
   if(sel.some(function(r){ return r.estado!=='descartado' && r._accion!=='descartar'; })) items.push({ t:'Descartar '+txt, atajo:'Ctrl + −', peligro:true, fn:function(){ marcarAccion('descartar', sel); } });
   if(sel.some(function(r){ return r.estado!=='aprobado' && r._accion!=='aprobar'; })) items.push({ t:'Volver a aprobar '+txt, fn:function(){ marcarAccion('aprobar', sel); } });
   if(sel.some(function(r){ return r._accion; })) items.push({ t:'Quitar la marca de descartar/aprobar', fn:function(){ GB.pushUndo(); sel.forEach(function(r){ delete r._accion; }); GB.pintar(); } });
@@ -523,7 +524,9 @@ function pintarBase(){ if(GB) GB.pintar(); }          // D193: cambiar Todos/Tie
 async function guardarBase(){
   if(!GB) return; if(GB.editando()) GB.cerrarEditor();
   const m={};
-  GB.cambios().forEach(function(x){ m[x.fila.id_registro]={ id_registro:x.fila.id_registro, campos:x.campos }; });
+  GB.cambios().forEach(function(x){
+    if('centro_coste' in x.campos) x.campos.uf=x.fila.uf;          // la UF que se ve (el servidor la re-derivaría del CC)
+    m[x.fila.id_registro]={ id_registro:x.fila.id_registro, campos:x.campos }; });
   GB.filas().forEach(function(r){ if(!r._accion) return; const o=m[r.id_registro]||(m[r.id_registro]={ id_registro:r.id_registro }); o.estado=(r._accion==='descartar'?'descartado':'aprobado'); });
   const cambios=Object.keys(m).map(function(k){ return m[k]; });
   if(!cambios.length){ toast('No hay cambios que guardar.'); return; }
@@ -557,7 +560,7 @@ function celdaExcel(L, v){
   return String(v).replace(/[\t\r\n]+/g,' ');
 }
 function copiarExcel(btn){
-  if(!GB || !BASE) return;
+  if(!GB || !BASE){ toast('Consulta la Base primero.', true); return; }
   if(GB.pendientes().length){ toast('Hay cambios sin guardar: guárdalos (o deshazlos) antes de copiar para Excel.', true); return; }
   const lista=GB.visibles().filter(function(r){ return r.estado==='aprobado'; }); if(!lista.length) return;
   const cols=BASE.excel.columnas;
@@ -587,7 +590,7 @@ function rangosBase(){
 function pintarRapidosBase(){
   const box=document.getElementById('rapidosBase'); if(!box) return;
   const d=document.getElementById('desde').value, a=document.getElementById('hasta').value;
-  box.innerHTML=rangosBase().map(function(x){ return '<button type="button" class="chip'+(x.d===d&&x.a===a?' on':'')+'" data-d="'+x.d+'" data-h="'+x.a+'" title="'+x.d+' → '+x.a+'">'+esc(x.t)+'</button>'; }).join('');
+  box.innerHTML=rangosBase().map(function(x){ return '<button type="button" class="chip'+(x.d===d&&x.a===a?' on':'')+'" data-d="'+esc(x.d)+'" data-h="'+esc(x.a)+'" title="'+esc(x.d+' → '+x.a)+'">'+esc(x.t)+'</button>'; }).join('');
 }
 (function(){
   const box=document.getElementById('rapidosBase'); if(!box) return;
