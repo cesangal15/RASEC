@@ -37,7 +37,6 @@ let LISTAS={operadores:[],cc:[],equipos:[]};
 let BAND={pendientes:[],revisadas:[],faltantes:[]};
 let dirty={};          // id_registro → {campo:valor}
 let BASE=null;         // respuesta de op=base
-let editando=null;     // id en edición en la tabla Base
 /* D193 — filtro Todos / Tierras / Drenajes. El grupo es el de la FLOTA (maquinas.grupo, D190), que llega en
  * listas.equipos y en los faltantes; un equipo fuera de la flota vigente (FUERA_DE_FLOTA) cuenta como tierras,
  * igual que en el backend. Se recuerda por navegador; el residente de drenajes y duvan abren en Drenajes la
@@ -421,69 +420,130 @@ async function guardarRepartir(){
   toast('Repartida en '+(d.filas||[]).length+' filas (pendientes); la original quedó descartada');
 }
 
-/* ================= BASE ================= */
+/* ================= BASE =================
+ * D197: cuadrícula tipo Excel (cuadricula.js), el mismo manejo que la Revisión de DATA. Se edita en la celda y los
+ * cambios quedan PENDIENTES (en azul) hasta «Guardar», que los manda en UN op:'revisar' (el servidor ya aceptaba
+ * lotes). Descartar / volver a aprobar también quedan pendientes (estado en el mismo lote) y se deshacen con Ctrl+Z.
+ * Repartir sigue siendo el modal de D178 (clic derecho). «Copiar para Excel» copia las APROBADAS visibles B → AR con
+ * la misma regla que parteExcelFila_ del backend (excelFilaLocal), así que lo filtrado es lo que se copia. */
+let GB=null;          // la cuadrícula de la Base
+const PUEDE_EDITAR_BASE=true;   // quien entra a esta pantalla revisa (el guard de verdad está en el servidor, D109)
+function fmtMed(v){ return v==='HOROMETRO'?'Horómetro':v==='KM'?'Km':(v||''); }
+function totalAlto(r){ const t=num(r.total), tp=TOPES[r.medidor]; return t!==null && tp && t>tp.alerta; }
+const COLS_BASE=[
+  { k:'fecha',               etiqueta:'Fecha',        tipo:'fecha', edita:true, ancho:92 },
+  { k:'reporte_num',         etiqueta:'Parte',        edita:true, ancho:64, ayuda:'Nº del parte físico' },
+  { k:'codigo',              etiqueta:'Equipo',       ancho:76 },
+  { k:'tipo',                etiqueta:'Tipo',         ancho:130 },
+  { k:'medidor',             etiqueta:'Medidor',      ancho:80, fmt:fmtMed },
+  { k:'inicial',             etiqueta:'Inicial',      tipo:'num', edita:true, ancho:78, dec:1, miles:false },
+  { k:'final',               etiqueta:'Final',        tipo:'num', edita:true, ancho:78, dec:1, miles:false },
+  { k:'total',               etiqueta:'Total',        tipo:'num', ancho:62, ayuda:'Final − inicial (lo calcula el sistema)', clase:function(r){ return totalAlto(r)?'b-alto':''; } },
+  { k:'horas_varada',        etiqueta:'Varada',       tipo:'num', edita:true, ancho:60 },
+  { k:'horas_lluvia',        etiqueta:'Lluvia',       tipo:'num', edita:true, ancho:60 },
+  { k:'hora_de',             etiqueta:'De',           tipo:'hora', edita:true, ancho:60 },
+  { k:'hora_a',              etiqueta:'A',            tipo:'hora', edita:true, ancho:60 },
+  { k:'descripcion_trabajo', etiqueta:'Descripción',  edita:true, ancho:220 },
+  { k:'centro_coste',        etiqueta:'CC',           tipo:'lista', edita:true, ancho:104, ayuda:'Centro de coste (al cambiarlo, la UF sale del CC)',
+    opciones:function(){ return (LISTAS.cc||[]).map(function(c){ return { v:c.centro_coste, t:c.descripcion_cc||c.centro_coste }; }); } },
+  { k:'pr',                  etiqueta:'PR',           tipo:'num', edita:true, ancho:50, miles:false },
+  { k:'uf',                  etiqueta:'UF',           tipo:'lista', edita:true, ancho:44, opciones:['','1','2','3'] },
+  { k:'operador',            etiqueta:'Operador',     tipo:'lista', edita:true, ancho:150,
+    opciones:function(){ return ['Sin operador'].concat(LISTAS.operadores||[]); } },
+  { k:'observaciones',       etiqueta:'Observaciones', edita:true, ancho:180 },
+  { k:'alertas',             etiqueta:'Alertas',      ancho:130, fmt:function(v){ return alertasDe({alertas:v}).join(' · '); }, clase:function(r){ return alertasDe(r).length?'b-alerta':''; } },
+  { k:'estado',              etiqueta:'Estado',       ancho:96, fmt:function(v,r){ return r._accion==='descartar'?'→ descartar':r._accion==='aprobar'?'→ aprobar':v; } },
+  { k:'revisado_por',        etiqueta:'Revisó',       ancho:96, fmt:function(v,r){ return String(v||'')+(r.origen==='manual'?' · manual':''); } },
+];
+function montarBase(){
+  if(GB) return;
+  GB=TM2Cuadricula.crear({
+    wrap:document.getElementById('gridBase'), filtrosEl:document.getElementById('filtrosBase'), buscarEl:document.getElementById('qBase'),
+    columnas:COLS_BASE, clave:'id_registro', puedeEditar:PUEDE_EDITAR_BASE, colDia:'fecha', almacen:'tm2_base', decimalComa:true,
+    textoVacio:'Elige un rango y pulsa Consultar.',
+    filtros:[ { k:'fecha', t:'Fecha', todas:'Todas' }, { k:'codigo', t:'Equipo' }, { k:'tipo', t:'Tipo' }, { k:'centro_coste', t:'CC' },
+              { k:'operador', t:'Operador' }, { k:'uf', t:'UF', todas:'Todas' }, { k:'estado', t:'Estado' } ],
+    filtroExtra:function(r){ return enGrupo(r.codigo); },                       // D193: Todos / Tierras / Drenajes
+    buscarMas:function(r){ return r.alertas+' '+r.origen; },
+    claseFila:function(r){ return [r.estado!=='aprobado'?'b-no-aprob':'', r._accion==='descartar'?'b-descartar':''].filter(Boolean).join(' '); },
+    alCambiar:function(r,k){
+      if(k==='inicial'||k==='final'){ const i=num(r.inicial), f=num(r.final); r.total=(i!==null&&f!==null)?Math.round((f-i)*100)/100:''; }
+      if(k==='centro_coste') r.uf=ufDe(r.centro_coste);                         // igual que el servidor si no se toca la UF
+    },
+    alPintar:kpisBase, alCambiarDirty:dirtyBase, aviso:toast,
+    menu:menuBase,
+    teclas:function(ev){ const ctrl=ev.ctrlKey||ev.metaKey; if(ctrl && (ev.key==='-'||ev.key==='_')){ marcarAccion('descartar'); return true; } return false; },
+  });
+}
+function kpisBase(vis){
+  const tot=BASE?BASE.filas.length:0; let h=0, km=0;
+  vis.forEach(function(r){ const t=num(r.total); if(t===null) return; if(r.medidor==='KM') km+=t; else if(r.medidor==='HOROMETRO') h+=t; });
+  document.getElementById('kBase').textContent=tot; document.getElementById('kBaseF').textContent=vis.length;
+  document.getElementById('kBaseEq').textContent=new Set(vis.map(function(r){ return r.codigo; })).size;
+  document.getElementById('kBaseH').textContent=fmt(h); document.getElementById('kBaseKm').textContent=fmt(km);
+  document.getElementById('btnCopiar').disabled=!vis.some(function(r){ return r.estado==='aprobado'; });
+}
+function dirtyBase(n){
+  document.getElementById('nBase').textContent=n; document.getElementById('btnGuardarBase').disabled=!n;
+  if(GB){ document.getElementById('bUndo').disabled=!GB.puedeDeshacer(); document.getElementById('bRedo').disabled=!GB.puedeRehacer(); }
+}
+function deshacerBase(){ if(GB) GB.deshacer(); }
+function rehacerBase(){ if(GB) GB.rehacer(); }
+// Descartar / volver a aprobar: quedan pendientes hasta Guardar (un solo Ctrl+Z las quita).
+function marcarAccion(accion, lista){
+  const sel=(lista||GB.marcadas()).filter(function(r){ return accion==='descartar' ? r.estado!=='descartado' : r.estado!=='aprobado'; });
+  if(!sel.length){ toast(accion==='descartar'?'Marca las filas a descartar.':'Marca las filas a volver a aprobar.', true); return; }
+  GB.pushUndo(); sel.forEach(function(r){ r._accion=accion; delete r._error; }); GB.pintar();
+  toast((accion==='descartar'?'Se descartarán ':'Se aprobarán ')+sel.length+' fila(s) al pulsar Guardar (Ctrl+Z para deshacer).');
+}
+function menuBase(sel, row){
+  const n=sel.length, txt=n===1?'fila':(n+' filas'), items=[];
+  const conCambios=row && GB.pendientes().indexOf(row)>=0;
+  items.push({ t:'Repartir en varios CC…', fn:function(){ abrirRepartir(row.id_registro); },
+    deshabilitado: n!==1 ? 'Marca una sola fila' : row.estado==='descartado' ? 'La fila está descartada' : conCambios ? 'Guarda primero los cambios de esta fila' : '' });
+  if(sel.some(function(r){ return r.estado!=='descartado' && r._accion!=='descartar'; })) items.push({ t:'Descartar '+txt, atajo:'Ctrl + −', peligro:true, fn:function(){ marcarAccion('descartar', sel); } });
+  if(sel.some(function(r){ return r.estado!=='aprobado' && r._accion!=='aprobar'; })) items.push({ t:'Volver a aprobar '+txt, fn:function(){ marcarAccion('aprobar', sel); } });
+  if(sel.some(function(r){ return r._accion; })) items.push({ t:'Quitar la marca de descartar/aprobar', fn:function(){ GB.pushUndo(); sel.forEach(function(r){ delete r._accion; }); GB.pintar(); } });
+  const al=row ? alertasDe(row) : [];
+  if(al.length) items.push({ t:'¿Qué significan sus alertas?', fn:function(){ toast(al.map(function(a){ return a+': '+(ALERTA_TXT[a]||a); }).join(' · ')); } });
+  return items;
+}
 async function cargarBase(){
   const desde=document.getElementById('desde').value, hasta=document.getElementById('hasta').value;
   if(!desde||!hasta){ toast('Elige desde y hasta', true); return; }
-  document.getElementById('tbBase').innerHTML='<tr><td colspan="20" class="vacio">Cargando…</td></tr>';
+  if(GB && GB.pendientes().length && !confirm('Hay cambios sin guardar en la Base. ¿Descartarlos y volver a consultar?')) return;
+  montarBase(); pintarRapidosBase();
   let d; try{ d=await api(API+'&op=base&desde='+desde+'&hasta='+hasta+'&estado='+document.getElementById('fEstado').value); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
   if(caducada(d)) return;
-  if(!d.ok){ document.getElementById('tbBase').innerHTML='<tr><td colspan="20" class="vacio">'+esc(d.error||'error')+'</td></tr>'; return; }
-  BASE=d; if(d.listas) LISTAS=Object.assign({}, LISTAS, d.listas); editando=null;
-  pintarBase();
+  if(!d.ok){ toast(d.error||'No se pudo consultar', true); return; }
+  BASE=d; if(d.listas) LISTAS=Object.assign({}, LISTAS, d.listas);
+  GB.cargar(d.filas||[]);
 }
-function filasFiltradas(){
-  if(!BASE) return [];
-  const eq=norm(document.getElementById('fEq').value), cc=norm(document.getElementById('fCC').value), tx=norm(document.getElementById('fTxt').value);
-  return BASE.filas.map((r,i)=>({r:r,i:i})).filter(x=>{ const r=x.r;
-    return enGrupo(r.codigo) && (!eq || norm(r.codigo).indexOf(eq)>=0) && (!cc || norm(r.centro_coste).indexOf(cc)>=0)
-      && (!tx || norm(r.operador+' '+r.descripcion_trabajo+' '+r.observaciones+' '+r.reporte_num).indexOf(tx)>=0); });
-}
-function pintarBase(){
-  if(!BASE) return;
-  const lista=filasFiltradas();
-  document.getElementById('kBase').textContent=BASE.filas.length; document.getElementById('kBaseF').textContent=lista.length;
-  document.getElementById('kBaseEq').textContent=new Set(lista.map(x=>x.r.codigo)).size;
-  document.getElementById('btnCopiar').disabled=!lista.length;
-  const tb=document.getElementById('tbBase');
-  if(!lista.length){ tb.innerHTML='<tr><td colspan="20" class="vacio">Sin filas'+(BASE.filas.length?' con ese filtro':' en el rango')+'.</td></tr>'; return; }
-  tb.innerHTML=lista.map(x=>x.r.id_registro===editando ? filaEditHTML(x.r) : filaBaseHTML(x.r)).join('');
-}
-function filaBaseHTML(r){
-  const al=alertasDe(r);
-  const idJs=esc(String(r.id_registro).replace(/'/g,"\\'"));
-  return '<tr'+(r.estado!=='aprobado'?' data-estilo="opacity:.6"':'')+'><td class="acc"><button class="btn mini" data-on-click="editarBase(\''+idJs+'\')">✎</button>'+(r.estado!=='descartado'?' <button class="btn mini" data-on-click="abrirRepartir(\''+idJs+'\')" title="Repartir en varias filas">⑂</button>':'')+'</td>'
-    +'<td>'+esc(r.fecha)+(r.estado!=='aprobado'?'<br><span class="badge estado-'+esc(r.estado)+'">'+esc(r.estado)+'</span>':'')+'</td><td>'+esc(r.reporte_num)+'</td><td><b>'+esc(r.codigo)+'</b><br><span data-estilo="color:var(--muted)">'+esc(r.tipo)+'</span></td><td>'+esc(r.medidor)+'</td>'
-    +'<td class="num">'+fmt(r.inicial)+'</td><td class="num">'+fmt(r.final)+'</td><td class="num"><b>'+fmt(r.total)+'</b></td><td class="num">'+fmt(r.horas_varada)+'</td><td class="num">'+fmt(r.horas_lluvia)+'</td>'
-    +'<td>'+esc(r.hora_de)+'</td><td>'+esc(r.hora_a)+'</td><td class="desc">'+esc(r.descripcion_trabajo)+'</td><td>'+esc(r.centro_coste)+'</td><td class="num">'+esc(r.pr)+'</td><td>'+esc(r.uf)+'</td><td>'+esc(r.operador)+'</td><td class="desc">'+esc(r.observaciones)+'</td>'
-    +'<td>'+al.map(a=>'<span class="badge alerta">'+esc(a)+'</span>').join(' ')+'</td><td>'+esc(r.revisado_por)+(r.origen==='manual'?' <span class="badge manual">manual</span>':'')+'</td></tr>';
-}
-function filaEditHTML(r){
-  const inp=(k,tipo,extra)=>'<input type="'+tipo+'" data-k="'+k+'" value="'+esc(r[k])+'"'+(extra||'')+'>';
-  return '<tr class="edit" id="edit-'+esc(r.id_registro)+'"><td><button class="btn mini ok" data-on-click="guardarBase(\''+esc(String(r.id_registro).replace(/'/g,"\\'"))+'\')">💾</button> <button class="btn mini" data-on-click="cancelarEdicionBase()">✕</button></td>'
-    +'<td>'+inp('fecha','date')+'</td><td>'+inp('reporte_num','text')+'</td><td><b>'+esc(r.codigo)+'</b></td><td>'+esc(r.medidor)+'</td>'
-    +'<td>'+inp('inicial','number',' step="0.1"')+'</td><td>'+inp('final','number',' step="0.1"')+'</td><td class="num">'+fmt(r.total)+'</td><td>'+inp('horas_varada','number',' step="0.5"')+'</td><td>'+inp('horas_lluvia','number',' step="0.5"')+'</td>'
-    +'<td>'+inp('hora_de','time')+'</td><td>'+inp('hora_a','time')+'</td><td class="desc"><textarea rows="2" data-k="descripcion_trabajo">'+esc(r.descripcion_trabajo)+'</textarea></td>'
-    +'<td><select data-k="centro_coste" data-on-change="setUfFila(this)">'+ccSelect(r.centro_coste)+'</select></td><td>'+inp('pr','number')+'</td>'
-    +'<td><select data-k="uf">'+['','1','2','3'].map(u=>'<option value="'+u+'"'+(String(r.uf)===u?' selected':'')+'>'+(u||'—')+'</option>').join('')+'</select></td>'
-    +'<td><select data-k="operador">'+opSelect(r.operador, LISTAS.operadores||[], ['Sin operador'])+'</select></td><td class="desc"><textarea rows="2" data-k="observaciones">'+esc(r.observaciones)+'</textarea></td>'
-    +'<td>'+esc(r.alertas)+'</td><td>'+esc(r.revisado_por)+'</td></tr>';
-}
-function editarBase(id){ editando=id; pintarBase(); }
-async function guardarBase(id){
-  const tr=document.getElementById('edit-'+id); if(!tr) return;
-  const r=BASE.filas.find(x=>x.id_registro===id), campos={};
-  tr.querySelectorAll('[data-k]').forEach(el=>{ const k=el.dataset.k; if(String(el.value)!==String(r[k]===null?'':r[k])) campos[k]=el.value; });
-  if(!Object.keys(campos).length){ editando=null; pintarBase(); return; }
-  let d; try{ d=await api(null, { mod:'parte', op:'revisar', cambios:[{ id_registro:id, campos:campos }] }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
+function pintarBase(){ if(GB) GB.pintar(); }          // D193: cambiar Todos/Tierras/Drenajes repinta
+async function guardarBase(){
+  if(!GB) return; if(GB.editando()) GB.cerrarEditor();
+  const m={};
+  GB.cambios().forEach(function(x){ m[x.fila.id_registro]={ id_registro:x.fila.id_registro, campos:x.campos }; });
+  GB.filas().forEach(function(r){ if(!r._accion) return; const o=m[r.id_registro]||(m[r.id_registro]={ id_registro:r.id_registro }); o.estado=(r._accion==='descartar'?'descartado':'aprobado'); });
+  const cambios=Object.keys(m).map(function(k){ return m[k]; });
+  if(!cambios.length){ toast('No hay cambios que guardar.'); return; }
+  const nDesc=cambios.filter(function(c){ return c.estado==='descartado'; }).length;
+  if(nDesc && !confirm('Se van a DESCARTAR '+nDesc+' fila(s) de la Base (dejan de ir al Excel). ¿Seguir?')) return;
+  const b=document.getElementById('btnGuardarBase'); b.disabled=true;
+  let d; try{ d=await api(null, { mod:'parte', op:'revisar', cambios:cambios }); }catch(e){ d={ok:false,error:'Sin conexión.'}; }
   if(caducada(d)) return;
-  if(!d.ok){ toast(d.error||'No se guardó', true); return; }
-  if(d.errores && d.errores.length){ toast('No se aplicó: '+d.errores.map(e=>e.error).join('; '), true); return; }
-  const nf=(d.filas||[])[0];
-  if(nf){ const i=BASE.filas.findIndex(x=>x.id_registro===id); BASE.filas[i]=nf; BASE.excel.filas[i]=excelFilaLocal(nf); }
-  editando=null; pintarBase(); toast('Fila actualizada');
+  if(!d.ok){ b.disabled=false; toast(d.error||'No se guardó', true); return; }
+  const nuevas=d.filas||[];
+  nuevas.forEach(function(nf){ const i=BASE.filas.findIndex(function(x){ return x.id_registro===nf.id_registro; }); if(i>=0) BASE.filas[i]=nf; });
+  GB.reemplazar(nuevas);                                        // lo guardado deja de estar pendiente
+  const errs=d.errores||[];
+  if(errs.length){
+    const porId={}; errs.forEach(function(e){ porId[e.id_registro]=e.error; });
+    GB.filas().forEach(function(r){ if(porId[r.id_registro]) r._error=porId[r.id_registro]; }); GB.pintar();
+    toast('Guardadas '+nuevas.length+'; '+errs.length+' no se aplicaron (marcadas con ⚠, pasa el ratón por el número): '+errs.slice(0,2).map(function(e){ return e.error; }).join('; '), true);
+  } else toast('Guardadas '+nuevas.length+' fila(s).');
 }
-// misma regla que parteExcelFila_ del backend, para actualizar la copia local tras una edición
+// misma regla que parteExcelFila_ del backend (se calcula con lo que se ve, por eso se bloquea con cambios sin guardar)
 function excelFilaLocal(r){
   const mapa=BASE.excel.mapa, esH=r.medidor==='HOROMETRO', esK=r.medidor==='KM';
   return BASE.excel.columnas.map(L=>{ const c=mapa[L]; if(!c) return '';
@@ -497,9 +557,11 @@ function celdaExcel(L, v){
   return String(v).replace(/[\t\r\n]+/g,' ');
 }
 function copiarExcel(btn){
-  const lista=filasFiltradas(); if(!lista.length) return;
+  if(!GB || !BASE) return;
+  if(GB.pendientes().length){ toast('Hay cambios sin guardar: guárdalos (o deshazlos) antes de copiar para Excel.', true); return; }
+  const lista=GB.visibles().filter(function(r){ return r.estado==='aprobado'; }); if(!lista.length) return;
   const cols=BASE.excel.columnas;
-  const tsv=lista.map(x=>BASE.excel.filas[x.i].map((v,j)=>celdaExcel(cols[j],v)).join('\t')).join('\n');
+  const tsv=lista.map(r=>excelFilaLocal(r).map((v,j)=>celdaExcel(cols[j],v)).join('\t')).join('\n');
   const ok=()=>{ const o=btn.innerHTML; btn.classList.add('copied'); btn.innerHTML='✓ Copiado ('+lista.length+' filas, B→AR)'; setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=o;},2200); };
   if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).then(ok).catch(()=>fallbackCopiar(tsv,ok)); else fallbackCopiar(tsv,ok);
 }
@@ -509,6 +571,32 @@ function fallbackCopiar(text, ok){
   try{ document.execCommand('copy'); ok(); }catch(e){ alert('No se pudo copiar automáticamente.'); }
   document.body.removeChild(ta);
 }
+/* Rangos rápidos (D196/D197): Hoy · Ayer · Esta semana · 7 días · acta actual · acta anterior (16→15). */
+function isoMenosB(iso, n){ const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10); }
+function rangosBase(){
+  const h=hoy(), y=+h.slice(0,4), mo=+h.slice(5,7), di=+h.slice(8,10);
+  const fin=new Date(Date.UTC(y,mo-1,15)); let ini=new Date(Date.UTC(y,mo-2,16));
+  if(di>=16){ ini=new Date(Date.UTC(y,mo-1,16)); fin.setUTCMonth(fin.getUTCMonth()+1); }
+  const iso=function(x){ return x.toISOString().slice(0,10); }, p={ desde:iso(ini), hasta:iso(fin) };
+  const finAnt=isoMenosB(p.desde,1), md=new Date(finAnt+'T12:00:00Z'); md.setUTCMonth(md.getUTCMonth()-1);
+  const acta=function(hasta){ return (+hasta.slice(0,4)-2025)*12 + +hasta.slice(5,7) + 2; };
+  const dow=(new Date(h+'T12:00:00Z').getUTCDay()+6)%7;
+  return [ { t:'Hoy', d:h, a:h }, { t:'Ayer', d:isoMenosB(h,1), a:isoMenosB(h,1) }, { t:'Esta semana', d:isoMenosB(h,dow), a:h },
+           { t:'7 días', d:isoMenosB(h,6), a:h }, { t:'Acta '+acta(p.hasta), d:p.desde, a:p.hasta }, { t:'Acta '+acta(finAnt), d:md.toISOString().slice(0,8)+'16', a:finAnt } ];
+}
+function pintarRapidosBase(){
+  const box=document.getElementById('rapidosBase'); if(!box) return;
+  const d=document.getElementById('desde').value, a=document.getElementById('hasta').value;
+  box.innerHTML=rangosBase().map(function(x){ return '<button type="button" class="chip'+(x.d===d&&x.a===a?' on':'')+'" data-d="'+x.d+'" data-h="'+x.a+'" title="'+x.d+' → '+x.a+'">'+esc(x.t)+'</button>'; }).join('');
+}
+(function(){
+  const box=document.getElementById('rapidosBase'); if(!box) return;
+  box.addEventListener('click', function(ev){ const b=ev.target.closest && ev.target.closest('button[data-d]'); if(!b) return;
+    document.getElementById('desde').value=b.dataset.d; document.getElementById('hasta').value=b.dataset.h; cargarBase(); });
+  ['desde','hasta'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
+    const de=document.getElementById('desde'), ha=document.getElementById('hasta'); if(id==='desde' && ha.value && de.value>ha.value) ha.value=de.value; pintarRapidosBase(); }); });
+})();
+window.addEventListener('beforeunload', function(e){ if(GB && GB.pendientes().length){ e.preventDefault(); e.returnValue=''; } });
 
 /* ---------- arranque ---------- */
 (function(){
@@ -517,11 +605,10 @@ function fallbackCopiar(text, ok){
   document.getElementById('desde').value=d.toISOString().slice(0,10); document.getElementById('hasta').value=h;
   document.getElementById('fecha').addEventListener('change', cargarBandeja);
   pintarSegGrupo();   // D193
+  pintarRapidosBase();   // D197
   cargarBandeja();
 })();
 
 // D170: antes eran expresiones en línea en el marcado; la CSP ya no las admite.
 function cerrarModalFondo(ev, el){ if(ev.target===el) cerrarModal(); }
 function setUfDesdeCC(idUf, cc){ document.getElementById(idUf).value=ufDe(cc); }
-function cancelarEdicionBase(){ editando=null; pintarBase(); }
-function setUfFila(sel){ sel.closest('tr').querySelector('[data-k=uf]').value=ufDe(sel.value); }

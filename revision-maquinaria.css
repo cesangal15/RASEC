@@ -123,7 +123,6 @@
   .rp-fila input,.rp-fila select{padding:5px 8px;font-size:13px;min-width:0;}
   .rp-res{grid-column:1 / -1;font-size:11px;color:var(--muted);text-align:right;}
   .rp-res:empty{display:none;}
-  #tablaBase td.acc{white-space:nowrap;}
   .so-aprobar{display:flex;align-items:center;gap:8px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--text);margin:12px 0 0;cursor:pointer;}
   .so-aprobar input{width:18px;height:18px;accent-color:var(--accent);}
   .so-aprobar b{color:var(--success-txt);}
@@ -131,16 +130,6 @@
   .falt .tipo{font-size:11px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .vacio{color:var(--muted);text-align:center;padding:30px 10px;font-size:13px;}
   details.rev summary{cursor:pointer;color:var(--accent-txt);font-size:13px;font-weight:600;padding:6px 0;}
-  /* Base */
-  .tabla-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);}
-  table{border-collapse:collapse;width:100%;font-size:12px;min-width:1200px;}
-  th,td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;white-space:nowrap;}
-  th{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--surface2);position:sticky;top:0;}
-  td.num{text-align:right;font-variant-numeric:tabular-nums;}
-  td.desc{white-space:normal;min-width:220px;max-width:360px;}
-  tr.edit td{background:rgba(58,155,220,0.06);}
-  tr.edit input,tr.edit select,tr.edit textarea{padding:4px 6px;font-size:12px;min-width:70px;}
-  tr.edit td.desc textarea{min-width:220px;}
   .intro{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:12px;}
   .intro b{color:var(--accent-txt);}
   .hidden{display:none!important;}
@@ -191,3 +180,31 @@
   /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
   .u-mb8{margin-bottom:8px;}
   .u-mt10{margin-top:10px;}
+
+  /* D197: Base como cuadrícula tipo Excel (cuadricula.js / cuadricula.css). Barra compacta de una línea. */
+  #vistaBase .cq-barra{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-bottom:8px;}
+  #vistaBase .grp{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+  #vistaBase .grp input[type="date"]{width:auto;height:32px;padding:4px 8px;font-size:13px;}
+  #vistaBase .grp select{width:auto;height:32px;padding:0 30px 0 9px;font-size:13px;}
+  #vistaBase .grp .a{color:var(--muted);font-size:12px;}
+  #vistaBase .btn{height:32px;min-height:0;padding:0 12px;border-radius:7px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;letter-spacing:0;text-transform:none;display:inline-flex;align-items:center;gap:6px;}
+  #vistaBase .btn.ico{width:32px;padding:0;justify-content:center;font-size:15px;}
+  #vistaBase .btn .n{display:inline-block;background:rgba(0,0,0,.18);border-radius:20px;padding:0 7px;font-size:11px;line-height:17px;}
+  #btnGuardarBase{margin-left:auto;}
+  #vistaBase .kpis{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0;}
+  #vistaBase .kpi{min-width:0;font-size:12.5px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 11px;white-space:nowrap;}
+  #vistaBase .kpi b{color:var(--text);font-variant-numeric:tabular-nums;}
+  #vistaBase .kpi .de{font-size:11.5px;}
+  #vistaBase .rapidos{display:flex;flex-wrap:wrap;gap:4px;margin-left:4px;}
+  #vistaBase .chip{height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;}
+  #vistaBase .chip:hover{border-color:var(--accent);color:var(--text);}
+  #vistaBase .chip.on{border-color:var(--accent);background:rgba(245,166,35,.12);color:var(--text);font-weight:600;}
+  #vistaBase .cq-filtros{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-bottom:10px;}
+  #vistaBase .cq-buscar{width:240px;flex:0 1 240px;height:32px;padding:5px 10px;font-size:13px;}
+  #vistaBase .intro.chico{font-size:12px;margin:10px 0 0;}
+  #vistaBase kbd{font-family:'DM Sans',sans-serif;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text);}
+  #gridBase td.b-alto .cq-v{color:var(--accent-txt);font-weight:700;}
+  #gridBase td.b-alerta .cq-v{color:var(--accent-txt);}
+  #gridBase tr.b-no-aprob td.cq-c .cq-v{opacity:.6;}
+  #gridBase tr.b-descartar td.cq-c .cq-v{text-decoration:line-through;color:var(--error-txt);opacity:.8;}
+  @media(max-width:699px){ #btnGuardarBase{margin-left:0;} #vistaBase .cq-buscar{flex:1 1 100%;width:100%;} }
