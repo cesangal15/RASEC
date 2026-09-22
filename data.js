@@ -126,7 +126,7 @@ function derivar(r){
 }
 
 /* ---------- carga ---------- */
-function consultar(){ const d=document.getElementById('desde').value, h=document.getElementById('hasta').value; if(!d){ toast('Elige la fecha «desde».', true); return; } cargar(d,h||d); }
+function consultar(){ const d=document.getElementById('desde').value, h=document.getElementById('hasta').value; if(!d){ toast('Elige la fecha «desde».', true); return; } ACTA_SEL.clear(); pintarActas(); cargar(d,h||d); }
 async function cargar(desde, hasta){
   document.getElementById('cuerpo').innerHTML='<tr><td class="vacio">Cargando…</td></tr>';
   const d=await api(APPS_SCRIPT_URL+'?action=data_grid&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta));
@@ -253,6 +253,7 @@ function pintarEtiquetasFiltros(){
     box.querySelector('.ms-btn').title=f.t+': '+(FSEL[f.id].size ? ordenarVals(f,Array.from(FSEL[f.id])).join(' · ') : f.todas);
     box.classList.toggle('activo', FSEL[f.id].size>0);
   });
+  actualizarBtnFiltros();   // V3-17: el botón «Mostrar filtros» avisa cuántos quedan aplicados
 }
 function abrirFiltro(id){
   cerrarFiltro(); cerrarMenu();
@@ -811,9 +812,92 @@ async function guardar(btn){
   toast((d&&d.error)||'No se guardó.', true);
 }
 
+/* ---------- selector «Actas» (V3-17, pantalla suelta; en el Hub los pone su barra) ----------
+ * Además del rango de fechas y de los chips rápidos, se puede elegir directamente una o varias actas
+ * (acta 1 hasta la actual, la más nueva primero), con casillas como los filtros ms (D196). Al marcar una
+ * o más se fija desde = el inicio de la más antigua elegida, hasta = el final de la más nueva, y se carga
+ * (mismo camino que un chip rápido, con el aviso de cambios sin guardar). Si el rango cargado por actas trae
+ * las actas elegidas SIN que sean consecutivas (p. ej. 3 y 22), se deja el filtro de vista «Acta» (FILTROS,
+ * ya existente) marcado solo con esas — si no, se verían de más las que quedan en medio. */
+const ACTA_SEL=new Set();     // actas elegidas (aplicadas), como texto — clave del ms-op
+let actasAbierto=false;
+// V3-17: rango de fechas de un ACTA. Con la tabla `periodos` cargada (PERIODOS, vía data_grid): la fila cuyo
+// acta coincide. Fuera de ella, la fórmula de respaldo — la misma que actaDe/actaNum, invertida: acta =
+// (y−2025)·12+m+2 con m/y el mes de cierre (16→15) → mes_cierre=((acta−2−1) mod 12)+1, año=2025+⌊(acta−3)/12⌋.
+function rangoDeActa(n){
+  const s=String(n), p=PERIODOS.filter(function(x){ return x.acta===s; })[0];
+  if(p) return { desde:p.fi, hasta:p.ff };
+  const t=n-2, y=2025+Math.floor((t-1)/12), m=(((t-1)%12)+12)%12+1, pad=function(x){ return String(x).padStart(2,'0'); };
+  let ym=m-1, yy=y; if(ym<1){ ym=12; yy--; }
+  return { desde:yy+'-'+pad(ym)+'-16', hasta:y+'-'+pad(m)+'-15' };
+}
+function actaContiguas(nums){ for(let i=1;i<nums.length;i++) if(nums[i]-nums[i-1]!==1) return false; return true; }
+function etiquetaActas(){
+  if(!ACTA_SEL.size) return 'Elegir…';
+  const nums=Array.from(ACTA_SEL).map(Number).sort(function(a,b){ return a-b; });
+  if(nums.length===1) return 'Acta '+nums[0];
+  return actaContiguas(nums) ? ('Actas '+nums[0]+'–'+nums[nums.length-1]) : ('Acta '+nums.join(', '));
+}
+function pintarActas(){
+  const box=document.getElementById('fActas'); if(!box) return;
+  const v=box.querySelector('.ms-btn .v'); if(v) v.textContent=etiquetaActas();
+  box.classList.toggle('activo', ACTA_SEL.size>0);
+}
+function listaActas(){
+  const max=actaNum(periodoDeHoy().hasta), out=[]; for(let n=max;n>=1;n--) out.push(n); return out;
+}
+function onCambioActa(ev){
+  const cb=ev.target; if(!cb || cb.type!=='checkbox') return;
+  const n=cb.value, marcaba=cb.checked;
+  if(marcaba) ACTA_SEL.add(n); else ACTA_SEL.delete(n);
+  if(!ACTA_SEL.size){ pintarActas(); return; }               // sin ninguna marcada: no hay nada que cargar
+  const nums=Array.from(ACTA_SEL).map(Number).sort(function(a,b){ return a-b; });
+  const ini=rangoDeActa(nums[0]).desde, fin=rangoDeActa(nums[nums.length-1]).hasta, contig=actaContiguas(nums);
+  const p=irARango(ini, fin);
+  if(!p){ cb.checked=!marcaba; if(cb.checked) ACTA_SEL.add(n); else ACTA_SEL.delete(n); return; }  // canceló el aviso: deshace la casilla
+  pintarActas();
+  p.then(function(){
+    FSEL.fActa.clear();
+    if(!contig) nums.forEach(function(x){ FSEL.fActa.add(String(x)); });
+    llenarFiltros(); pintar();
+  });
+}
+function abrirActas(){
+  cerrarFiltro(); cerrarActas();
+  const box=document.getElementById('fActas'); if(!box) return;
+  const pop=box.querySelector('.ms-pop'); actasAbierto=true;
+  let h='<div class="ms-lista">';
+  listaActas().forEach(function(n){
+    const r=rangoDeActa(n);
+    h+='<label class="ms-op"><input type="checkbox" value="'+n+'"'+(ACTA_SEL.has(String(n))?' checked':'')+'><span class="txt">Acta '+n+'</span><em>'+esc(r.desde.slice(5)+' – '+r.hasta.slice(5))+'</em></label>';
+  });
+  pop.innerHTML=h+'</div>'; pop.hidden=false; box.classList.add('abierto');
+  pop.addEventListener('change', onCambioActa);
+}
+function cerrarActas(){
+  if(!actasAbierto) return; actasAbierto=false;
+  const box=document.getElementById('fActas'); if(box){ const pop=box.querySelector('.ms-pop'); if(pop){ pop.hidden=true; pop.innerHTML=''; } box.classList.remove('abierto'); }
+}
+function montarActas(){
+  const box=document.getElementById('fActas'); if(!box) return;
+  box.innerHTML='<button type="button" class="ms-btn" aria-haspopup="listbox"><span class="t">Actas</span><span class="v"></span></button><div class="ms-pop" hidden></div>';
+  box.querySelector('.ms-btn').addEventListener('click', function(ev){ ev.stopPropagation(); if(actasAbierto) cerrarActas(); else abrirActas(); });
+  box.querySelector('.ms-pop').addEventListener('click', function(ev){ ev.stopPropagation(); });
+  document.addEventListener('click', function(){ cerrarActas(); });
+  document.addEventListener('keydown', function(ev){ if(ev.key==='Escape' && actasAbierto) cerrarActas(); });
+  pintarActas();
+}
+
 /* ---------- rangos rápidos de fechas (D196, pantalla suelta; en el Hub los pone su barra) ---------- */
 function isoMenos(iso, n){ const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10); }
 function actaNum(hasta){ const y=+hasta.slice(0,4), m=+hasta.slice(5,7); return (y-2025)*12+m+2; }   // hasta = el 15 de cierre
+// V3-17: fija desde/hasta y carga, con el mismo aviso de cambios sin guardar que un chip; null si se canceló
+// (el llamador puede deshacer lo que iba a marcar), si no la promesa de cargar() para encadenar tras ella.
+function irARango(d,h){
+  if(dirtyCambios().length && !confirm('Hay cambios sin guardar. ¿Descartarlos y cargar otro rango?')) return null;
+  document.getElementById('desde').value=d; document.getElementById('hasta').value=h; pintarRapidos();
+  return cargar(d,h);
+}
 function rangosRapidos(){
   const h=hoyBogota(), p=periodoDeHoy(), finAnt=isoMenos(p.desde,1);
   const md=new Date(finAnt+'T12:00:00Z'); md.setUTCMonth(md.getUTCMonth()-1);          // el 15 del mes anterior
@@ -837,8 +921,8 @@ function montarRapidos(){
   const box=document.getElementById('rapidos'); if(!box) return;
   box.addEventListener('click', function(ev){
     const b=ev.target.closest && ev.target.closest('button[data-d]'); if(!b) return;
-    if(dirtyCambios().length && !confirm('Hay cambios sin guardar. ¿Descartarlos y cargar otro rango?')) return;
-    document.getElementById('desde').value=b.dataset.d; document.getElementById('hasta').value=b.dataset.h; pintarRapidos(); cargar(b.dataset.d, b.dataset.h);
+    if(!irARango(b.dataset.d, b.dataset.h)) return;
+    ACTA_SEL.clear(); pintarActas();   // V3-17: un chip de fecha ya no corresponde a las actas elegidas
   });
   ['desde','hasta'].forEach(function(id){ const el=document.getElementById(id); if(el) el.addEventListener('change', pintarRapidos); });
   // Cambiar «desde» a una fecha posterior a «hasta» arrastra «hasta» (sin rangos al revés).
@@ -846,11 +930,42 @@ function montarRapidos(){
   if(de && ha) de.addEventListener('change', function(){ if(ha.value && de.value>ha.value) ha.value=de.value; pintarRapidos(); });
 }
 
+/* ---------- ocultar filtros (V3-17) ----------
+ * Oculta la fila de filtros (y el texto de ayuda) para ver la cuadrícula a pantalla completa; se recuerda
+ * por navegador. Si quedan filtros aplicados mientras está oculto, el botón lo avisa («Mostrar filtros (2)»)
+ * para no olvidar que la vista sigue recortada. El alto de la tabla lo resuelve el flex de .container (crece
+ * solo al desaparecer la fila), sin cálculo aparte. */
+function filtrosOcultosGuardado(){ try{ return localStorage.getItem('tm2_data_filtros_ocultos')==='1'; }catch(e){ return false; } }
+function guardarFiltrosOcultos(v){ try{ localStorage.setItem('tm2_data_filtros_ocultos', v?'1':'0'); }catch(e){} }
+function filtrosAplicadosN(){ const q=document.getElementById('q'); return FILTROS.filter(function(f){ return FSEL[f.id].size>0; }).length + ((q && q.value.trim())?1:0); }
+function estaFiltrosOculto(){ const f=document.getElementById('filtros'); return !!(f && f.classList.contains('oculto')); }
+function actualizarBtnFiltros(){
+  const b=document.getElementById('btnFiltrosToggle'); if(!b) return;
+  const oculto=estaFiltrosOculto(), n=filtrosAplicadosN();
+  b.textContent=(oculto?'Mostrar filtros':'Ocultar filtros')+((oculto&&n)?' ('+n+')':'');
+}
+function aplicarFiltrosOcultos(oculto){
+  ['filtros','intro'].forEach(function(id){ const el=document.getElementById(id); if(el) el.classList.toggle('oculto', oculto); });
+  guardarFiltrosOcultos(oculto); actualizarBtnFiltros();
+}
+function toggleFiltrosVista(){ aplicarFiltrosOcultos(!estaFiltrosOculto()); }
+
 /* ---------- arranque ---------- */
-montarEventos(); montarFiltros(); montarRapidos();
+montarEventos(); montarFiltros(); montarRapidos(); montarActas();
 try{ setAlto(localStorage.getItem('tm2_data_alto')||'compacto'); }catch(e){ setAlto('compacto'); }
+aplicarFiltrosOcultos(filtrosOcultosGuardado());
 (function(){
-  let desde, hasta; try{ const u=new URLSearchParams(location.search); desde=u.get('desde'); hasta=u.get('hasta'); }catch(e){}
+  let desde, hasta, actas; try{ const u=new URLSearchParams(location.search); desde=u.get('desde'); hasta=u.get('hasta'); actas=u.get('actas'); }catch(e){}
   if(!desde){ const p=periodoDeHoy(); desde=p.desde; hasta=p.hasta; }
-  document.getElementById('desde').value=desde; document.getElementById('hasta').value=hasta||desde; cargar(desde, hasta||desde);
+  document.getElementById('desde').value=desde; document.getElementById('hasta').value=hasta||desde;
+  const p=cargar(desde, hasta||desde);
+  // V3-17: el Hub pasa `actas` (csv) cuando el rango vino de su selector «Actas»; se refleja aquí y, si no
+  // son consecutivas, se preselecciona el filtro de vista «Acta» para no ver las que quedan en medio.
+  if(actas){
+    const nums=actas.split(',').map(Number).filter(function(n){ return n>0; });
+    if(nums.length){
+      nums.forEach(function(n){ ACTA_SEL.add(String(n)); });
+      p.then(function(){ pintarActas(); if(!actaContiguas(nums.slice().sort(function(a,b){ return a-b; }))){ nums.forEach(function(n){ FSEL.fActa.add(String(n)); }); llenarFiltros(); pintar(); } });
+    }
+  }
 })();

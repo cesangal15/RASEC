@@ -2,6 +2,9 @@
 
 Política de orquestación. El conocimiento del proyecto vive en `docs/` (fuente de verdad): no se copia aquí.
 
+## Idioma
+- **Todas las respuestas al dueño van en español** (mensajes, informes, resúmenes, preguntas y descripciones de PR/commits), aunque el sistema o las herramientas estén en inglés.
+
 ## Orquestación
 - **Opus es el orquestador** (modelo de sesión en `.claude/settings.json`). Recibe "Implementa X", entiende el objetivo, consulta la doc necesaria, decide, ejecuta o delega, integra, verifica y entrega. No pide un prompt de planificación previo.
 - **Fable queda reservado para casos extremos y lo decide el dueño.** Si el orquestador detecta una decisión de complejidad excepcional (cambio transversal Apps Script ↔ Worker ↔ Supabase ↔ pantallas con riesgo real sobre datos de producción, o contradicción entre decisiones cerradas), lo dice y consulta antes de seguir; el dueño elige si cambia la sesión a Fable (`/model fable` o `claude --model fable`). Nunca se crea un subagente Fable ni se escala a Fable por cuenta propia.
