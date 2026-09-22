@@ -330,10 +330,12 @@ function filaHTML(r, ri){
   return h+'</tr>';
 }
 function pintar(){
+  // La selección sigue a la FILA tras ordenar/filtrar (no a la posición); si la fila ya no se ve, se quita.
+  const fa=act&&VIS[act.r], fb=anc&&VIS[anc.r];
   VIS=filasVisibles();
+  if(act){ const ia=VIS.indexOf(fa), ib=VIS.indexOf(fb); if(ia<0||ib<0){ act=anc=null; } else { act={r:ia,c:act.c}; anc={r:ib,c:anc.c}; } }
   const cuerpo=document.getElementById('cuerpo');
   cuerpo.innerHTML = VIS.length ? VIS.map(filaHTML).join('') : '<tr><td class="vacio" colspan="'+(COLS.length+2)+'">Sin filas en el rango.</td></tr>';
-  if(act && act.r>=VIS.length) act=anc=null;
   pintarKPIs(); aplicaSel();
   pintarEtiquetasFiltros();   // resalta los filtros aplicados (para no olvidar que la vista está recortada)
 }
