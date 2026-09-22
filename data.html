@@ -30,15 +30,11 @@
 
 <div class="container">
   <div class="intro" id="intro">
-    Revisa el reporte diario <b>como tu hoja DATA</b> y corrige o añade al cierre: eliges <b>descripción</b>
-    (actividad) y <b>subtramo</b>, y el sistema deriva CC, grupo, capítulo, UF, abscisas, acta y
-    <b>cantidad = largo × espesor ÷ FC</b> —igual que las fórmulas del Excel—. Las columnas en gris son
-    calculadas (se corrigen a mano solo si metes una actividad nueva que no está en el catálogo).
-    El <b>clima es del día</b>: al elegirlo en una fila se aplica a todas las filas de esa fecha.
-    <br><b>Cómo se usa (como Excel):</b> un clic <b>selecciona</b> la celda; muévete con las <kbd>flechas</kbd>;
-    marca un rango con <kbd>Shift</kbd>+flechas o Shift+clic; <b>edita</b> con doble clic, <kbd>Enter</kbd> o
-    escribiendo; <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copia/pega y <kbd>Ctrl</kbd>+<kbd>D</kbd> rellena hacia abajo; <kbd>Supr</kbd> vacía;
-    <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace y <kbd>Ctrl</kbd>+<kbd>Y</kbd> rehace.
+    Revisa el reporte diario <b>como tu hoja DATA</b> y corrige o añade al cierre: eliges <b>descripción</b> y
+    <b>subtramo</b> y el sistema deriva CC, grupo, capítulo, UF, abscisas, acta y <b>cantidad = largo × espesor ÷ FC</b>.
+    Las columnas en gris son calculadas. El <b>clima es del día</b>: al elegirlo en una fila se aplica a todas las de esa fecha.
+    Se maneja como Excel (flechas, Ctrl+flechas, Shift para marcar, Ctrl+C/V/D/Z); pulsa <kbd>⌨</kbd> para ver todos los atajos
+    y usa el <b>clic derecho</b> para insertar, duplicar o eliminar filas.
     <span id="soloLectura" class="badge warn" data-estilo="display:none;">Tu rol entra en SOLO LECTURA</span>
   </div>
 
@@ -49,9 +45,10 @@
       <span class="a">→</span>
       <input type="date" id="hasta" aria-label="Hasta" title="Hasta">
       <button class="btn primario" data-on-click="consultar()">Consultar</button>
+      <div class="rapidos" id="rapidos"></div>
     </div>
     <div class="grupo-btn">
-      <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;" title="Añadir una fila">＋ Fila</button>
+      <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;" title="Insertar una fila debajo de la celda activa (Ctrl + +). Clic derecho en la tabla para más opciones">＋ Fila</button>
       <button class="btn" id="btnFill" data-on-click="rellenar()" data-estilo="display:none;" title="Rellenar hacia abajo (Ctrl+D)">↓ Rellenar</button>
       <button class="btn ico" id="btnUndo" data-on-click="deshacer()" data-estilo="display:none;" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
       <button class="btn ico" id="btnRedo" data-on-click="rehacer()" data-estilo="display:none;" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷</button>
@@ -59,6 +56,7 @@
     <div class="grupo-btn">
       <button class="btn" data-on-click="copiarSel(this)" title="Copia la selección (o todo lo filtrado) para pegar en Excel">Copiar</button>
       <button class="btn ico" data-on-click="recargar()" title="Recargar desde la base" aria-label="Recargar">↻</button>
+      <button class="btn ico" id="btnAtajos" data-on-click="verAtajos()" title="Atajos de teclado" aria-label="Atajos de teclado">⌨</button>
     </div>
     <div class="kpis" aria-live="polite">
       <span class="kpi"><b id="kFilas">0</b> filas</span>
@@ -71,11 +69,12 @@
   <!-- Filtros de la vista (se llenan con los valores presentes en el rango; filtran en vivo, sin recargar). -->
   <div class="filtros" id="filtros">
     <input type="text" id="q" class="buscar" placeholder="Buscar en cualquier columna…" aria-label="Buscar" data-on-input="pintar()">
-    <label class="f"><span>Acta</span><select id="fActa" data-on-change="pintar()"><option value="">Todas</option></select></label>
-    <label class="f"><span>Grupo</span><select id="fGrupo" data-on-change="pintar()"><option value="">Todos</option></select></label>
-    <label class="f"><span>Capítulo</span><select id="fCap" data-on-change="pintar()"><option value="">Todos</option></select></label>
-    <label class="f"><span>UF</span><select id="fUf" data-on-change="pintar()"><option value="">Todas</option></select></label>
-    <label class="f grow"><span>Actividad</span><select id="fAct" data-on-change="pintar()"><option value="">Todas</option></select></label>
+    <!-- Filtros de selección múltiple (D196): cada uno abre una lista con casillas; se combinan entre sí. -->
+    <div class="f ms" id="fActa"></div>
+    <div class="f ms" id="fGrupo"></div>
+    <div class="f ms" id="fCap"></div>
+    <div class="f ms" id="fUf"></div>
+    <div class="f ms grow" id="fAct"></div>
     <button class="btn link" id="btnLimpiar" data-on-click="limpiarFiltros()">Limpiar filtros</button>
     <label class="f alto"><span>Filas</span><select id="fAlto" data-on-change="setAlto(this.value)">
       <option value="compacto">Compactas</option><option value="normal">Normales</option><option value="amplio">Texto completo</option>
@@ -96,6 +95,29 @@
     <span class="lg dirty">■ sin guardar</span>
     <span class="lg sel">■ selección</span>
     <span class="lg dia">— cambio de día</span>
+  </div>
+
+  <!-- Menú del clic derecho (D196): se llena por JS según la selección y el rol. -->
+  <div class="menu-ctx" id="menuCtx" role="menu" hidden></div>
+
+  <!-- Atajos de teclado (D196) -->
+  <div class="atajos" id="atajos" hidden>
+    <div class="atajos-cab"><b>Atajos de teclado</b><button class="xbtn" data-on-click="verAtajos()" aria-label="Cerrar">✕</button></div>
+    <dl>
+      <dt><kbd>←↑→↓</kbd></dt><dd>Moverse de celda · con <kbd>Shift</kbd> marca un rango</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>←↑→↓</kbd></dt><dd>Saltar al borde del bloque (como Excel) · con <kbd>Shift</kbd> lo marca</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Inicio</kbd> / <kbd>Fin</kbd></dt><dd>Primera / última celda · <kbd>Inicio</kbd>/<kbd>Fin</kbd>: principio / final de la fila</dd>
+      <dt><kbd>Re Pág</kbd> / <kbd>Av Pág</kbd></dt><dd>Subir / bajar una página</dd>
+      <dt><kbd>Shift</kbd>+<kbd>Espacio</kbd></dt><dd>Marcar la fila entera · <kbd>Ctrl</kbd>+<kbd>Espacio</kbd>: la columna · <kbd>Ctrl</kbd>+<kbd>A</kbd>: todo</dd>
+      <dt><kbd>Enter</kbd> / <kbd>F2</kbd> / escribir</dt><dd>Editar la celda · <kbd>Esc</kbd> cancela · <kbd>Tab</kbd> pasa a la siguiente</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd></dt><dd>Copiar / pegar (también desde y hacia Excel)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>Rellenar hacia abajo · <kbd>Supr</kbd>: vaciar</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>+</kbd></dt><dd>Insertar una fila debajo (misma fecha)</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></dt><dd>Duplicar las filas marcadas</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>−</kbd></dt><dd>Eliminar las filas marcadas</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Y</kbd></dt><dd>Deshacer / rehacer</dd>
+      <dt>Clic derecho</dt><dd>Menú con insertar, duplicar, eliminar y «filtrar por este valor»</dd>
+    </dl>
   </div>
 
   <!-- listas para autocompletar (se llenan por JS) -->

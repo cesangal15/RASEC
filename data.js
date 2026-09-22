@@ -149,6 +149,7 @@ function aplicarModelo(d){
   FILAS=(d.filas||[]).map(function(r){ const o=Object.assign({},r); o._key=r.id_registro; o._orig=Object.assign({},r); o._alta=false; o._baja=false; return o; });
   act=anc=editando=null; undoStack=[]; redoStack=[]; actualizarUndoBtns();
   if(document.getElementById('desde').value!==d.desde){ document.getElementById('desde').value=d.desde; document.getElementById('hasta').value=d.hasta; }
+  pintarRapidos();
   llenarFiltros();
   pintarCab(); pintar();
   ['btnAlta','btnFill','btnUndo','btnRedo','btnGuardar'].forEach(function(id){ const b=document.getElementById(id); if(b) b.style.display=PUEDE_EDITAR?'inline-block':'none'; });
@@ -195,38 +196,109 @@ function setAlto(v){
   const s=document.getElementById('fAlto'); if(s) s.value=v;
   try{ localStorage.setItem('tm2_data_alto', v); }catch(e){}
 }
-/* ---------- filtros de la vista (acta, grupo, capítulo, UF, actividad) ---------- */
+/* ---------- filtros de la vista (acta, grupo, capítulo, UF, actividad) ----------
+ * D196: SELECCIÓN MÚLTIPLE. Cada filtro es un botón que abre una lista con casillas (p. ej. actas 23 y 24 a la vez).
+ * Se combinan entre sí (Y) y dentro de uno se suman (O). Cada lista muestra solo los valores que quedan con los
+ * DEMÁS filtros aplicados y cuántas filas tiene cada uno (como el autofiltro de Excel). Sin nada marcado = todos.
+ * Las filas nuevas sin guardar se ven siempre, aunque el filtro no las incluya (si no, desaparecerían al crearlas). */
 const FILTROS=[
-  { id:'fActa',  k:'acta',             num:true },
-  { id:'fGrupo', k:'grupo' },
-  { id:'fCap',   k:'capitulo' },
-  { id:'fUf',    k:'unidad_funcional' },
-  { id:'fAct',   k:'descripcion' },
+  { id:'fActa',  k:'acta',             t:'Acta',      todas:'Todas', num:true },
+  { id:'fGrupo', k:'grupo',            t:'Grupo',     todas:'Todos' },
+  { id:'fCap',   k:'capitulo',         t:'Capítulo',  todas:'Todos' },
+  { id:'fUf',    k:'unidad_funcional', t:'UF',        todas:'Todas' },
+  { id:'fAct',   k:'descripcion',      t:'Actividad', todas:'Todas' },
 ];
-// Rellena cada selector con los valores presentes en el rango cargado (conserva la selección si sigue existiendo).
-function llenarFiltros(){
+const FSEL={}; FILTROS.forEach(function(f){ FSEL[f.id]=new Set(); });
+let msAbierto=null;                                  // id del filtro con la lista abierta
+function valCampo(r,k){ return String(r[k]==null?'':r[k]).trim(); }
+function pasaFiltros(r, salvo){
+  return FILTROS.every(function(f){ return f.id===salvo || !FSEL[f.id].size || FSEL[f.id].has(valCampo(r,f.k)); });
+}
+function ordenarVals(f, arr){ return arr.sort(f.num ? function(a,b){ return (Number(a)||0)-(Number(b)||0); } : function(a,b){ return a.localeCompare(b,'es'); }); }
+// Valores de un filtro con los OTROS aplicados, con su número de filas; lo ya marcado se conserva aunque quede en 0.
+function valoresFiltro(f){
+  const cnt={};
+  FILAS.forEach(function(r){ if(r._baja || !pasaFiltros(r, f.id)) return; const v=valCampo(r,f.k); if(v) cnt[v]=(cnt[v]||0)+1; });
+  FSEL[f.id].forEach(function(v){ if(!(v in cnt)) cnt[v]=0; });
+  return ordenarVals(f, Object.keys(cnt)).map(function(v){ return { v:v, n:cnt[v] }; });
+}
+function etiquetaFiltro(f){
+  const sel=ordenarVals(f, Array.from(FSEL[f.id]));
+  if(!sel.length) return f.todas;
+  if(sel.length===1) return sel[0];
+  const corto=sel.join(', ');
+  return (corto.length<=18) ? corto : (sel.length+' elegidos');
+}
+function montarFiltros(){
   FILTROS.forEach(function(f){
-    const sel=document.getElementById(f.id); if(!sel) return;
-    const prev=sel.value, todas=sel.options.length?sel.options[0].textContent:'Todas';
-    const set={};
-    FILAS.forEach(function(r){ if(r._baja) return; const v=String(r[f.k]==null?'':r[f.k]).trim(); if(v) set[v]=true; });
-    let arr=Object.keys(set);
-    arr.sort(f.num ? function(a,b){ return (Number(a)||0)-(Number(b)||0); } : function(a,b){ return a.localeCompare(b,'es'); });
-    sel.innerHTML='<option value="">'+esc(todas)+'</option>'+arr.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
-    sel.value = (arr.indexOf(prev)>=0) ? prev : '';
+    const box=document.getElementById(f.id); if(!box) return;
+    box.innerHTML='<button type="button" class="ms-btn" aria-haspopup="listbox"><span class="t">'+esc(f.t)+'</span><span class="v"></span></button><div class="ms-pop" hidden></div>';
+    box.querySelector('.ms-btn').addEventListener('click', function(ev){ ev.stopPropagation(); if(msAbierto===f.id) cerrarFiltro(); else abrirFiltro(f.id); });
+    const pop=box.querySelector('.ms-pop');
+    pop.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    pop.addEventListener('change', function(ev){
+      const cb=ev.target; if(!cb || cb.type!=='checkbox') return;
+      if(cb.checked) FSEL[f.id].add(cb.value); else FSEL[f.id].delete(cb.value);
+      pintar();
+    });
+  });
+  document.addEventListener('click', function(){ cerrarFiltro(); });
+  document.addEventListener('keydown', function(ev){ if(ev.key==='Escape' && msAbierto){ cerrarFiltro(); } });
+  pintarEtiquetasFiltros();
+}
+function pintarEtiquetasFiltros(){
+  FILTROS.forEach(function(f){
+    const box=document.getElementById(f.id); if(!box) return; const v=box.querySelector('.ms-btn .v'); if(!v) return;
+    v.textContent=etiquetaFiltro(f);
+    box.querySelector('.ms-btn').title=f.t+': '+(FSEL[f.id].size ? ordenarVals(f,Array.from(FSEL[f.id])).join(' · ') : f.todas);
+    box.classList.toggle('activo', FSEL[f.id].size>0);
   });
 }
-function limpiarFiltros(){
-  FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el) el.value=''; });
-  const q=document.getElementById('q'); if(q) q.value='';
-  pintar();
+function abrirFiltro(id){
+  cerrarFiltro(); cerrarMenu();
+  const f=FILTROS.filter(function(x){ return x.id===id; })[0], box=document.getElementById(id); if(!f||!box) return;
+  const pop=box.querySelector('.ms-pop'); msAbierto=id;
+  const vals=valoresFiltro(f);
+  let h='';
+  if(vals.length>7) h+='<input type="text" class="ms-q" placeholder="Buscar…" aria-label="Buscar en '+esc(f.t)+'">';
+  h+='<div class="ms-acc"><button type="button" data-a="todo">Marcar todo</button><button type="button" data-a="nada">Quitar filtro</button></div><div class="ms-lista">';
+  vals.forEach(function(o){
+    h+='<label class="ms-op'+(o.n?'':' cero')+'"><input type="checkbox" value="'+esc(o.v)+'"'+(FSEL[id].has(o.v)?' checked':'')+'><span class="txt">'+esc(o.v)+'</span><em>'+o.n+'</em><button type="button" class="solo" data-solo="'+esc(o.v)+'" title="Solo este">solo</button></label>';
+  });
+  if(!vals.length) h+='<div class="ms-vacio">Sin valores en el rango.</div>';
+  pop.innerHTML=h+'</div>'; pop.hidden=false; box.classList.add('abierto');
+  const q=pop.querySelector('.ms-q');
+  if(q){ q.addEventListener('input', function(){ const t=normNom(q.value); pop.querySelectorAll('.ms-op').forEach(function(l){ l.hidden = !!t && normNom(l.querySelector('.txt').textContent).indexOf(t)<0; }); }); setTimeout(function(){ q.focus(); },0); }
+  pop.querySelectorAll('.ms-acc button').forEach(function(b){ b.addEventListener('click', function(){
+    if(b.dataset.a==='nada'){ FSEL[id].clear(); pop.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked=false; }); }
+    else { pop.querySelectorAll('.ms-op:not([hidden]) input[type=checkbox]').forEach(function(cb){ cb.checked=true; FSEL[id].add(cb.value); }); }
+    pintar();
+  }); });
+  pop.querySelectorAll('button.solo').forEach(function(b){ b.addEventListener('click', function(ev){
+    ev.preventDefault(); FSEL[id].clear(); FSEL[id].add(b.dataset.solo);
+    pop.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked=(cb.value===b.dataset.solo); }); pintar();
+  }); });
 }
+function cerrarFiltro(){
+  if(!msAbierto) return; const box=document.getElementById(msAbierto); msAbierto=null;
+  if(box){ const pop=box.querySelector('.ms-pop'); if(pop){ pop.hidden=true; pop.innerHTML=''; } box.classList.remove('abierto'); }
+}
+// Tras cargar: descarta lo marcado que ya no existe en el rango (un acta que salió del rango, p. ej.).
+function llenarFiltros(){
+  FILTROS.forEach(function(f){
+    const hay={}; FILAS.forEach(function(r){ if(!r._baja) hay[valCampo(r,f.k)]=true; });
+    Array.from(FSEL[f.id]).forEach(function(v){ if(!hay[v]) FSEL[f.id].delete(v); });
+  });
+  pintarEtiquetasFiltros();
+}
+function quitarFiltros(){ FILTROS.forEach(function(f){ FSEL[f.id].clear(); }); const q=document.getElementById('q'); if(q) q.value=''; }
+function limpiarFiltros(){ quitarFiltros(); cerrarFiltro(); pintar(); }
+// «Filtrar por este valor» (clic derecho): deja ese filtro SOLO con el valor de la celda.
+function filtrarPorValor(k, v){ const f=FILTROS.filter(function(x){ return x.k===k; })[0]; if(!f) return; FSEL[f.id].clear(); if(v) FSEL[f.id].add(v); pintar(); }
 function filasVisibles(){
   const q=normNom(document.getElementById('q').value);
-  const fx=FILTROS.map(function(f){ const el=document.getElementById(f.id); return { k:f.k, v: el?el.value:'' }; }).filter(function(x){ return x.v!==''; });
-  let vis=FILAS.filter(function(r){ return !r._baja; });
-  fx.forEach(function(x){ vis=vis.filter(function(r){ return String(r[x.k]==null?'':r[x.k]).trim()===x.v; }); });
-  if(q) vis=vis.filter(function(r){ return COLS.some(function(c){ return normNom(r[c.k]).indexOf(q)>=0; }); });
+  let vis=FILAS.filter(function(r){ return !r._baja && (r._alta || pasaFiltros(r, null)); });
+  if(q) vis=vis.filter(function(r){ return r._alta || COLS.some(function(c){ return normNom(r[c.k]).indexOf(q)>=0; }); });
   if(ordCol>=0 && COLS[ordCol]){
     const c=COLS[ordCol], k=c.k, esNum=(c.tipo==='num');
     vis=vis.slice().sort(function(a,b){
@@ -236,8 +308,6 @@ function filasVisibles(){
   }
   return vis;
 }
-// Números con el MISMO formato en todas las columnas (es-CO: 1.247,92). Solo es la vista: editar, copiar y
-// guardar usan el valor crudo. Cantidad a 2 decimales (como siempre); el resto conserva hasta 3.
 function disp(r, c){
   const v=r[c.k]; if(v===''||v==null) return '';
   if(c.tipo==='num'){ if(c.k==='cantidad') return fmt(v); const n=num(v); if(n!=null) return n.toLocaleString('es-CO',{maximumFractionDigits:3}); }
@@ -265,8 +335,7 @@ function pintar(){
   cuerpo.innerHTML = VIS.length ? VIS.map(filaHTML).join('') : '<tr><td class="vacio" colspan="'+(COLS.length+2)+'">Sin filas en el rango.</td></tr>';
   if(act && act.r>=VIS.length) act=anc=null;
   pintarKPIs(); aplicaSel();
-  // Resalta los filtros que están aplicados (para no olvidar que la vista está recortada).
-  FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el && el.parentNode) el.parentNode.classList.toggle('activo', el.value!==''); });
+  pintarEtiquetasFiltros();   // resalta los filtros aplicados (para no olvidar que la vista está recortada)
 }
 
 /* ---------- selección / navegación (modo hoja de cálculo) ---------- */
@@ -474,21 +543,44 @@ function montarEventos(){
   cab.addEventListener('click', function(ev){ if(ev.target.closest && ev.target.closest('.rz')) ev.stopPropagation(); }); // el clic en la agarradera no ordena
   wrap.addEventListener('keydown', function(ev){
     if(editando) return;
-    if(!act){ if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(ev.key)>=0){ setActiva(0,0,false); ev.preventDefault(); } return; }
-    const k=ev.key, ctrl=ev.ctrlKey||ev.metaKey;
+    const k=ev.key, ctrl=ev.ctrlKey||ev.metaKey, sh=ev.shiftKey;
+    const FLECHA={ ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1] };
+    if(!act){ if(FLECHA[k]){ setActiva(0,0,false,true); ev.preventDefault(); } return; }
+    const maxR=VIS.length-1, maxC=COLS.length-1;
     if(ctrl && (k==='c'||k==='C')){ return; }        // lo maneja el evento 'copy'
     if(ctrl && (k==='v'||k==='V')){ return; }         // lo maneja el evento 'paste'
+    // D196: filas como en Excel — Ctrl + «+» inserta debajo, Ctrl + «−» elimina las marcadas, Ctrl+Shift+D duplica.
+    if(ctrl && sh && (k==='d'||k==='D')){ ev.preventDefault(); duplicarFilas(); return; }
     if(ctrl && (k==='d'||k==='D')){ ev.preventDefault(); rellenar(); return; }
-    if(k==='ArrowUp'){ ev.preventDefault(); mover(-1,0,ev.shiftKey); }
-    else if(k==='ArrowDown'){ ev.preventDefault(); mover(1,0,ev.shiftKey); }
-    else if(k==='ArrowLeft'){ ev.preventDefault(); mover(0,-1,ev.shiftKey); }
-    else if(k==='ArrowRight'){ ev.preventDefault(); mover(0,1,ev.shiftKey); }
-    else if(k==='Tab'){ ev.preventDefault(); mover(0, ev.shiftKey?-1:1, false); }
+    if(ctrl && (k==='+'||k==='=')){ ev.preventDefault(); insertarFila(false); return; }
+    if(ctrl && (k==='-'||k==='_')){ ev.preventDefault(); eliminarFilas(); return; }
+    if(ctrl && (k==='a'||k==='A')){ ev.preventDefault(); marcar(0,0,maxR,maxC); return; }
+    if(k===' ' && sh && !ctrl){ ev.preventDefault(); marcar(anc?anc.r:act.r, 0, act.r, maxC); return; }   // fila(s) entera(s)
+    if(k===' ' && ctrl){ ev.preventDefault(); marcar(0, anc?anc.c:act.c, maxR, act.c); return; }          // columna(s) entera(s)
+    if(FLECHA[k]){ ev.preventDefault(); const d=FLECHA[k]; if(ctrl) saltar(d[0],d[1],sh); else mover(d[0],d[1],sh); return; }
+    if(k==='Home'){ ev.preventDefault(); setActiva(ctrl?0:act.r, 0, sh, true); return; }
+    if(k==='End'){ ev.preventDefault(); setActiva(ctrl?maxR:act.r, maxC, sh, true); return; }
+    if(k==='PageDown'||k==='PageUp'){ ev.preventDefault(); const n=filasPorPagina(); mover(k==='PageDown'?n:-n, 0, sh); return; }
+    if(k==='Tab'){ ev.preventDefault(); mover(0, sh?-1:1, false); }
     else if(k==='Enter'){ ev.preventDefault(); beginEdit(act.r,act.c); }
     else if(k==='F2'){ ev.preventDefault(); beginEdit(act.r,act.c); }
     else if(k==='Delete'||k==='Backspace'){ ev.preventDefault(); borrarSeleccion(); }
+    else if(k==='ContextMenu'){ ev.preventDefault(); const td=tdDe(act.r,act.c); const b=td?td.getBoundingClientRect():{left:40,bottom:40}; abrirMenu(b.left+10, b.bottom); }
     else if(k.length===1 && !ctrl && !ev.altKey){ ev.preventDefault(); beginEdit(act.r,act.c,k); }
   });
+  // D196: clic derecho → menú propio (si la celda no está en la selección, primero la selecciona, como Excel).
+  cuerpo.addEventListener('contextmenu', function(ev){
+    const td=ev.target.closest && ev.target.closest('td.cell'); if(!td) return;
+    ev.preventDefault();
+    if(editando) commitEdit(0,0);
+    const r=+td.dataset.r, c=+td.dataset.c, rc=rango();
+    if(!(rc && r>=rc.r0 && r<=rc.r1 && c>=rc.c0 && c<=rc.c1)) setActiva(r,c,false,false);
+    if(wrap) wrap.focus({preventScroll:true});
+    abrirMenu(ev.clientX, ev.clientY, {r:r,c:c});   // dentro de la selección: se conserva tal cual
+  });
+  document.addEventListener('mousedown', function(ev){ const m=document.getElementById('menuCtx'); if(m && !m.hidden && !m.contains(ev.target)) cerrarMenu(); });
+  document.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ cerrarMenu(); const at=document.getElementById('atajos'); if(at) at.hidden=true; } });
+  wrap.addEventListener('scroll', cerrarMenu);
   document.addEventListener('copy', function(ev){ if(editando) return; if(!enGrid()) return; const t=tsvSeleccion(); if(t==null) return; ev.preventDefault(); ev.clipboardData.setData('text/plain', t); });
   document.addEventListener('paste', function(ev){ if(editando || !PUEDE_EDITAR) return; if(!enGrid()) return; const t=(ev.clipboardData||window.clipboardData).getData('text'); if(!t) return; ev.preventDefault(); pegar(t); });
   document.addEventListener('keydown', function(ev){
@@ -552,28 +644,129 @@ function pintarKPIs(){
 function esDirty(r){ if(r._alta||r._baja) return true; return COLS.some(function(c){ return c.k!=='clima' && String(r[c.k]==null?'':r[c.k])!==String(r._orig[c.k]==null?'':r._orig[c.k]); }); }
 function pendiente(r){ return esDirty(r) || climaDe(r)!==climaDe(r._orig); }
 
-/* ---------- alta / baja ---------- */
+/* ---------- alta / baja ----------
+ * D196: las filas se insertan DEBAJO de la celda activa y heredan su fecha (y el clima de ese día), como insertar
+ * fila en Excel; sin celda activa van arriba del todo. Duplicar copia las filas marcadas debajo de la última.
+ * Eliminar actúa sobre TODAS las filas marcadas (una confirmación). Todo es un solo paso de deshacer. */
 function filaPorKey(k){ return FILAS.filter(function(r){ return String(r._key)===String(k); })[0]||null; }
-function altaFila(){
-  pushUndo();
-  const desde=document.getElementById('desde').value||hoyBogota();
-  // orden/proyecto/liberacion: ocultos desde D182 (los dos primeros los deriva el catálogo; liberación
-  // sigue naciendo 'CAMPO' como en el Excel). El clima es el de su día, si alguna fila de esa fecha lo tiene.
-  // D184: nace con ESPESOR 1 y el FC de su actividad (aún sin descripción → 1; al elegirla toma el suyo).
-  const r={ _key:'nuevo-'+(++tempSeq), id_registro:'', version:0, fecha:desde, orden:'', grupo:'', centro_de_costo:'', capitulo:'',
-    descripcion:'', unidad_funcional:'', proyecto:'', elemento:'', abs_inicial:'', abs_final:'', liberacion:'CAMPO', acta:actaDe(desde),
-    unidad_medida:'', largo:'', espesor:1, fc:fcDe(''), cantidad:'', clima:climaDelDia(desde), observacion:'', editado_por:'', editado_ts:'', _alta:true, _baja:false, _orig:{} };
-  FILAS.unshift(r); ordCol=-1;
-  document.getElementById('q').value='';                          // limpia filtros para que la fila nueva se vea
-  FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el) el.value=''; });
-  pintar(); actualizarDirty(); setActiva(0,0,false); beginEdit(0, COLS.findIndex(function(c){return c.k==='descripcion';}));
+function fechaPorDefecto(){
+  const h=hoyBogota(), d=document.getElementById('desde').value, a=document.getElementById('hasta').value||d;
+  return (d && h>=d && h<=a) ? h : (d||h);
 }
-function bajaFila(key){
-  const r=filaPorKey(key); if(!r) return;
-  if(r._alta){ pushUndo(); FILAS=FILAS.filter(function(x){ return x._key!==key; }); }
-  else { if(!confirm('¿Eliminar esta fila de DATA ('+(r.descripcion||r.id_registro)+')?')) return; pushUndo(); r._baja=true; }
+// orden/proyecto/liberacion: ocultos desde D182 (los dos primeros los deriva el catálogo; liberación
+// sigue naciendo 'CAMPO' como en el Excel). El clima es el de su día, si alguna fila de esa fecha lo tiene.
+// D184: nace con ESPESOR 1 y el FC de su actividad (aún sin descripción → 1; al elegirla toma el suyo).
+function filaNueva(fecha){
+  return { _key:'nuevo-'+(++tempSeq), id_registro:'', version:0, fecha:fecha, orden:'', grupo:'', centro_de_costo:'', capitulo:'',
+    descripcion:'', unidad_funcional:'', proyecto:'', elemento:'', abs_inicial:'', abs_final:'', liberacion:'CAMPO', acta:actaDe(fecha),
+    unidad_medida:'', largo:'', espesor:1, fc:fcDe(''), cantidad:'', clima:climaDelDia(fecha), observacion:'', editado_por:'', editado_ts:'', _alta:true, _baja:false, _orig:{} };
+}
+function filasMarcadas(){ const rc=rango(); if(!rc) return []; const out=[]; for(let r=rc.r0;r<=rc.r1;r++) if(VIS[r]) out.push(VIS[r]); return out; }
+// Coloca `nuevas` en FILAS después de `ref` (o al principio) y deja la vista en orden natural para que se vean juntas.
+function colocarNuevas(nuevas, ref, colFoco, editar){
+  const i=ref ? FILAS.indexOf(ref) : -1;
+  Array.prototype.splice.apply(FILAS, [i+1, 0].concat(nuevas));
+  if(ordCol>=0){ ordCol=-1; pintarCab(); }
   pintar(); actualizarDirty();
+  const r0=VIS.indexOf(nuevas[0]), c=Math.max(0, colFoco);
+  if(r0<0) return;
+  setActiva(r0, c, false, true);
+  if(nuevas.length>1) marcar(r0, 0, r0+nuevas.length-1, COLS.length-1);   // deja marcadas las filas duplicadas
+  if(editar) beginEdit(r0, c);
 }
+function colDe(k){ return COLS.findIndex(function(c){ return c.k===k; }); }
+function insertarFila(editar){
+  if(!PUEDE_EDITAR) return; if(editando) commitEdit(0,0);
+  const rc=rango(), ref=rc ? VIS[rc.r1] : null;
+  pushUndo();
+  const r=filaNueva(ref && ref.fecha ? ref.fecha : fechaPorDefecto());
+  colocarNuevas([r], ref, colDe('descripcion'), editar);
+  if(!ref){ const w=document.getElementById('wrap'); if(w) w.scrollTop=0; }
+}
+function altaFila(){ insertarFila(true); }     // botón «＋ Fila»: inserta y abre la descripción para escribir
+function duplicarFilas(){
+  if(!PUEDE_EDITAR) return; if(editando) commitEdit(0,0);
+  const sel=filasMarcadas(); if(!sel.length){ toast('Marca la fila o filas a duplicar.', true); return; }
+  pushUndo();
+  const nuevas=sel.map(function(src){
+    const r=filaNueva(src.fecha);
+    COLS.forEach(function(c){ if(c.k!=='fecha') r[c.k]=src[c.k]; });
+    ['orden','proyecto','liberacion'].forEach(function(k){ r[k]=src[k]; });
+    r.clima=climaDelDia(src.fecha, null) || src.clima || '';
+    return r;
+  });
+  colocarNuevas(nuevas, sel[sel.length-1], act ? act.c : 0, false);
+  toast(nuevas.length===1 ? 'Fila duplicada debajo.' : ('Duplicadas '+nuevas.length+' filas debajo.'));
+}
+function eliminarFilas(lista){
+  if(!PUEDE_EDITAR) return; if(editando) commitEdit(0,0);
+  const sel=lista || filasMarcadas(); if(!sel.length){ toast('Marca la fila o filas a eliminar.', true); return; }
+  const guardadas=sel.filter(function(r){ return !r._alta; });
+  if(guardadas.length){
+    const q = guardadas.length===1 ? '¿Eliminar esta fila de DATA ('+(guardadas[0].descripcion||guardadas[0].id_registro)+')?' : '¿Eliminar '+guardadas.length+' filas de DATA?';
+    if(!confirm(q+'\nSe borran al pulsar Guardar; hasta entonces puedes deshacer con Ctrl+Z.')) return;
+  }
+  pushUndo();
+  const quitar=new Set(sel.filter(function(r){ return r._alta; }));
+  FILAS=FILAS.filter(function(r){ return !quitar.has(r); });
+  guardadas.forEach(function(r){ r._baja=true; });
+  const r0=act ? Math.min(act.r, anc ? anc.r : act.r) : 0, c0=act ? act.c : 0;
+  act=anc=null; pintar(); actualizarDirty();
+  if(VIS.length) setActiva(Math.min(r0, VIS.length-1), c0, false, false);
+  toast(sel.length===1 ? 'Fila eliminada (Ctrl+Z para deshacer).' : ('Eliminadas '+sel.length+' filas (Ctrl+Z para deshacer).'));
+}
+function bajaFila(key){ const r=filaPorKey(key); if(r) eliminarFilas([r]); }
+
+/* ---------- menú del clic derecho (D196) ---------- */
+function cerrarMenu(){ const m=document.getElementById('menuCtx'); if(m && !m.hidden){ m.hidden=true; m.innerHTML=''; } }
+function abrirMenu(x, y, cel){
+  const m=document.getElementById('menuCtx'); if(!m || !act) return;
+  cerrarFiltro(); cel=cel||act;
+  const rc=rango(), n=rc ? rc.r1-rc.r0+1 : 1, col=COLS[cel.c], row=VIS[cel.r];
+  const filas = n===1 ? 'fila' : (n+' filas');
+  const items=[];
+  if(PUEDE_EDITAR){
+    items.push(['ins','Insertar fila debajo','Ctrl + +']);
+    items.push(['dup','Duplicar '+filas,'Ctrl+Shift+D']);
+    items.push(['del','Eliminar '+filas,'Ctrl + −']);
+    items.push(null);
+  }
+  items.push(['copy','Copiar','Ctrl+C']);
+  if(PUEDE_EDITAR){ items.push(['fill','Rellenar hacia abajo','Ctrl+D']); items.push(['clear','Vaciar celdas','Supr']); }
+  const f=FILTROS.filter(function(x){ return col && x.k===col.k; })[0], v=row && col ? valCampo(row, col.k) : '';
+  if(f && v){ items.push(null); items.push(['filt','Filtrar por «'+(v.length>28?v.slice(0,27)+'…':v)+'»','']); }
+  if(Object.keys(FSEL).some(function(k){ return FSEL[k].size; })) items.push(['nofilt','Quitar todos los filtros','']);
+  m.innerHTML=items.map(function(it){ return it ? '<button type="button" role="menuitem" data-a="'+it[0]+'"'+(it[0]==='del'?' class="peligro"':'')+'><span>'+esc(it[1])+'</span><kbd>'+esc(it[2])+'</kbd></button>' : '<hr>'; }).join('');
+  m.hidden=false;
+  const W=window.innerWidth, H=window.innerHeight, bw=m.offsetWidth, bh=m.offsetHeight;
+  m.style.left=Math.max(4, Math.min(x, W-bw-6))+'px'; m.style.top=Math.max(4, Math.min(y, H-bh-6))+'px';
+  m.onclick=function(ev){
+    const b=ev.target.closest && ev.target.closest('button[data-a]'); if(!b) return; const a=b.dataset.a; cerrarMenu();
+    if(a==='ins') insertarFila(false); else if(a==='dup') duplicarFilas(); else if(a==='del') eliminarFilas();
+    else if(a==='copy') copiarSel(null); else if(a==='fill') rellenar(); else if(a==='clear') borrarSeleccion();
+    else if(a==='filt') filtrarPorValor(col.k, v); else if(a==='nofilt') limpiarFiltros();
+    const w=document.getElementById('wrap'); if(w && !editando) w.focus({preventScroll:true});
+  };
+}
+function verAtajos(){ const a=document.getElementById('atajos'); if(a) a.hidden=!a.hidden; }
+
+/* ---------- navegación tipo Excel (D196) ---------- */
+function vaciaCel(r,c){ const row=VIS[r]; return !row || valCampo(row, COLS[c].k)===''; }
+// Ctrl+flecha: si la celda y la siguiente tienen dato, va a la última con dato antes de un hueco; si no, a la
+// siguiente con dato; sin ninguna, al borde. Con Shift extiende la selección desde el ancla (igual que Excel).
+function saltar(dr, dc, extender){
+  if(!act){ setActiva(0,0,false,true); return; }
+  const maxR=VIS.length-1, maxC=COLS.length-1;
+  const dentro=function(r,c){ return r>=0 && r<=maxR && c>=0 && c<=maxC; };
+  let r=act.r, c=act.c;
+  if(dentro(r+dr, c+dc)){
+    if(!vaciaCel(r,c) && !vaciaCel(r+dr,c+dc)){ while(dentro(r+dr,c+dc) && !vaciaCel(r+dr,c+dc)){ r+=dr; c+=dc; } }
+    else { r+=dr; c+=dc; while(dentro(r+dr,c+dc) && vaciaCel(r,c)){ r+=dr; c+=dc; } }
+  }
+  setActiva(r, c, extender, true);
+}
+function filasPorPagina(){ const w=document.getElementById('wrap'), td=document.querySelector('#cuerpo td.cell'); return Math.max(5, Math.floor(((w&&w.clientHeight)||500)/((td&&td.offsetHeight)||23))-2); }
+function marcar(r0, c0, r1, c1){ anc={r:r0,c:c0}; act={r:r1,c:c1}; aplicaSel(); }
 
 /* ---------- guardar ---------- */
 // D182: orden/proyecto/liberacion ya no se ven, pero viajan tal como llegaron (o como los derivó el catálogo).
@@ -616,8 +809,43 @@ async function guardar(btn){
   toast((d&&d.error)||'No se guardó.', true);
 }
 
+/* ---------- rangos rápidos de fechas (D196, pantalla suelta; en el Hub los pone su barra) ---------- */
+function isoMenos(iso, n){ const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10); }
+function actaNum(hasta){ const y=+hasta.slice(0,4), m=+hasta.slice(5,7); return (y-2025)*12+m+2; }   // hasta = el 15 de cierre
+function rangosRapidos(){
+  const h=hoyBogota(), p=periodoDeHoy(), finAnt=isoMenos(p.desde,1);
+  const md=new Date(finAnt+'T12:00:00Z'); md.setUTCMonth(md.getUTCMonth()-1);          // el 15 del mes anterior
+  const ant={ desde:md.toISOString().slice(0,8)+'16', hasta:finAnt };                   // acta anterior: 16 → 15
+  const dow=(new Date(h+'T12:00:00Z').getUTCDay()+6)%7;
+  return [
+    { id:'hoy',  t:'Hoy',          desde:h,              hasta:h },
+    { id:'ayer', t:'Ayer',         desde:isoMenos(h,1),  hasta:isoMenos(h,1) },
+    { id:'sem',  t:'Esta semana',  desde:isoMenos(h,dow),hasta:h },
+    { id:'7d',   t:'7 días',       desde:isoMenos(h,6),  hasta:h },
+    { id:'acta', t:'Acta '+actaNum(p.hasta),   desde:p.desde,   hasta:p.hasta },
+    { id:'ant',  t:'Acta '+actaNum(ant.hasta), desde:ant.desde, hasta:ant.hasta },
+  ];
+}
+function pintarRapidos(){
+  const box=document.getElementById('rapidos'); if(!box) return;
+  const d=document.getElementById('desde').value, a=document.getElementById('hasta').value||d;
+  box.innerHTML=rangosRapidos().map(function(x){ return '<button type="button" class="chip'+(x.desde===d&&x.hasta===a?' on':'')+'" data-d="'+x.desde+'" data-h="'+x.hasta+'" title="'+x.desde+' → '+x.hasta+'">'+esc(x.t)+'</button>'; }).join('');
+}
+function montarRapidos(){
+  const box=document.getElementById('rapidos'); if(!box) return;
+  box.addEventListener('click', function(ev){
+    const b=ev.target.closest && ev.target.closest('button[data-d]'); if(!b) return;
+    if(dirtyCambios().length && !confirm('Hay cambios sin guardar. ¿Descartarlos y cargar otro rango?')) return;
+    document.getElementById('desde').value=b.dataset.d; document.getElementById('hasta').value=b.dataset.h; pintarRapidos(); cargar(b.dataset.d, b.dataset.h);
+  });
+  ['desde','hasta'].forEach(function(id){ const el=document.getElementById(id); if(el) el.addEventListener('change', pintarRapidos); });
+  // Cambiar «desde» a una fecha posterior a «hasta» arrastra «hasta» (sin rangos al revés).
+  const de=document.getElementById('desde'), ha=document.getElementById('hasta');
+  if(de && ha) de.addEventListener('change', function(){ if(ha.value && de.value>ha.value) ha.value=de.value; pintarRapidos(); });
+}
+
 /* ---------- arranque ---------- */
-montarEventos();
+montarEventos(); montarFiltros(); montarRapidos();
 try{ setAlto(localStorage.getItem('tm2_data_alto')||'compacto'); }catch(e){ setAlto('compacto'); }
 (function(){
   let desde, hasta; try{ const u=new URLSearchParams(location.search); desde=u.get('desde'); hasta=u.get('hasta'); }catch(e){}
