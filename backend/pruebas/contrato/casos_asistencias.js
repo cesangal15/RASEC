@@ -144,6 +144,51 @@ module.exports = [
       const p = await api.asistencias.get({ action: 'personal', token: tok });
       t.ok('personal la lista una vez, activa, en ANGEL', p.personal.filter(x => x.codigo === '99001').length === 1 && p.personal.find(x => x.codigo === '99001').cuadrilla === 'ANGEL', p.personal.map(x => x.codigo)); } },
 
+  // D202 — op 'editar' solo existe en el Worker (el .gs quedó en el corte de D180): en vm se omite.
+  { id: 'asis.personal.editar', modulo: 'asistencias', escribe: true, nombre: 'POST personal editar (D202): corrige código/cargo; con propagar_desde también las asistencias ya reportadas; sin él, no; código de otra persona activa → rechazo',
+    async run(api, t){ if (api.modo === 'vm') t.omitir('op editar solo existe en el Worker (D202)');
+      const tok = await api.sesion('admin');
+      const ro = await api.asistencias.get({ action: 'roster', fecha: api.hoy, token: tok });
+      if (!ro.ok || !ro.cuadrillas.length) t.omitir('el usuario no tiene cuadrillas en roster');
+      const cuadrilla = ro.cuadrillas[0];
+      const a = await api.asistencias.post({ token: tok, action: 'personal', op: 'alta', codigo: '99101', cedula: '', nombre: 'EDITAR CONTRATO', cargo: 'AYUDANTE', cuadrilla, fecha_ingreso: '2020-01-01' });
+      t.ok('alta ok', a.ok === true, a);
+      const leerPersona = async () => (await api.asistencias.get({ action: 'personal', token: tok })).personal;
+      let lista = await leerPersona();
+      const yo = lista.find(x => x.codigo === '99101' && x.estado === 'activo');
+      if (!yo) { t.ok('la persona dada de alta aparece en personal', false, lista.length); return; }
+      const fila = { codigo: '99101', cedula: '', nombre: 'EDITAR CONTRATO', cargo: 'AYUDANTE', cuadrilla, cc: '3701.02.05| EXCAVACION', proyecto: '3701', hora_entrada: '07:00', hora_salida: '15:30', presente: 'Si', motivo_ausencia: '', observacion: 'fila del arnés (D202)', turno: '1' };
+      const g = await api.asistencias.post({ token: tok, action: 'reporte_asistencia', fecha: api.FECHA_BANCO, cuadrilla, reporta: 'admin', nota: '', filas: [fila] });
+      t.ok('reporte del día guardado con el código viejo', g.ok === true && g.filas === 1, g);
+      const leerDia = async () => { const d = await api.asistencias.get({ action: 'asistencia', fecha: api.FECHA_BANCO, token: tok });
+        const ix = k => d.filas.cols.indexOf(k);
+        return d.filas.datos.filter(r => r[ix('nombre')] === 'EDITAR CONTRATO').map(r => ({ codigo: r[ix('codigo')], cargo: r[ix('cargo')] })); };
+
+      const e1 = await api.asistencias.post({ token: tok, action: 'personal', op: 'editar', _row: yo._row, codigo: '99102', cedula: '', nombre: 'EDITAR CONTRATO', cargo: 'OFICIAL', propagar_desde: api.FECHA_BANCO });
+      t.ok('editar con propagar_desde → ok, 1 asistencia corregida, cambios codigo+cargo', e1.ok === true && e1.asistencias_actualizadas === 1 && e1.cambios.join() === 'codigo,cargo', e1);
+      let dia = await leerDia();
+      t.ok('la asistencia ya reportada quedó con 99102 / OFICIAL', dia.length === 1 && dia[0].codigo === '99102' && dia[0].cargo === 'OFICIAL', dia);
+      lista = await leerPersona();
+      t.ok('personal: misma fila (_row) con 99102 / OFICIAL', lista.some(x => x._row === yo._row && x.codigo === '99102' && x.cargo === 'OFICIAL'), lista.filter(x => x._row === yo._row));
+
+      const e2 = await api.asistencias.post({ token: tok, action: 'personal', op: 'editar', _row: yo._row, codigo: '99102', cedula: '', nombre: 'EDITAR CONTRATO', cargo: 'CAPATAZ' });
+      t.ok('editar sin propagar_desde → ok, 0 asistencias', e2.ok === true && e2.asistencias_actualizadas === 0, e2);
+      dia = await leerDia();
+      t.ok('…y lo ya reportado conserva OFICIAL', dia.length === 1 && dia[0].cargo === 'OFICIAL', dia);
+
+      const otra = (await leerPersona()).find(x => x._row !== yo._row && x.estado === 'activo' && !x.fecha_retiro && String(x.codigo || '').trim());
+      if (otra) { const e3 = await api.asistencias.post({ token: tok, action: 'personal', op: 'editar', _row: yo._row, codigo: String(otra.codigo).trim(), nombre: 'EDITAR CONTRATO' });
+        t.ok('código de otra persona activa → «Ya existe una persona activa»', e3.ok === false && /Ya existe/.test(e3.error), e3); }
+      const e4 = await api.asistencias.post({ token: tok, action: 'personal', op: 'editar', _row: yo._row, nombre: '' });
+      t.ok('nombre vacío → rechazo', e4.ok === false && /nombre/i.test(e4.error), e4);
+      const e5 = await api.asistencias.post({ token: tok, action: 'personal', op: 'editar', _row: yo._row, nombre: 'EDITAR CONTRATO', propagar_desde: '2999-01-01' });
+      t.ok('propagar_desde futura → payload/propagar_desde', e5.ok === false && e5.error === 'payload' && e5.campo === 'propagar_desde', e5);
+
+      // Limpieza: se borra el bloque del día y la persona queda retirada desde su ingreso (nunca esperada).
+      await api.asistencias.post({ token: tok, action: 'reporte_asistencia', fecha: api.FECHA_BANCO, cuadrilla, reporta: 'admin', nota: '', filas: [] });
+      const rt = await api.asistencias.post({ token: tok, action: 'personal', op: 'retiro', _row: yo._row, fecha_retiro: '2020-01-01' });
+      t.ok('limpieza: retiro ok', rt.ok === true, rt); } },
+
   { id: 'asis.cache_reset', modulo: 'asistencias', nombre: 'GET cache_reset → ok con msg (D99)',
     async run(api, t){ const r = await api.asistencias.get({ action: 'cache_reset', token: await api.sesion('admin') });
       t.ok('ok + msg', r.ok === true && typeof r.msg === 'string', r); } }

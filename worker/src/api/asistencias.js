@@ -29,16 +29,17 @@ import { guardarAsistencia, guardarIndividual, gestionPersonal,
 /* ---------- validación de payload (CodigoAsistencias.gs L581–L602, D166) ----------
  * Copia verbatim de los esquemas VAL_ASIS_* y de validarPayloadAsistencias_. Único cambio: el
  * cubo 'l' de VAL_ASIS_PERSONAL.op añade 'reingreso' (decisión 8 — la pantalla ya lo manda y el .gs
- * lo rebotaba). Vive aquí, no en comun.js, porque es del módulo asistencias (regla dura de archivos). */
+ * lo rebotaba). D202 añade 'editar' y propagar_desde (corrección de datos de una persona; solo Worker).
+ * Vive aquí, no en comun.js, porque es del módulo asistencias (regla dura de archivos). */
 const VAL_ASIS_FILA = {
   codigo:['t',50], cedula:['t',50], nombre:['t',200], cargo:['t',100], cuadrilla:['t',100], cc:['t'], proyecto:['t',20],
   hora_entrada:['h'], hora_salida:['h'], presente:['t',10], motivo_ausencia:['t',200], observacion:['tl'], turno:['t',50]
 };
 const VAL_ASIS_REPORTE    = { fecha:['f',0], cuadrilla:['t',100], reporta:['t',100], nota:['tl'], filas:['a'] };
 const VAL_ASIS_INDIVIDUAL = { fecha:['f',0], filas:['a'] };
-const VAL_ASIS_PERSONAL   = { op:['l',['alta','retiro','mover','reactivar','reingreso']], codigo:['t',50], cedula:['t',50], nombre:['t',200],
+const VAL_ASIS_PERSONAL   = { op:['l',['alta','retiro','mover','reactivar','reingreso','editar']], codigo:['t',50], cedula:['t',50], nombre:['t',200],
                               cargo:['t',100], cuadrilla:['t',100], fecha_ingreso:['f',VAL_DIAS_FUTURO_FLOTA],
-                              fecha_retiro:['f',VAL_DIAS_FUTURO_FLOTA], _row:['e',1,10000000] };
+                              fecha_retiro:['f',VAL_DIAS_FUTURO_FLOTA], propagar_desde:['f',0], _row:['e',1,10000000] };
 const VAL_ASIS_EXTRAS     = { fecha:['f',0], cc:['t'], horas:['n',0,VAL_MAX_HORAS], tipo:['l',['diurna','nocturna','domfest']] };
 const VAL_ASIS_EXTRAS_DEL = { fecha:['f',0] };
 

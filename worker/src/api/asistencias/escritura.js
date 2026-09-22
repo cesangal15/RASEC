@@ -11,7 +11,7 @@
  *   extrasAdminDelDia   L2221  (helper de lectura)      → extra del día (0..1)
  *   guardarExtrasAdmin  L2235  POST extras_admin        → upsert por fecha (D73/D124)
  *   borrarExtrasAdmin   L2270  POST extras_admin_delete → borra el día
- *   gestionPersonal     L2378  POST personal            → alta|retiro|reactivar|reingreso|mover (D72/D84/D118)
+ *   gestionPersonal     L2378  POST personal            → alta|retiro|reactivar|reingreso|mover (D72/D84/D118) · editar (D202, solo Worker)
  *
  * Qué cambia respecto al .gs y por qué (decisiones 4, 6, 8, 9, 10, 12):
  *   · Sin LockService: cada escritura de asistencia abre UNA transacción (sql.begin) y toma
@@ -203,6 +203,79 @@ export async function borrarExtrasAdmin(c, body){
   return json(c, { ok:true, msg: borradas ? ('Extra del '+fecha+' eliminada.') : ('No había extra registrada el '+fecha+'.'), borradas:borradas });
 }
 
+/* ------------------------------------------------------------------------------------------------------
+ * op 'editar' (D202, solo Worker: el .gs no la tiene) — corrige código, cédula, nombre, cargo y fecha de
+ * ingreso de UNA fila de personal. Campo ausente = se conserva. La cuadrilla sigue yendo por MOVER.
+ * El Parte Navision y el resumen leen código/cargo de las filas de ASISTENCIA ya guardadas, no de personal:
+ * con body.propagar_desde (fecha) se corrigen también las asistencias de esa persona desde ese día (dentro
+ * de su ventana ingreso–retiro y de las áreas del usuario), SOLO en los campos que cambian. Corre dentro
+ * de la transacción de gestionPersonal (src ya bloqueada FOR UPDATE).
+ * ------------------------------------------------------------------------------------------------------ */
+async function editarPersona_(c, sql, body, src, row, areasUsr, okArea, hoy){
+  if(!src) return json(c, { ok:false, error:'No se encontró la persona a editar.' });
+  const campo=function(k){ return body[k]===undefined || body[k]===null ? String(src[k]||'').trim() : String(body[k]).trim(); };
+  const nuevo={ codigo:campo('codigo'), cedula:campo('cedula'), nombre:campo('nombre'), cargo:campo('cargo') };
+  const ingViejo=fdate(src.fecha_ingreso)||'', ingNuevo=fdate(body.fecha_ingreso)||ingViejo;
+  const ret=fdate(src.fecha_retiro)||'';
+  if(!nuevo.nombre) return json(c, { ok:false, error:'El nombre no puede quedar vacío.' });
+  if(!nuevo.codigo && !nuevo.cedula && (String(src.codigo||'').trim() || String(src.cedula||'').trim()))
+    return json(c, { ok:false, error:'No dejes a la persona sin código ni cédula: sin ninguno de los dos no se la puede reconocer en el Parte.' });
+  if(ret && ingNuevo && ingNuevo>=ret) return json(c, { ok:false, error:'La fecha de ingreso tiene que ser anterior a la de retiro ('+ret+').' });
+
+  // D118: el nuevo código (o la cédula, si no hay código) no puede ser el de OTRA persona activa.
+  const claveVieja=clavePersona_(src), claveNueva=clavePersona_(nuevo);
+  if(claveNueva!==claveVieja && claveNueva!=='COD:' && claveNueva!=='CED:'){
+    const cands = nuevo.codigo
+      ? await sql`SELECT personal_id, codigo, cedula, nombre, cuadrilla, estado, fecha_retiro, fecha_ingreso
+          FROM personal WHERE obra_id=${OBRA_ID} AND btrim(codigo)=${nuevo.codigo} AND personal_id<>${row}`
+      : await sql`SELECT personal_id, codigo, cedula, nombre, cuadrilla, estado, fecha_retiro, fecha_ingreso
+          FROM personal WHERE obra_id=${OBRA_ID} AND btrim(codigo)='' AND btrim(cedula)=${nuevo.cedula} AND personal_id<>${row}`;
+    const otra=cands.find(function(p){ return activaEnFecha(p, hoy); });
+    if(otra) return json(c, { ok:false, error:'Ya existe una persona activa con ese '+(nuevo.codigo?'código':'documento')
+      +' ('+(otra.nombre||'')+', cuadrilla '+(otra.cuadrilla||'')+'). Revisa el dato: dos personas con el mismo código se mezclarían en el Parte.' });
+  }
+
+  const cambia={};
+  ['codigo','cedula','nombre','cargo'].forEach(function(k){ if(nuevo[k]!==String(src[k]||'').trim()) cambia[k]=nuevo[k]; });
+
+  // Asistencias ya reportadas (opcional). Se buscan con la identidad VIEJA y el mismo emparejador del upsert (D123).
+  let actualizadas=0;
+  const desdeRaw=fdate(body.propagar_desde);
+  if(desdeRaw && Object.keys(cambia).length){
+    // Si otra fila de personal (otra persona) comparte la identidad vieja, no hay forma segura de saber de
+    // quién es cada asistencia: se corrige solo personal y se avisa.
+    const cod0=String(src.codigo||'').trim().replace(/^0+/, ''), ced0=String(src.cedula||'').trim();
+    const gemelas = cod0
+      ? await sql`SELECT nombre FROM personal WHERE obra_id=${OBRA_ID} AND personal_id<>${row} AND ltrim(btrim(codigo),'0')=${cod0}`
+      : (ced0 ? await sql`SELECT nombre FROM personal WHERE obra_id=${OBRA_ID} AND personal_id<>${row} AND btrim(codigo)='' AND btrim(cedula)=${ced0}` : []);
+    if(gemelas.some(function(p){ return norm(p.nombre)!==norm(src.nombre); }))
+      return json(c, { ok:false, error:'Otra persona de PERSONAL tiene el mismo '+(cod0?'código':'documento')+' que '+(src.nombre||'esta persona')
+        +', así que no se puede saber de quién son las asistencias ya reportadas. Guarda la corrección sin marcar «aplicar a lo ya reportado».' });
+
+    const desde = (ingNuevo && ingNuevo>desdeRaw) ? ingNuevo : desdeRaw;
+    const cand = await sql`SELECT id_registro, fecha, cuadrilla, codigo, cedula, nombre FROM asistencia
+      WHERE obra_id=${OBRA_ID} AND fecha>=${desde}::date AND (${ret}='' OR fecha<${ret||null}::date)
+        AND ( (${cod0}<>'' AND ltrim(btrim(codigo),'0')=${cod0})
+           OR (${ced0}<>'' AND btrim(cedula)=${ced0})
+           OR (${cod0}='' AND ${ced0}='' AND cuadrilla=${src.cuadrilla||''}) )
+      FOR UPDATE`;
+    const esSuya=emparejadorDePersonas_([{ codigo:src.codigo, cedula:src.cedula, nombre:src.nombre, cuadrilla:src.cuadrilla }]);
+    const ids=cand.filter(function(r){ return esSuya(r) && (!areasUsr.length || okArea(r.cuadrilla)); }).map(function(r){ return r.id_registro; });
+    if(ids.length){
+      const v=function(k){ return k in cambia ? cambia[k] : null; };
+      const upd=await sql`UPDATE asistencia SET
+          codigo=COALESCE(${v('codigo')}::text, codigo), cedula=COALESCE(${v('cedula')}::text, cedula),
+          nombre=COALESCE(${v('nombre')}::text, nombre), cargo=COALESCE(${v('cargo')}::text, cargo)
+        WHERE obra_id=${OBRA_ID} AND id_registro = ANY(${textoArrayPg_(ids)}::text[]) RETURNING id_registro`;
+      actualizadas=upd.length;
+    }
+  }
+
+  await sql`UPDATE personal SET codigo=${nuevo.codigo}, cedula=${nuevo.cedula}, nombre=${nuevo.nombre}, cargo=${nuevo.cargo},
+      fecha_ingreso=${ingNuevo||null} WHERE obra_id=${OBRA_ID} AND personal_id=${row}`;
+  return json(c, { ok:true, op:'editar', cambios:Object.keys(cambia).concat(ingNuevo!==ingViejo?['fecha_ingreso']:[]), asistencias_actualizadas:actualizadas });
+}
+
 /* ======================================================================================================
  * POST personal — gestionPersonal (CodigoAsistencias.gs L2378–L2476)
  * ====================================================================================================== */
@@ -289,6 +362,9 @@ export async function gestionPersonal(c, body){
       const responsable=await responsableDeCuadrilla(c, cuadrilla);
       await sql`UPDATE personal SET cuadrilla=${cuadrilla}, responsable=${responsable} WHERE obra_id=${OBRA_ID} AND personal_id=${row}`;
       res=json(c, { ok:true, op:'mover' }); return;
+    }
+    if(op==='editar'){
+      res=await editarPersona_(c, sql, body, src, row, areasUsr, okArea, hoy); return;
     }
     res=json(c, { ok:false, error:'op no reconocida' });
   });
