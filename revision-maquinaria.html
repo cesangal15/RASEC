@@ -12,6 +12,7 @@
 <script src="entorno.js"></script>
 <link rel="stylesheet" href="tema.css">
 <script src="tema.js"></script>
+<link rel="stylesheet" href="cuadricula.css">
 <link rel="stylesheet" href="revision-maquinaria.css">
 </head>
 <body>
@@ -89,26 +90,39 @@
   </div>
 
   <!-- ================= BASE ================= -->
+  <!-- D197: la Base es una cuadrícula tipo Excel (cuadricula.js, el mismo manejo que la Revisión de DATA):
+       se edita en la celda, los cambios quedan pendientes y se mandan juntos con «Guardar». -->
   <div id="vistaBase" class="hidden">
-    <div class="intro">Todo lo <b>aprobado</b> en el rango. Editar reescribe solo esa fila (queda <code>revisado_por</code>/<code>revisado_ts</code>). <b>Copiar para Excel</b> copia las filas filtradas como columnas <b>B → AR</b> de <code>BASE MAQUINARIA</code> (vacío donde va fórmula): pégalo en la <b>columna B</b> de la primera fila libre. Fechas dd/mm/aaaa; decimales con coma.</div>
-    <div class="toolbar">
-      <div class="f"><label>Desde</label><input type="date" id="desde"></div>
-      <div class="f"><label>Hasta</label><input type="date" id="hasta"></div>
-      <button class="btn" data-on-click="cargarBase()">Consultar</button>
-      <div class="f"><label>Equipo</label><input type="text" id="fEq" placeholder="código" data-on-input="pintarBase()"></div>
-      <div class="f"><label>Centro de coste</label><input type="text" id="fCC" placeholder="3701.02…" data-on-input="pintarBase()"></div>
-      <div class="f grow"><label>Operador / texto</label><input type="text" id="fTxt" placeholder="buscar…" data-on-input="pintarBase()"></div>
-      <div class="f"><label>Estado</label><select id="fEstado" data-on-change="cargarBase()"><option value="aprobado">Aprobados</option><option value="todos">Todos (auditoría)</option></select></div>
-      <button class="btn primario" id="btnCopiar" data-on-click="copiarExcel(this)" disabled>📋 Copiar para Excel</button>
+    <div class="cq-barra">
+      <div class="grp fecha-local">
+        <input type="date" id="desde" aria-label="Desde" title="Desde">
+        <span class="a">→</span>
+        <input type="date" id="hasta" aria-label="Hasta" title="Hasta">
+        <button class="btn" data-on-click="cargarBase()">Consultar</button>
+        <div class="rapidos" id="rapidosBase"></div>
+      </div>
+      <div class="grp">
+        <button class="btn ico" id="bUndo" data-on-click="deshacerBase()" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
+        <button class="btn ico" id="bRedo" data-on-click="rehacerBase()" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷</button>
+        <select id="fEstado" data-on-change="cargarBase()" title="Qué filas traer"><option value="aprobado">Aprobados</option><option value="todos">Todos (auditoría)</option></select>
+      </div>
+      <div class="kpis" aria-live="polite">
+        <span class="kpi"><b id="kBaseF">0</b> filas <span class="de">de <span id="kBase">0</span></span></span>
+        <span class="kpi"><b id="kBaseEq">0</b> equipos</span>
+        <span class="kpi"><span class="l">Σ</span> <b id="kBaseH">0</b> h</span>
+        <span class="kpi"><span class="l">Σ</span> <b id="kBaseKm">0</b> km</span>
+      </div>
+      <button class="btn" id="btnCopiar" data-on-click="copiarExcel(this)" title="Copia las filas APROBADAS visibles como columnas B → AR de BASE MAQUINARIA: pégalo en la columna B de la primera fila libre" disabled>📋 Copiar para Excel</button>
+      <button class="btn primario" id="btnGuardarBase" data-on-click="guardarBase()" disabled>Guardar <span class="n" id="nBase">0</span></button>
     </div>
-    <div class="kpis">
-      <div class="kpi"><div class="v" id="kBase">0</div><div class="l">Filas en el rango</div></div>
-      <div class="kpi"><div class="v" id="kBaseF">0</div><div class="l">Filtradas (se copian)</div></div>
-      <div class="kpi"><div class="v" id="kBaseEq">0</div><div class="l">Equipos</div></div>
+    <div class="cq-filtros" id="filtrosBase">
+      <input type="text" id="qBase" class="cq-buscar" placeholder="Buscar en cualquier columna…" aria-label="Buscar">
     </div>
-    <div class="tabla-wrap"><table id="tablaBase"><thead><tr>
-      <th></th><th>Fecha</th><th>Parte</th><th>Equipo</th><th>Med.</th><th>Inicial</th><th>Final</th><th>Total</th><th>Varada</th><th>Lluvia</th><th>De</th><th>A</th><th>Descripción</th><th>CC</th><th>PR</th><th>UF</th><th>Operador</th><th>Obs.</th><th>Alertas</th><th>Revisó</th>
-    </tr></thead><tbody id="tbBase"><tr><td colspan="20" class="vacio">Elige un rango y pulsa Consultar</td></tr></tbody></table></div>
+    <div id="gridBase"></div>
+    <p class="intro chico">Doble clic, <kbd>Enter</kbd> o escribir edita la celda (lo gris es calculado). Los cambios quedan en azul hasta
+      pulsar <b>Guardar</b>; <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace. <b>Clic derecho</b>: repartir en varios CC, descartar o volver a aprobar.
+      Se maneja como Excel: flechas, <kbd>Ctrl</kbd>+flechas, <kbd>Shift</kbd> para marcar, <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd>.
+      <b>Copiar para Excel</b> copia las aprobadas visibles como columnas B → AR (fechas dd/mm/aaaa, decimales con coma).</p>
   </div>
 </div>
 
@@ -162,6 +176,7 @@
   </div>
 </div>
 
+<script src="cuadricula.js"></script>
 <script src="revision-maquinaria.js"></script>
 </body>
 </html>

@@ -323,8 +323,8 @@ const server=http.createServer((req,res)=>{
     await $(pg,'#btnAprobarTodo').click(); await pg.waitForFunction(()=>document.querySelectorAll('#pendientes .fila').length===1);
     ok('«Aprobar todo lo sin alertas» deja solo la manual (con alerta)', (await $(pg,'#pendientes .fila').textContent()).includes('WNW030'));
     // Base
-    await $(pg,'#tabBase').click(); await pg.waitForSelector('#tbBase tr td b');
-    const filasBase=await $(pg,'#tbBase tr').count();
+    await $(pg,'#tabBase').click(); await pg.waitForSelector('#gridBase td.cq-c');   // D197: cuadrícula tipo Excel
+    const filasBase=await $(pg,'#gridBase tbody tr').count();
     ok('Base: 7 aprobadas en el rango (4 + el domingo de CR026 + las 2 hijas del reparto)', filasBase===7, String(filasBase));
     await pg.screenshot({ path:path.join(OUT,'revision_1440_base.png'), fullPage:true });
     await $(pg,'#btnCopiar').click(); await pg.waitForTimeout(200);
@@ -338,12 +338,15 @@ const server=http.createServer((req,res)=>{
     const exc=lineas.map(l=>l.split('\t')).find(c=>c[L('F')]==='EXC015');
     ok('horómetro con decimal en coma (2711,6) en M/N', exc[L('M')]==='2711,6' && exc[L('N')]==='2711,6', JSON.stringify(exc));
     // edición en Base
-    await $(pg,'#tbBase tr').first().locator('button:has-text("✎")').click(); await pg.waitForSelector('tr.edit');
-    await $(pg,'tr.edit textarea[data-k=observaciones]').fill('corregido en base'); await $(pg,'tr.edit button.ok').click();
-    await pg.waitForFunction(()=>!document.querySelector('tr.edit'));
+    // D197: se edita en la celda (doble clic), queda pendiente y se manda con «Guardar».
+    const ciObs=await pg.evaluate(()=>COLS_BASE.findIndex(c=>c.k==='observaciones'));
+    await $(pg,'#gridBase td.cq-c[data-r="0"][data-c="'+ciObs+'"]').dblclick(); await pg.waitForSelector('#gridBase .cq-ed');
+    await $(pg,'#gridBase .cq-ed').fill('corregido en base'); await pg.keyboard.press('Enter');
+    ok('D197: la celda editada queda pendiente (Guardar 1)', (await $(pg,'#nBase').textContent())==='1');
+    await $(pg,'#btnGuardarBase').click(); await pg.waitForFunction(()=>document.getElementById('nBase').textContent==='0');
     ok('editar en Base reescribe solo esa fila', h._f.some(r=>col(r,'observaciones')==='corregido en base') && h._f.filter(r=>col(r,'observaciones')==='corregido en base').length===1);
     // filtro
-    await $(pg,'#fEq').fill('EXC'); await pg.waitForTimeout(100);
+    await $(pg,'#qBase').fill('EXC015'); await pg.waitForTimeout(100);
     ok('el filtro por equipo acota lo que se copia', (await $(pg,'#kBaseF').textContent())==='1');
     await pg.context().close();
   }
@@ -403,7 +406,7 @@ const server=http.createServer((req,res)=>{
     const pg3=await pagina({width:1440,height:900}, { usuario:'admin', rol:'admin', tm2_token:tokenDe('admin','admin') });
     await pg3.goto(BASE+'/menu.html'); await pg3.waitForSelector('.tile');
     ok('menu.html: accesos a revision-maquinaria.html y parte.html en el grupo Maquinaria', await $(pg3,'a.tile[href="revision-maquinaria.html"]').count()===1 && await $(pg3,'a.tile[href="parte.html"]').count()===1 && await $(pg3,'.pc-g5 .group-label').count()===1);
-    ok('los 15 accesos anteriores siguen (18 en total)', await $(pg3,'a.tile').count()===18);
+    ok('menú admin: 17 accesos (D194: Resumen/DATA/BASE/Proyección van por el Hub; sin modo prueba ni estado obsoleto)', await $(pg3,'a.tile').count()===17);
     await pg3.screenshot({ path:path.join(OUT,'menu_1440.png'), fullPage:true });
     await pg3.context().close();
   }

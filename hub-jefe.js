@@ -29,9 +29,13 @@ const TABS = [
   { id:'base',    label:'Catálogos BASE',    page:'grilla.html', fecha:false, ver:PUEDE_EDITAR },
   // V3-11 / D183: la ven admin, jefe y residente (el mismo portero que proyeccion.html); quién edita lo decide el servidor.
   { id:'proyeccion', label:'Proyección',     page:'proyeccion.html', fecha:false, ver:['admin','jefe','residente'].indexOf(rol)>=0 },
+  // D198: la Base de aprobados del parte de maquinaria, SOLA (sin Pendientes ni aprobar). El jefe la consulta;
+  // admin/residente/revisores la editan como en su pantalla. Toma el rango del Hub.
+  { id:'maquinaria', label:'Base maquinaria', page:'revision-maquinaria.html', extra:'&solo=base', fecha:true,
+    ver:['admin','jefe','residente','residente_dren'].indexOf(rol)>=0 || USUARIOS_OK.indexOf(usuario)>=0 },
 ];
 const EXT = [ { id:'tablero', label:'Tablero ↗', href:'tablero-produccion.html' } ];
-const PAGE2TAB = { data:'data', grilla:'base', proyeccion:'proyeccion' };
+const PAGE2TAB = { data:'data', grilla:'base', proyeccion:'proyeccion', revision:'maquinaria' };
 
 let desde='', hasta='', actTab='', frames={}, dirtyByTab={}, stale={};
 
@@ -42,7 +46,7 @@ function periodoDeHoy(){
   if(d>=16){ ini=new Date(Date.UTC(y,m-1,16)); fin.setUTCMonth(fin.getUTCMonth()+1); }
   const iso=(dt)=>dt.toISOString().slice(0,10); return { desde:iso(ini), hasta:iso(fin) };
 }
-function frameSrc(tab){ let s=tab.page+'?embed=1'; if(tab.fecha) s+='&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta); return s; }
+function frameSrc(tab){ let s=tab.page+'?embed=1'+(tab.extra||''); if(tab.fecha) s+='&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta); return s; }
 
 function pintarTabs(){
   let h='';
@@ -57,7 +61,7 @@ function mostrar(id){
   const tab=TABS.filter(function(t){ return t.id===id; })[0]; if(!tab) return;
   let f=frames[id];
   if(f && stale[id]){   // el rango cambió mientras esta pestaña no estaba visible → recargar
-    if(!(id==='data' && dirtyByTab[id]>0 && !confirm('Hay cambios sin guardar en Revisión de DATA. ¿Recargar con el nuevo rango y descartarlos?'))){
+    if(!(dirtyByTab[id]>0 && !confirm('Hay cambios sin guardar en «'+tab.label+'». ¿Recargar con el nuevo rango y descartarlos?'))){
       f.src=frameSrc(tab); dirtyByTab[id]=0;
     }
     delete stale[id];
@@ -74,12 +78,42 @@ function verFechas(){
   TABS.forEach(function(t){
     if(!t.fecha || !frames[t.id]) return;
     if(t.id===actTab){
-      if(t.id==='data' && dirtyByTab[t.id]>0 && !confirm('Hay cambios sin guardar en Revisión de DATA. ¿Recargar con el nuevo rango y descartarlos?')) return;
+      if(dirtyByTab[t.id]>0 && !confirm('Hay cambios sin guardar en «'+t.label+'». ¿Recargar con el nuevo rango y descartarlos?')) return;
       frames[t.id].src=frameSrc(t); dirtyByTab[t.id]=0;
     } else { stale[t.id]=true; }
   });
-  pintarTabs();
+  pintarTabs(); pintarRapidos();
 }
+
+/* Rangos rápidos (D196): un clic fija el rango y lo aplica. Acta = periodo 16→15 (misma regla que actaDe). */
+function isoMenos(iso, n){ const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10); }
+function actaNum(hasta){ const y=+hasta.slice(0,4), m=+hasta.slice(5,7); return (y-2025)*12+m+2; }
+function rangosRapidos(){
+  const h=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}), p=periodoDeHoy(), finAnt=isoMenos(p.desde,1);
+  const md=new Date(finAnt+'T12:00:00Z'); md.setUTCMonth(md.getUTCMonth()-1);
+  const ant={ desde:md.toISOString().slice(0,8)+'16', hasta:finAnt };
+  const dow=(new Date(h+'T12:00:00Z').getUTCDay()+6)%7;
+  return [
+    { t:'Hoy', desde:h, hasta:h }, { t:'Ayer', desde:isoMenos(h,1), hasta:isoMenos(h,1) },
+    { t:'Esta semana', desde:isoMenos(h,dow), hasta:h }, { t:'7 días', desde:isoMenos(h,6), hasta:h },
+    { t:'Acta '+actaNum(p.hasta), desde:p.desde, hasta:p.hasta }, { t:'Acta '+actaNum(ant.hasta), desde:ant.desde, hasta:ant.hasta },
+  ];
+}
+function pintarRapidos(){
+  const d=document.getElementById('desde').value, a=document.getElementById('hasta').value||d;
+  document.getElementById('rapidos').innerHTML=rangosRapidos().map(function(x){
+    return '<button type="button" class="chip'+(x.desde===d&&x.hasta===a?' on':'')+'" data-d="'+x.desde+'" data-h="'+x.hasta+'" title="'+x.desde+' → '+x.hasta+'">'+esc(x.t)+'</button>';
+  }).join('');
+}
+document.getElementById('rapidos').addEventListener('click', function(ev){
+  const b=ev.target.closest && ev.target.closest('button[data-d]'); if(!b) return;
+  document.getElementById('desde').value=b.dataset.d; document.getElementById('hasta').value=b.dataset.h; verFechas();
+});
+['desde','hasta'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
+  const de=document.getElementById('desde'), ha=document.getElementById('hasta');
+  if(id==='desde' && ha.value && de.value>ha.value) ha.value=de.value;   // sin rangos al revés
+  pintarRapidos();
+}); });
 
 /* dirty avisado por cada iframe hija (postMessage) */
 window.addEventListener('message', function(ev){
@@ -97,7 +131,7 @@ window.addEventListener('beforeunload', function(e){
 (function(){
   const p=periodoDeHoy(); desde=p.desde; hasta=p.hasta;
   document.getElementById('desde').value=desde; document.getElementById('hasta').value=hasta;
-  pintarTabs();
+  pintarTabs(); pintarRapidos();
   let inicial=(location.hash||'').replace('#','');
   if(!TABS.some(function(t){ return t.id===inicial && t.ver; })){ try{ inicial=localStorage.getItem('tm2_hub_tab')||''; }catch(e){} }
   if(!TABS.some(function(t){ return t.id===inicial && t.ver; })) inicial='resumen';

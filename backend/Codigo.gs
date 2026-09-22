@@ -3098,7 +3098,7 @@ function setupUsuarios(){
     ['admin','','admin','','menu.html','activo'],
     ['encargado','','encargado','','encargado.html','activo'],
     ['residente','','residente','','residente.html','activo'],
-    ['jefe','','jefe','','jefe.html','activo'],
+    ['jefe','','jefe','','hub-jefe.html','activo'],
     ['angel','','capataz','','seleccion-reporte.html','activo'],
     ['alejo','','capataz','','seleccion-reporte.html','activo'],
     ['robinson','','capataz','','seleccion-reporte.html','activo'],

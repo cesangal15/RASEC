@@ -62,6 +62,10 @@ const PARTE_CC_PSEUDO = [
 const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria','residente_dren'];
 // D193: duvan (asistencias de drenajes; lo usa Stiven) también revisa — enmienda D178, que lo dejaba fuera.
 const PARTE_USUARIOS_REVISAN = ['jeisson','duvan'];
+// D198: el jefe trabaja la BASE de aprobados desde el Panel de Obra: la lee y corrige sus campos (CC, horas, …),
+// pero no ve Pendientes ni cambia estados (aprobar/descartar) ni reparte: eso sigue siendo de quien revisa.
+const PARTE_ROLES_EDITAN_BASE = ['jefe'];
+function parteLeeBase_(ses){ return !!(ses && ses.ok) && PARTE_ROLES_EDITAN_BASE.indexOf(String(ses.rol||'').trim().toLowerCase())>=0; }
 const PARTE_MAX_HABITUALES = 5;
 const PARTE_OPERADORES_ALIAS = {
   'ALEYXER RINCON':'Aleyxer Rincon',
@@ -661,7 +665,8 @@ export async function parteBandeja(c, params){
 const PARTE_CAMPOS_EDITABLES = ['fecha','reporte_num','inicial','final','horas_varada','horas_lluvia','hora_de','hora_a',
   'descripcion_trabajo','centro_coste','pr','uf','operador','observaciones'];
 export async function parteRevisar(c, body, ses){
-  if(!parteAutoriza_(ses)) return parteSinPermiso_(c);
+  const soloBase=!parteAutoriza_(ses) && parteLeeBase_(ses);    // D198: el jefe corrige campos de filas YA aprobadas
+  if(!parteAutoriza_(ses) && !soloBase) return parteSinPermiso_(c);
   const vp=parteValidarRevisar_(c, body); if(vp) return vp;
   const cambios=Array.isArray(body.cambios) ? body.cambios : [];
   if(!cambios.length) return json(c, { ok:false, error:'No llegó ningún cambio.' });
@@ -675,6 +680,8 @@ export async function parteRevisar(c, body, ses){
       const enc=await sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND id_registro=${id} FOR UPDATE`;
       if(!enc.length){ errores.push({ id_registro:id, error:'no existe' }); continue; }
       const obj=enc[0]; obj.fecha=fdate(obj.fecha);
+      if(soloBase && parteEstadoDe_(obj)!=='aprobado'){ errores.push({ id_registro:id, error:'solo se corrigen filas aprobadas de la Base' }); continue; }
+      if(soloBase && parteTexto_(x.estado)){ errores.push({ id_registro:id, error:'aprobar o descartar lo hace quien revisa los partes' }); continue; }
       const campos=x.campos||{}; let tocado=false, malo='';
       PARTE_CAMPOS_EDITABLES.forEach(function(k){
         if(malo || !Object.prototype.hasOwnProperty.call(campos, k)) return;
@@ -791,7 +798,9 @@ export async function parteBase(c, params){
     .sort(function(a,b){ const ka=a.fecha+'|'+a.codigo+'|'+a.hora_de, kb=b.fecha+'|'+b.codigo+'|'+b.hora_de; return ka<kb?-1:ka>kb?1:0; });
   return json(c, { ok:true, desde:desde, hasta:hasta, estado:estado, filas:filas,
     excel:{ primera:PARTE_EXCEL_PRIMERA, ultima:PARTE_EXCEL_ULTIMA, columnas:parteExcelColumnas_(), mapa:PARTE_EXCEL_MAPA, filas:filas.map(parteExcelFila_) },
-    listas:{ operadores:await parteOperadores_(c), cc:await parteCC_(c) } });
+    listas:{ operadores:await parteOperadores_(c), cc:await parteCC_(c),
+      // D198: equipos con su grupo (D190), vigentes a «hasta», para el filtro Todos/Tierras/Drenajes sin la bandeja
+      equipos:(await parteEquiposActivos_(c, hasta)).map(function(q){ return { codigo:q.codigo, tipo:q.tipo, medidor:q.medidor, grupo:q.grupo||'tierras' }; }) } });
 }
 
 /* ============ enrutado (lo llama src/index.js; misma lógica que doGet/doPost + parteDoGet_/parteDoPost_) ============ */
@@ -801,6 +810,7 @@ export async function parteDoGet_(c, params){
   const p=await puerta_(c, params.token||'', 'parte:'+op);
   if(!p.ok) return p.respuesta;
   const ses=p.ses;
+  if(op==='base' && !parteAutoriza_(ses) && parteLeeBase_(ses)) return parteBase(c, params);   // D198: el jefe lee la Base
   if(!parteAutoriza_(ses)) return parteSinPermiso_(c);
   if(op==='bandeja') return parteBandeja(c, params);
   if(op==='base')    return parteBase(c, params);

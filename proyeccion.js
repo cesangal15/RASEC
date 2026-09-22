@@ -203,7 +203,7 @@ var ProyCalc = (function(){
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;
 const ROLES_VER  = ['admin','jefe','residente'];
 const ROLES_EDIT = ['admin','jefe'];          // cosmético hasta que llega d.puede_editar (lo decide el servidor)
-const VOLVER = { admin:'menu.html', jefe:'jefe.html', residente:'residente.html' };
+const VOLVER = { admin:'menu.html', jefe:'hub-jefe.html', residente:'residente.html' };
 const EMBED = document.documentElement.classList.contains('embed');
 
 const rol = localStorage.getItem('rol')||'', usuario = (localStorage.getItem('usuario')||'').trim().toLowerCase();

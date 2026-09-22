@@ -1724,7 +1724,7 @@ async function cargarPartes(archivo){
  * verdad guarda es el SERVIDOR, que comprueba el rol con el token firmado (D109).
  * =========================================================================*/
 const PUEDEN_ACTUALIZAR=['admin','jefe'];
-const PANEL={ admin:'menu.html', jefe:'jefe.html', residente:'residente.html',
+const PANEL={ admin:'menu.html', jefe:'hub-jefe.html', residente:'residente.html',
               residente_dren:'seleccion-reporte.html',
               residente_odt:'seleccion-reporte.html',
               residente_odl:'seleccion-reporte.html' };
