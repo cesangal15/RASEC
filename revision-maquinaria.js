@@ -633,7 +633,14 @@ window.addEventListener('beforeunload', function(e){ if(GB && GB.pendientes().le
   if(qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)){ document.getElementById('desde').value=qd; document.getElementById('hasta').value=(qh && /^\d{4}-\d{2}-\d{2}$/.test(qh))?qh:qd; }
   pintarRapidosBase();   // D197
   if(!PUEDE_EDITAR_BASE){ ['btnGuardarBase','bUndo','bRedo'].forEach(function(id){ const b=document.getElementById(id); if(b) b.classList.add('hidden'); }); }
-  if(SOLO_BASE){ ['tabPend','vistaPend'].forEach(function(id){ document.getElementById(id).classList.add('hidden'); }); verTab('base'); }
+  if(!ES_REVISOR){ const fe=document.getElementById('fEstado'); if(fe){ fe.value='aprobado'; fe.classList.add('hidden'); } }   // D198: el jefe ve solo aprobados
+  if(SOLO_BASE){
+    ['tabPend','vistaPend'].forEach(function(id){ document.getElementById(id).classList.add('hidden'); });
+    // Solo hay una pestaña: la barra de pestañas sobra y el Todos/Tierras/Drenajes sube a la barra de la Base.
+    const seg=document.getElementById('segGrupo'), barra=document.querySelector('#vistaBase .cq-barra');
+    if(seg && barra){ barra.insertBefore(seg, barra.firstChild); seg.classList.add('en-barra'); document.querySelector('.tabs').classList.add('hidden'); }
+    verTab('base');
+  }
   else cargarBandeja();
 })();
 

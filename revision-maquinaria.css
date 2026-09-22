@@ -219,3 +219,5 @@
   html.embed #tabBase{display:none;}
   html.embed #vistaBase .intro.chico{display:none;}
   #gridBase.cq-wrap{max-height:none;}
+  .seg-grupo.en-barra{margin:0;align-self:center;}                     /* D198: en la barra de la Base (modo solo Base) */
+  .seg-grupo.en-barra button{padding-top:5px;padding-bottom:5px;}
