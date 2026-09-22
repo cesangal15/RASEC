@@ -602,6 +602,27 @@ function construir(wbProd, wbMaq, proy){
     return { a, m };
   }
 
+  /* V3-15b: el mismo `bloque` de arriba, pero para un SUBCONJUNTO de días dentro
+     de un período —fechas ISO `a`..`b`, ambas incluidas—, para que el filtro de
+     días de la escala de tiempo (V3-15(b)) alcance también la maquinaria de
+     «Por qué vamos así», como ya alcanza la producción diaria y «Horas del
+     personal». No duplica ninguna fórmula: recorta `dd` (días de producción) y
+     los partes de horas a ese rango (y, con `suf`, a esa UF) ANTES de agregarlos,
+     así que `bloque()` calcula standby, utilización, eficiencia y velocidad
+     exactamente como por período completo — el standby de cada máquina sale de
+     sus días DISTINTOS dentro de la selección (los agrupa `agregaHoras()`) por
+     sus horas programadas, el mismo criterio de siempre. Solo vive en el objeto
+     que devuelve `construir()` en esta misma sesión: una función no sobrevive a
+     publicar la foto en JSON, así que una foto vieja simplemente no la trae (la
+     página lo dice y pide el cálculo en vivo). */
+  function bloqueDias(p, a, b, suf){
+    const dd = (porPer[p] || []).filter(d => d.f >= a && d.f <= b);
+    let partes = H.partes.filter(x => x.p === p && x.f >= a && x.f <= b);
+    if (suf) partes = partes.filter(x => x.uf === (suf === '1' ? 'UF1' : 'UF2'));
+    const hP = agregaHoras(partes)[p];
+    return bloque(p, dd, hP, suf);
+  }
+
   const per = pers.map(p => {
     const dd = porPer[p];
     /* El total (lo de siempre) y, aparte, el bloque de cada UF para que el filtro
@@ -640,7 +661,7 @@ function construir(wbProd, wbMaq, proy){
   avance.push({ k:'prestamo', n:'Excavación préstamo',
     eje:r1(BACUM.prestamo + trasCorte(d=>d.pre||0)), plan:CONT.prestamo });
 
-  return { fc:FC, desde:DESDE, per, avance,
+  return { fc:FC, desde:DESDE, per, avance, bloqueDias,
     maq_periodos: per.filter(x=>x.m).map(x=>x.p),
     metas_hora: metaH, cc: H.cc, corte_horas: H.corte, atraso_horas: 2,
     corte_prod: dias.length ? dias.map(d=>d.f).sort().slice(-1)[0] : '',
@@ -731,10 +752,16 @@ function etiquetaBarra(bar, valor, altoPx, colorLbl){
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
 
 let sel=TM2.per.length-1, uf='Todo', abierto=null;
-/* V3-15(b): filtro de un día/rango dentro del período, sobre la gráfica diaria.
-   `selDias` es null (sin filtro) o {a,b} con a<=b (a===b = un solo día), en fechas
-   ISO de la propia `p.d`. Se reinicia SOLO al cambiar de período (lo hace `pinta()`,
-   comparando contra `perActual`); el filtro de UF no lo toca. */
+/* V3-15(b)/V3-15b: filtro de un día/rango dentro del período, sobre la gráfica
+   diaria de producción. `selDias` es null (sin filtro) o {a,b} con a<=b (a===b =
+   un solo día), en fechas ISO de la propia `p.d`. Se reinicia SOLO al cambiar de
+   período (lo hace `pinta()`, comparando contra `perActual`); el filtro de UF no
+   lo toca. Afecta: la gráfica diaria, «Horas del personal» (`personal()`) y,
+   desde V3-15b, la maquinaria de «Por qué vamos así» (`cadena()`, vía
+   `bloqueDias()` del motor) — horas, utilización, eficiencia, velocidad y el
+   despliegue por máquina, con el mismo filtro de UF de siempre. NO afecta
+   «Planificado vs ejecutado», «Avance acumulado» ni «Evolución»: esos van por el
+   PERÍODO completo, sea cual sea la selección de días. */
 let selDias=null, perActual=null;
 /* V3-16: qué partida tiene abierto su desglose por cargo (una sola a la vez,
    mismo patrón que `abierto` en la cadena). Se reinicia solo al cambiar de
@@ -778,6 +805,14 @@ function etiquetaSel(a,b){
   if(a===b) return pa[2]+' '+MES[pa[1]-1];
   if(pa[1]===pb[1] && pa[0]===pb[0]) return pa[2]+'–'+pb[2]+' '+MES[pa[1]-1];
   return pa[2]+' '+MES[pa[1]-1]+' – '+pb[2]+' '+MES[pb[1]-1];
+}
+/* V3-15b: la misma selección dicha en prosa para la nota de la cadena «Por qué
+   vamos así» — «el 12 sep» / «del 10 al 12 sep» / «del 28 sep al 3 oct». */
+function textoRangoSel(a,b){
+  const pa=a.split('-').map(Number), pb=b.split('-').map(Number);
+  if(a===b) return 'el '+pa[2]+' '+MES[pa[1]-1];
+  if(pa[1]===pb[1] && pa[0]===pb[0]) return 'del '+pa[2]+' al '+pb[2]+' '+MES[pa[1]-1];
+  return 'del '+pa[2]+' '+MES[pa[1]-1]+' al '+pb[2]+' '+MES[pb[1]-1];
 }
 /* Clic/Enter en un día de la gráfica diaria:
    · sin selección           -> selecciona ESE día (rango de 1).
@@ -892,40 +927,74 @@ function cadena(sel_p){
      Una foto guardada antes de este cambio no trae `p.uf`: se dice y se pide
      Actualizar, en vez de enseñar el total con la etiqueta de una UF. */
   const amb = q => uf==='Todo' ? { a:q.a, m:q.m } : ((q.uf && q.uf[uf]) || { a:{}, m:null });
-  if(uf!=='Todo' && !sel_p.uf){
-    nota.textContent='';
-    const v=el('div','nota');
-    /* D185: ya no hay «Actualizar»; una foto así solo se ve si el cálculo en vivo falló. */
-    v.innerHTML='Esta foto no trae la maquinaria desglosada por UF — se verá en cuanto el Tablero pueda calcular en vivo.';
-    v.style.padding='18px 0';c.appendChild(v);
-    return;
-  }
-  let p=sel_p, retro='', B=amb(p);
-  if(!B.m){
-    const i=TM2.per.findIndex(x=>x.p===sel_p.p);
-    for(let j=i;j>=0;j--){ const Bj=amb(TM2.per[j]); if(Bj.m){ p=TM2.per[j]; B=Bj; break; } }
-    if(B.m) retro='Período en curso sin partes de horas todavía — cadena y desglose '+
-      'del último período cerrado ('+eti(p.p)+')';
-  }
-  if(!B.m){
-    nota.textContent='';
-    const v=el('div','nota');
-    /* D185: en vivo, sin partes cargados en Galca no hay ningún período con horas. */
-    if(!TM2.maq_periodos || !TM2.maq_periodos.length)
-      v.innerHTML='Aún no hay partes de maquinaria cargados en Galca'+
-        ($('btnPartes')?': pulsa <b>«Cargar partes de maquinaria»</b> y elige el libro de partes':'')+
-        '. Sin horas de máquina la cadena no se puede calcular; la producción sí se ve abajo.';
-    else
-    v.innerHTML='Sin partes de maquinaria para '+esc(eti(sel_p.p))+(uf==='Todo'?'':' en '+esc(uf))+
-      '. Los partes diarios cubren de <b>'+
-      esc(eti(TM2.maq_periodos[0]))+'</b> a <b>'+esc(eti(TM2.maq_periodos[TM2.maq_periodos.length-1]))+
-      '</b>; fuera de ahí sólo hay producción, así que la cadena no se puede calcular.';
-    v.style.padding='18px 0';c.appendChild(v);
-    return;
-  }
+  /* V3-15b: con selección de días (V3-15(b)) la cadena usa el bloque de ESOS días,
+     recalculado por bloqueDias() del motor —mismas fórmulas que por período, solo
+     que sobre los días elegidos (standby = días DISTINTOS de cada máquina DENTRO
+     de la selección × sus horas programadas)—. El filtro de UF entra ahí mismo,
+     como `suf`, sin pasar por `p.uf`. `bloqueDias` es una función y no sobrevive
+     a una foto publicada en JSON: sin ella (foto de respaldo) se pide el cálculo
+     en vivo. Con selección NO se retrocede a otro período: si esos días no traen
+     partes, se dice tal cual — el retroceso es solo del período completo. */
+  let p=sel_p, retro='', B;
   const av=[];
-  if(retro) av.push(retro);
-  if(uf!=='Todo') av.push('Sólo '+uf+' · la excavación no viene partida por UF');
+  if(selDias){
+    if(typeof TM2.bloqueDias!=='function'){
+      nota.textContent='';
+      const v=el('div','nota');
+      v.innerHTML='El filtro de días de la maquinaria necesita el cálculo en vivo — se verá en cuanto el Tablero recalcule.';
+      v.style.padding='18px 0';c.appendChild(v);
+      return;
+    }
+    const suf=uf==='Todo'?'':(uf==='UF1'?'1':'2');
+    B=TM2.bloqueDias(sel_p.p, selDias.a, selDias.b, suf);
+    const rangoTxt=textoRangoSel(selDias.a,selDias.b);
+    const fueraCorte=TM2.corte_horas && selDias.b>TM2.corte_horas;
+    if(!B.m){
+      nota.textContent='';
+      const v=el('div','nota');
+      v.innerHTML='Sin partes de maquinaria '+esc(rangoTxt)+(uf==='Todo'?'':' en '+esc(uf))+'.'+
+        (fueraCorte ? ' Maquinaria cargada hasta el '+esc(fechaCorta(TM2.corte_horas))+'.' : '');
+      v.style.padding='18px 0';c.appendChild(v);
+      return;
+    }
+    av.push('Maquinaria '+rangoTxt);
+    if(uf!=='Todo') av.push('Sólo '+uf+' · la excavación no viene partida por UF');
+    if(fueraCorte) av.push('maquinaria cargada hasta el '+fechaCorta(TM2.corte_horas));
+  } else {
+    if(uf!=='Todo' && !sel_p.uf){
+      nota.textContent='';
+      const v=el('div','nota');
+      /* D185: ya no hay «Actualizar»; una foto así solo se ve si el cálculo en vivo falló. */
+      v.innerHTML='Esta foto no trae la maquinaria desglosada por UF — se verá en cuanto el Tablero pueda calcular en vivo.';
+      v.style.padding='18px 0';c.appendChild(v);
+      return;
+    }
+    B=amb(p);
+    if(!B.m){
+      const i=TM2.per.findIndex(x=>x.p===sel_p.p);
+      for(let j=i;j>=0;j--){ const Bj=amb(TM2.per[j]); if(Bj.m){ p=TM2.per[j]; B=Bj; break; } }
+      if(B.m) retro='Período en curso sin partes de horas todavía — cadena y desglose '+
+        'del último período cerrado ('+eti(p.p)+')';
+    }
+    if(!B.m){
+      nota.textContent='';
+      const v=el('div','nota');
+      /* D185: en vivo, sin partes cargados en Galca no hay ningún período con horas. */
+      if(!TM2.maq_periodos || !TM2.maq_periodos.length)
+        v.innerHTML='Aún no hay partes de maquinaria cargados en Galca'+
+          ($('btnPartes')?': pulsa <b>«Cargar partes de maquinaria»</b> y elige el libro de partes':'')+
+          '. Sin horas de máquina la cadena no se puede calcular; la producción sí se ve abajo.';
+      else
+      v.innerHTML='Sin partes de maquinaria para '+esc(eti(sel_p.p))+(uf==='Todo'?'':' en '+esc(uf))+
+        '. Los partes diarios cubren de <b>'+
+        esc(eti(TM2.maq_periodos[0]))+'</b> a <b>'+esc(eti(TM2.maq_periodos[TM2.maq_periodos.length-1]))+
+        '</b>; fuera de ahí sólo hay producción, así que la cadena no se puede calcular.';
+      v.style.padding='18px 0';c.appendChild(v);
+      return;
+    }
+    if(retro) av.push(retro);
+    if(uf!=='Todo') av.push('Sólo '+uf+' · la excavación no viene partida por UF');
+  }
   nota.textContent=av.join(' · ');
   const maxH=Math.max(1,...ACT.map(a=>(B.m[a.k]||{}).horas||0));
   ACT.forEach(a=>{
@@ -1140,7 +1209,7 @@ function cadena(sel_p){
          que es donde se consultan. Se conserva sólo lo que cambia mes a mes y
          responde a la pregunta que sí se hace en la sala: por qué esta máquina
          y no aquella. */
-      let txt='Peso en las horas de '+a.n.toLowerCase()+' sobre <b>'+f1(m.horas)+' h</b> del período. '+
+      let txt='Peso en las horas de '+a.n.toLowerCase()+' sobre <b>'+f1(m.horas)+' h</b> '+(selDias?textoRangoSel(selDias.a,selDias.b):'del período')+'. '+
         'Sólo cuentan las máquinas coherentes con la actividad, por centro de coste: excavación '+
         'excavadoras (02.05/02.06), terraplén bulldozer y motoniveladora (02.07), subbase '+
         'motoniveladora (03.01), BTC motoniveladora y finisher (03.03). Vibros, minicargadores, '+
