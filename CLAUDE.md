@@ -22,11 +22,14 @@ Terminado significa, todo a la vez:
 1. Cambios en una rama de trabajo. **Nunca push a `main`** (publica GitHub Pages).
 2. Arneses afectados en verde: `node backend/pruebas/verificar_*.js` de lo tocado, `node backend/pruebas/contrato/correr.js` (Apps Script) y `node worker/pruebas/contrato_local.js` (Worker). Si se tocan pantallas, además el banco en Chromium (`NODE_PATH=/opt/node22/lib/node_modules node backend/pruebas/verificar_v301_pantallas.js` y/o `node tools/sandbox/servidor.mjs`).
 3. Revisión hecha (`reviewer` o, en cambios triviales, revisión propia del diff) sin hallazgos críticos abiertos.
-4. Lista de **pasos manuales pendientes** en el formato de `docs/OPERACIONES.md` (numerados, en orden, con la acción exacta): redespliegue de Apps Script, `wrangler deploy`, publicar Pages, migraciones SQL, etc.
+4. Lista de **pasos de despliegue** en el formato de `docs/OPERACIONES.md` (numerados, en orden, con la acción exacta): redespliegue de Apps Script, `wrangler deploy`, publicar Pages, migraciones SQL, etc. El orquestador pide autorización para ejecutarlos él (ver «Límites de autonomía»); lo que el dueño prefiera hacer a mano queda como pendiente.
 El dueño valida con datos reales antes de dar nada por cerrado.
 
 ## Límites de autonomía
-Prohibido (y denegado en `.claude/settings.json` hasta donde la versión lo permite): push a `main`; `wrangler deploy`; cualquier escritura vía los MCP de Supabase y Cloudflare; modificar o borrar los Excel maestros (`TM2_SUR_REPORTE_DIARIO_OBRA`, `Partes_Diarios_de_Maquinaria_*`) o los Sheets de producción (ninguna escritura contra `api.galca.app` sin `/prueba`). Lo que el deny no cubre es política y se cumple igual.
+**Con autorización del dueño, no prohibido** (la idea es automatizar): publicar en `main` (push o merge del PR, que publica GitHub Pages); `wrangler deploy`; escrituras en Supabase y Cloudflare (migraciones SQL, cambios de datos, recursos); modificar o borrar los Excel maestros (`TM2_SUR_REPORTE_DIARIO_OBRA`, `Partes_Diarios_de_Maquinaria_*`) o los Sheets de producción (escrituras contra `api.galca.app` sin `/prueba`).
+- **Cómo:** cuando el trabajo esté verificado, el orquestador **pregunta** qué va a ejecutar (lista corta: qué, dónde, cómo se revierte) y, con el sí del dueño, lo ejecuta él mismo y verifica el resultado en producción. El sí vale para lo que se preguntó en esa sesión, no para lo siguiente.
+- `.claude/settings.json` tiene estas acciones en `ask`: Claude Code además pide confirmación en pantalla al ejecutarlas. Lo que `ask` no cubre (p. ej. una escritura con `execute_sql`, que también se usa para leer) es política y se cumple igual: primero se pregunta.
+- Antes de escribir en producción: respaldo o vuelta atrás definida (migraciones idempotentes con tabla `*_respaldo_*`).
 
 ## Documentación al cerrar un cambio
 `docs/` no se toca durante el trabajo. Al cerrar, y en el mismo commit, es obligatorio: decisión nueva → `02_REGISTRO_DECISIONES.md` (append-only, siguiente número D); ítem o estado → `03_BACKLOG.md`; regla nueva → `PROJECT_CONTEXT.md`. Nada más de `docs/` se modifica ni reorganiza.
