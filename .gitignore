@@ -3,3 +3,6 @@ supabase/
 
 __pycache__/
 *.pyc
+
+# Respaldos de DATA de importar_maestro.js (D186): llevan datos de producción, nunca al repo
+respaldo_data_*.csv

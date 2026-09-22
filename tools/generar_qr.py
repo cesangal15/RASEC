@@ -93,7 +93,7 @@ def norm_frente(v):
 
 
 def norm_grupo(v):
-    """Grupo/disciplina de la máquina (D183): tierras | drenajes. Vacío = tierras (DEFAULT de la columna).
+    """Grupo/disciplina de la máquina (D190): tierras | drenajes. Vacío = tierras (DEFAULT de la columna).
     Igual que normGrupo_ del Worker: odt/odl colapsan a 'drenajes'."""
     s = (v or "").strip().lower().replace(" ", "").replace("_", "-").replace("/", "-").replace("·", "-")
     if s in ("", "tierras", "tierra"):
@@ -106,7 +106,7 @@ def norm_grupo(v):
 def leer_vigentes(ruta, fecha, frentes, grupos=None):
     """Estancias de la hoja MAQUINAS (TSV o CSV, por nombre de columna) vigentes en `fecha`:
     ventana semiabierta [fecha_ingreso, fecha_retiro) y frente en `frentes` (vacío = UF1-UF2).
-    Con `grupos` (D183) además acota por disciplina (tierras/drenajes); sin la columna `grupo`
+    Con `grupos` (D190) además acota por disciplina (tierras/drenajes); sin la columna `grupo`
     todo cuenta como 'tierras'. Devuelve {codigo_normalizado: frente}. Sin archivo → None."""
     if not ruta or not os.path.exists(ruta):
         return None
@@ -329,7 +329,7 @@ def main():
     ap.add_argument("--maquinas", default=MAQUINAS_DEFECTO, help="hoja MAQUINAS (TSV/CSV, estancias con fechas y frente). Vacío = usar solo `activo` de PARTE_EQUIPOS")
     ap.add_argument("--fecha", default="", help="día para el que se calcula la flota vigente (yyyy-mm-dd; default hoy, hora de Bogotá)")
     ap.add_argument("--frentes", default=FRENTES_DEFECTO, help="frentes cuyos equipos espera el parte, separados por coma (default UF1-UF2)")
-    ap.add_argument("--grupos", default="", help="D183: acota por grupo/disciplina (tierras,drenajes) leyendo la columna `grupo` de MAQUINAS; vacío = todos los grupos")
+    ap.add_argument("--grupos", default="", help="D190: acota por grupo/disciplina (tierras,drenajes) leyendo la columna `grupo` de MAQUINAS; vacío = todos los grupos")
     ap.add_argument("--limpiar", action="store_true", help="borra de la carpeta de salida los <codigo>.png que ya no correspondan a un equipo con QR")
     args = ap.parse_args()
 

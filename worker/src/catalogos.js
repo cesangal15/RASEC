@@ -232,6 +232,62 @@ export async function baseRows_(c){
 }
 export const baseElementos_ = baseRows_;   // mismo lector, nombre del mapa de la migración
 
+/* ---------- D184 · FC por ACTIVIDAD (tabla fc_actividad, 007_data_completa.sql) ----------
+ * El FC (factor suelto→compacto) depende de la actividad: el MÁS USADO en el histórico de DATA del Excel
+ * (lo que no cuadra son errores de digitación). La tabla trae solo las que NO son 1 (hoy 7 descripciones con
+ * 1.3); sin fila = FC 1. Es una tabla PROPIA (no una columna de base_items) para que un backfill del catálogo
+ * BASE no la borre. El cruce es por DESCRIPCIÓN normalizada con normTexto (mayúsculas, sin tildes, espacios
+ * colapsados): la misma normalización que usa 007 en SQL para rellenar DATA.
+ *   fcActividad_(c) → { [normTexto(descripcion)]: fc }   (una consulta por PETICIÓN, memo_ como la BASE;
+ *                      sin la tabla —BD sin 007— devuelve {} y todo queda en FC 1; por eso, en producción,
+ *                      007 se pasa ANTES del `wrangler deploy` de D184: docs/OPERACIONES.md §12)
+ *   fcDeActividad(mapa, descripcion) → fc de la actividad o 1. */
+export async function fcActividad_(c){
+  return memo_(c, 'fc_actividad', async function(){
+    const out={};
+    let filas=[];
+    try{ filas=await c.sql`SELECT descripcion, fc FROM fc_actividad WHERE obra_id=${OBRA_ID} ORDER BY descripcion`; }
+    catch(err){ filas=[]; }
+    filas.forEach(function(r){
+      const k=normTexto(r.descripcion), n=Number(r.fc);
+      if(k && isFinite(n) && n>0 && !(k in out)) out[k]=n;   // dos filas que normalizan igual: gana la primera por descripción (como DISTINCT ON en 007)
+    });
+    return out;
+  });
+}
+export function fcDeActividad(mapa, descripcion){
+  const v=(mapa || {})[normTexto(descripcion)];
+  return (typeof v==='number' && v>0) ? v : 1;
+}
+
+/* ---------- D185 [O] (enmienda de D184, 18-sep-2026) · FC 1 en los «AJUSTE ORIGEN» ----------
+ * Las filas cuyo ELEMENTO es un subtramo NO OPERATIVO de base_elementos (los dos «ajuste origen UF1/UF2»,
+ * bandera no_operativo de 003_grilla.sql; respaldo por nombre ^ajuste origen, como esNoOperativo_ de grilla.js)
+ * son la acomodación directa con el origen y YA están en compacto: su FC por defecto es SIEMPRE 1, no el de la
+ * actividad. Lo aplican enviar_data (completarD184_), la Revisión de DATA (derivar_) y el relleno de 007.
+ *   noOperativos_(c) → { [normTexto(elemento)]: true } de los subtramos con la bandera (memo_ por petición;
+ *                      sin la columna o sin la tabla → {} y queda solo el respaldo por nombre)
+ *   esNoOperativo(mapa, elemento) → true si la bandera o el nombre lo dicen
+ *   fcDeFila(fcMap, noOp, descripcion, elemento) → 1 en un ajuste origen; si no, el FC de la actividad. */
+export const RE_AJUSTE_ORIGEN = /^\s*ajuste\s*origen/i;
+export async function noOperativos_(c){
+  return memo_(c, 'no_operativos', async function(){
+    const out={};
+    let filas=[];
+    try{ filas=await c.sql`SELECT elemento FROM base_elementos WHERE obra_id=${OBRA_ID} AND no_operativo`; }
+    catch(err){ filas=[]; }
+    filas.forEach(function(r){ const k=normTexto(r.elemento); if(k) out[k]=true; });
+    return out;
+  });
+}
+export function esNoOperativo(mapa, elemento){
+  const e=String(elemento==null?'':elemento);
+  return RE_AJUSTE_ORIGEN.test(e) || !!(mapa || {})[normTexto(e)];
+}
+export function fcDeFila(fcMap, noOp, descripcion, elemento){
+  return esNoOperativo(noOp, elemento) ? 1 : fcDeActividad(fcMap, descripcion);
+}
+
 /* ======================================================================================================
  * Codigo.gs L984–L1012 — CUBICAJE: cubicaje real por placa (D53 / 2.10) → tabla cubicaje
  * ====================================================================================================== */
@@ -306,7 +362,7 @@ export function normMaqClave_(s){ return String(s==null?'':s).replace(/[^A-Za-z0
 // Frentes que atiende el Parte Digital (CodigoParte.gs / api/parte.js): solo UF1-UF2.
 export const PARTE_FRENTES = ['UF1-UF2'];
 
-// GRUPO / disciplina de la máquina (D183): tierras | drenajes. Dimensión ORTOGONAL a `frente` (UF): una
+// GRUPO / disciplina de la máquina (D190): tierras | drenajes. Dimensión ORTOGONAL a `frente` (UF): una
 // máquina puede ser UF1-UF2 y de drenajes a la vez. Es coarse a propósito (una máquina de drenajes sirve
 // ODT y ODL indistintamente), distinto del `area` odt/odl que se deriva del CC del trabajo. UF3 queda
 // fuera de esta separación (vive en `frente`). Vacío = tierras (DEFAULT de la columna).
@@ -332,7 +388,7 @@ export async function flotaFilas_(c){
       filas=await c.sql`SELECT id_maquina, tipo, horas_prog, propiedad, fecha_ingreso, fecha_retiro, notas, frente, grupo
         FROM maquinas WHERE obra_id=${OBRA_ID} ORDER BY id_maquina, fecha_ingreso`;
     }catch(err){
-      // D183: SOLO si la columna `grupo` aún no existe (migración 003 sin aplicar) caemos a un SELECT sin
+      // D190: SOLO si la columna `grupo` aún no existe (migración 009 sin aplicar) caemos a un SELECT sin
       // `grupo` (queda '' → tierras). Cualquier OTRO error (blip transitorio, timeout) se RELANZA: si no,
       // un fallo pasajero devolvería toda la flota como 'tierras' en silencio y ocultaría el problema de raíz.
       const m=String(err&&err.message||err);
@@ -374,7 +430,7 @@ export async function flotaEnFecha_(c, fecha, opts){
     const tipo=String(r.tipo==null?'':r.tipo).toUpperCase().trim();
     const frente=normFrente_(r.frente);
     if(frentes.indexOf(frente)<0) return;              // D173: otro frente (UF3): no es de esta flota
-    const grupo=normGrupo_(r.grupo);                   // D183: disciplina (tierras/drenajes), ortogonal al frente
+    const grupo=normGrupo_(r.grupo);                   // D190: disciplina (tierras/drenajes), ortogonal al frente
     if(opts.grupos && opts.grupos.length && opts.grupos.indexOf(grupo)<0) return;   // acota por grupo si se pide
     if(!tipo)                                  avisos.push(_estancia_(r)+': sin tipo; no lleva producción y solo sale en la flota del parte.');
     else if(MAQ_TIPOS_FLOTA.indexOf(tipo)<0)   avisos.push(_estancia_(r)+': tipo "'+tipo+'" no está en la lista conocida; no lleva producción y solo sale en la flota del parte.');
@@ -477,7 +533,7 @@ export async function parteEquiposActivos_(c, fecha){
   const m=await parteEquipos_(c), fl=await parteFlotaVigente_(c, fecha);
   let lista;
   if(!fl){
-    // Sin flota: las fichas de parte_equipos no llevan grupo → tierras por defecto (D183).
+    // Sin flota: las fichas de parte_equipos no llevan grupo → tierras por defecto (D190).
     lista=Object.keys(m).map(function(k){ return Object.assign({ grupo:FLOTA_GRUPO_DEFECTO }, m[k]); }).filter(function(q){ return q.activo; });
   }else{
     lista=Object.keys(fl.catalogo).map(function(id){

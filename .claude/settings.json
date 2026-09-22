@@ -1,0 +1,48 @@
+{
+  "model": "opus",
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "3"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(node backend/pruebas/*)",
+      "Bash(node worker/pruebas/*)",
+      "Bash(node tools/sandbox/*)"
+    ],
+    "deny": [
+      "Bash(git push * main*)",
+      "Bash(git push *:main*)",
+      "Bash(*wrangler deploy*)",
+      "Bash(npm run deploy*)",
+      "Bash(*rm *TM2_SUR_REPORTE*)",
+      "Bash(*rm *Partes_Diarios_de_Maquinaria*)",
+      "Edit(**/TM2_SUR_REPORTE*)",
+      "Edit(**/Partes_Diarios_de_Maquinaria*)",
+      "mcp__Supabase__execute_sql",
+      "mcp__Supabase__apply_migration",
+      "mcp__Supabase__deploy_edge_function",
+      "mcp__Supabase__create_branch",
+      "mcp__Supabase__delete_branch",
+      "mcp__Supabase__merge_branch",
+      "mcp__Supabase__rebase_branch",
+      "mcp__Supabase__reset_branch",
+      "mcp__Supabase__create_project",
+      "mcp__Supabase__pause_project",
+      "mcp__Supabase__restore_project",
+      "mcp__Cloudflare_Developer_Platform__d1_database_create",
+      "mcp__Cloudflare_Developer_Platform__d1_database_delete",
+      "mcp__Cloudflare_Developer_Platform__d1_database_query",
+      "mcp__Cloudflare_Developer_Platform__hyperdrive_config_delete",
+      "mcp__Cloudflare_Developer_Platform__hyperdrive_config_edit",
+      "mcp__Cloudflare_Developer_Platform__kv_namespace_create",
+      "mcp__Cloudflare_Developer_Platform__kv_namespace_delete",
+      "mcp__Cloudflare_Developer_Platform__kv_namespace_update",
+      "mcp__Cloudflare_Developer_Platform__r2_bucket_create",
+      "mcp__Cloudflare_Developer_Platform__r2_bucket_delete"
+    ]
+  }
+}

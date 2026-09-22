@@ -1,5 +1,5 @@
 -- =====================================================================================================
--- TM2 Sur · 003_grupo_flota.sql — columna `grupo` en la flota (tierras | drenajes) · D183, sep-2026
+-- TM2 Sur · 009_grupo_flota.sql — columna `grupo` en la flota (tierras | drenajes) · D190, sep-2026
 -- Separa la flota por DISCIPLINA/dueño de la máquina (tierras vs drenajes), una dimensión ORTOGONAL a
 -- `frente` (que es la UF: UF1-UF2 / UF3). Motivo: hoy una máquina de drenajes (p. ej. el turbo del
 -- ingeniero de drenajes) puesta en UF1-UF2 se pide a diario en el parte como si fuera de tierras; con
@@ -18,10 +18,10 @@
 BEGIN;
 
 ALTER TABLE maquinas ADD COLUMN IF NOT EXISTS grupo text NOT NULL DEFAULT 'tierras';
-COMMENT ON COLUMN maquinas.grupo IS 'tierras | drenajes (D183): disciplina/dueño de la máquina; ORTOGONAL a frente (UF). El Parte agrupa «Equipos sin parte» por este valor; las estancias viejas quedan en tierras (DEFAULT). Marca las de drenajes en la pantalla de Flota o en el Table Editor.';
+COMMENT ON COLUMN maquinas.grupo IS 'tierras | drenajes (D190): disciplina/dueño de la máquina; ORTOGONAL a frente (UF). El Parte agrupa «Equipos sin parte» por este valor; las estancias viejas quedan en tierras (DEFAULT). Marca las de drenajes en la pantalla de Flota o en el Table Editor.';
 
 INSERT INTO esquema_version (version, nota)
-  VALUES (3, '003_grupo_flota.sql · columna grupo en maquinas (tierras/drenajes), D183')
+  VALUES (9, '009_grupo_flota.sql · columna grupo en maquinas (tierras/drenajes), D190')
   ON CONFLICT (version) DO NOTHING;
 
 COMMIT;

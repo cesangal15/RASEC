@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proyección</title>
+<meta name="theme-color" content="#f5a623">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="entorno.js"></script>
+<link rel="stylesheet" href="tema.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="proyeccion.css">
+</head>
+<body>
+<div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
+  <div class="header-left">
+    <div class="label">Plan · contrato · rendimientos · D183</div>
+    <h1>📐 Proyección</h1>
+  </div>
+  <div class="header-user">
+    <span id="userDisplay">—</span>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="intro" id="intro">
+    Lo que antes se tecleaba en las hojas <b>CALCULOS</b> y <b>MAPEO</b> del Excel: el <b>plan mensual</b> (m³ compactos por
+    periodo 16→15), el <b>contrato y la línea base</b>, los <b>rendimientos por equipo</b> y el <b>FC</b>. Es lo que lee el
+    <b>Tablero de Producción</b>. Las columnas en gris son calculadas. Un solo <b>Guardar</b> manda los cambios de las cuatro pestañas.
+    <br><b>Cómo se usa (como Excel):</b> un clic <b>selecciona</b>; muévete con las <kbd>flechas</kbd>; <kbd>Shift</kbd>+flechas o
+    Shift+clic marca un rango; <b>edita</b> con doble clic, <kbd>Enter</kbd> o escribiendo. Puedes escribir una <b>cuenta</b> que empiece
+    con <kbd>=</kbd> (p. ej. <code>=47724+3413</code>: números, <code>+ − * /</code> y paréntesis); se guarda el resultado y la cuenta queda
+    en la celda (marca <span class="marca-demo"></span>). Decimales con <b>coma</b> (<code>1234,5</code>); el punto separa miles
+    (<code>1.234,5</code>), salvo que no pueda serlo (<code>1.3</code>, <code>38848.8</code>).
+    <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd> copia/pega, <kbd>Ctrl</kbd>+<kbd>D</kbd> rellena hacia abajo, <kbd>Supr</kbd> vacía,
+    <kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> deshace/rehace y <kbd>Ctrl</kbd>+<kbd>S</kbd> guarda.
+  </div>
+
+  <div class="barra">
+    <div class="ptabs" id="ptabs" role="tablist"></div>
+    <span id="soloLectura" class="badge warn" data-estilo="display:none;">SOLO LECTURA · editan admin y jefe</span>
+    <span class="ultima" id="ultima"></span>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn" id="btnAlta" data-on-click="altaPeriodo()" data-estilo="display:none;" title="Añade el mes siguiente al último">＋ Periodo</button>
+    <button class="btn" id="btnFill" data-on-click="rellenar()" data-estilo="display:none;" title="Rellenar hacia abajo (Ctrl+D)">Rellenar ↓</button>
+    <button class="btn" id="btnUndo" data-on-click="deshacer()" data-estilo="display:none;" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
+    <button class="btn" id="btnRedo" data-on-click="rehacer()" data-estilo="display:none;" title="Rehacer (Ctrl+Y)" disabled>↷ Rehacer</button>
+    <button class="btn" data-on-click="copiarSel(this)">📋 Copiar</button>
+    <button class="btn" data-on-click="recargar()">↻ Recargar</button>
+    <button class="btn primario" id="btnGuardar" data-on-click="guardar(this)" data-estilo="display:none;" disabled title="Guarda las cuatro pestañas (Ctrl+S)">💾 Guardar <span class="n" id="nDirty">0</span></button>
+  </div>
+
+  <div class="nota" id="nota"></div>
+
+  <div class="tabla-wrap" id="wrap" tabindex="0">
+    <table id="tabla">
+      <colgroup id="cols"></colgroup>
+      <thead><tr id="cab"></tr></thead>
+      <tbody id="cuerpo"><tr><td class="vacio">Cargando…</td></tr></tbody>
+      <tfoot id="pie"></tfoot>
+    </table>
+  </div>
+
+  <div class="extra" id="extra"></div>
+
+  <div class="leyenda">
+    <span class="lg deriv">calculado</span>
+    <span class="lg formula">celda con cuenta (=…)</span>
+    <span class="lg formula-fija" title="En el Excel era una fórmula que apuntaba a otra celda (p. ej. =+D16*1.2): aquí quedó su valor y no se recalcula">valor fijo del Excel (no se recalcula)</span>
+    <span class="lg err">con error (no se guarda)</span>
+    <span class="lg dirty">sin guardar</span>
+    <span class="lg sel">selección</span>
+  </div>
+</div>
+
+<script src="proyeccion.js"></script>
+</body>
+</html>

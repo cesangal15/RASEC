@@ -506,7 +506,7 @@ function parteFilasCompletas_(nombre, rows){
 }
 function parteEstadoDe_(r){ return parteTexto_(r.estado).toLowerCase() || 'pendiente'; }
 
-// Minuto de FIN del turno tratando el cruce de medianoche (D181 — turno noche). Un turno 18:00→06:00 se
+// Minuto de FIN del turno tratando el cruce de medianoche (D188 — turno noche). Un turno 18:00→06:00 se
 // reporta en el día que EMPIEZA, así que su hora_a (06:00) es del día siguiente y ocurrió DESPUÉS de la
 // entrada: +24 h para que ordene como lo último. Sin hora_de válida (o sin cruce) = minuto de hora_a tal cual.
 function parteFinMin_(horaDe, horaA){
@@ -516,7 +516,7 @@ function parteFinMin_(horaDe, horaA){
 }
 
 // Último `final` registrado del equipo (filas no descartadas; la más reciente por fecha, hora de FIN y
-// timestamp; D181: la hora de fin cruza medianoche por parteFinMin_, así el turno noche cuenta como el más
+// timestamp; D188: la hora de fin cruza medianoche por parteFinMin_, así el turno noche cuenta como el más
 // reciente). Respaldo: `ultimo_final_manual`/`ultimo_final` de PARTE_EQUIPOS (arranque del primer día).
 function parteUltimoFinal_(equipo){
   const cod=parteNormCod_(equipo.codigo);
@@ -584,7 +584,7 @@ function parteExpandirReparto_(tramos){
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const total=(ini!==null && fin!==null) ? fin-ini : null;
     const mDe=parteHoraMin_(t.hora_de); let mA=parteHoraMin_(t.hora_a);
-    if(mA>=0 && mDe>=0 && mA<mDe) mA+=1440;   // D181: turno que cruza medianoche, el fin es del día siguiente
+    if(mA>=0 && mDe>=0 && mA<mDe) mA+=1440;   // D188: turno que cruza medianoche, el fin es del día siguiente
     const conHoras=(mDe>=0 && mA>=0 && mA>mDe);
     let acum=0, iniAct=ini, minAct=mDe;
     for(let j=0;j<rep.length;j++){
@@ -658,7 +658,7 @@ function parteReporte(body, ses){
   const ultimo=parteUltimoFinal_(q);
   const idsEx={}; hist.forEach(function(r){ const id=parteTexto_(r.id_registro); if(id) idsEx[id]=1; });
   const ccRecientes={}; let hayHistorialCC=false;
-  // D181 (turno noche): nº de parte físico → días ya registrados (no descartados). El mismo parte con OTRA
+  // D188 (turno noche): nº de parte físico → días ya registrados (no descartados). El mismo parte con OTRA
   // fecha ≈ mismo turno subido dos veces (riesgo del turno que cruza medianoche) → PARTE_REPETIDO.
   const reportesPrevios={};
   hist.forEach(function(r){
@@ -705,7 +705,7 @@ function parteReporte(body, ses){
     const dup = !!hDe && (hist.some(function(r){ return parteEstadoDe_(r)!=='descartado' && r.fecha===fecha && parteHoraStr_(r.hora_de)===hDe; })
              || filas.some(function(f){ return f[3]===fecha && parteHoraStr_(f[15])===hDe; }));
     if(dup) alertas.push('DUPLICADO');
-    // Mismo nº de parte físico ya subido en OTRO día (D181): posible doble carga del mismo turno noche.
+    // Mismo nº de parte físico ya subido en OTRO día (D188): posible doble carga del mismo turno noche.
     if(reporte && reportesPrevios[reporte] && !reportesPrevios[reporte][fecha]) alertas.push('PARTE_REPETIDO');
     if(sinCC) alertas.push('SIN_CC');
     else if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');

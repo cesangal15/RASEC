@@ -104,3 +104,12 @@
     .acts-grid{columns:2;column-gap:18px;}
     .acts-grid .resumen-block{break-inside:avoid;}
   }
+
+/* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera ni tiles propios.
+ * El rango de fechas lo fija el Hub arriba a la derecha, así que se oculta la fila
+ * Desde/Hasta/Consultar (el .filtro-row hijo directo del .filtro-card); los filtros
+ * Área/Actividad/UF (dentro de .filtros-din) SÍ quedan, que son propios de esta vista. */
+html.embed .header{display:none;}
+html.embed .tile-link{display:none!important;}
+html.embed .container{padding-top:8px;}
+html.embed .filtro-card > .filtro-row{display:none;}

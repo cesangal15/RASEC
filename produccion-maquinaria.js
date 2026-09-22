@@ -359,7 +359,7 @@ const TIPOS_RESPALDO=['BULLDOZER','EXCAVADORA','MOTONIVELADORA','FINISHER','VIBR
                       'MINICARGADOR','MINIBULDOZER','RETROEXCAVADORA'];
 const TIPOS_FLOTA_RESPALDO=TIPOS_RESPALDO.concat(['VOLQUETA','CAMABAJA','TRACTOCAMION','CARROTANQUE','CAMION','TURBO','CISTERNA','LUMINARIA']);
 const FRENTES_RESPALDO=['UF1-UF2','UF3'];
-const GRUPOS_RESPALDO=['tierras','drenajes'];   // D183: disciplina de la máquina (ortogonal al frente/UF)
+const GRUPOS_RESPALDO=['tierras','drenajes'];   // D190: disciplina de la máquina (ortogonal al frente/UF)
 let FLOTA={ cargada:false, fecha:'', estancias:[], avisos:[], tipos:[], tiposProd:[], orden:[], fuente:'', historico:0,
             frentes:[], frenteDef:'UF1-UF2', frentesParte:['UF1-UF2'], grupos:[], grupoDef:'tierras' };
 // Formulario abierto (uno a la vez) + sus valores. Se guardan en el estado, no en el DOM: la lista se
@@ -373,10 +373,10 @@ function flTipos(){ return (FLOTA.tipos&&FLOTA.tipos.length)?FLOTA.tipos:TIPOS_F
 function flOrden(){ return (FLOTA.orden&&FLOTA.orden.length)?FLOTA.orden:TIPOS_FLOTA_RESPALDO; }
 function flTiposProd(){ return (FLOTA.tiposProd&&FLOTA.tiposProd.length)?FLOTA.tiposProd:TIPOS_RESPALDO; }
 function flFrentes(){ return (FLOTA.frentes&&FLOTA.frentes.length)?FLOTA.frentes:FRENTES_RESPALDO; }
-function flListaGrupos(){ return (FLOTA.grupos&&FLOTA.grupos.length)?FLOTA.grupos:GRUPOS_RESPALDO; }   // D183
+function flListaGrupos(){ return (FLOTA.grupos&&FLOTA.grupos.length)?FLOTA.grupos:GRUPOS_RESPALDO; }   // D190
 function flEsProd(tipo){ return flTiposProd().indexOf(String(tipo||'').toUpperCase())>=0; }
 function flFrenteDe(e){ return e.frente || FLOTA.frenteDef || 'UF1-UF2'; }
-function flGrupoDe(e){ return e.grupo || FLOTA.grupoDef || 'tierras'; }   // D183: disciplina de la máquina
+function flGrupoDe(e){ return e.grupo || FLOTA.grupoDef || 'tierras'; }   // D190: disciplina de la máquina
 function flGrupoLabel(g){ return g==='drenajes' ? 'Drenajes' : 'Tierras'; }
 
 async function cargarFlota(){
@@ -401,7 +401,7 @@ function aplicarFlota(d){
   FLOTA.avisos=d.avisos||[]; FLOTA.tipos=d.tipos||[]; FLOTA.orden=d.orden_tipo||[];
   FLOTA.tiposProd=d.tipos_produccion||[]; FLOTA.frentes=d.frentes||[]; FLOTA.frenteDef=d.frente_defecto||'UF1-UF2';
   FLOTA.frentesParte=d.frentes_parte||[FLOTA.frenteDef];
-  FLOTA.grupos=d.grupos||[]; FLOTA.grupoDef=d.grupo_defecto||'tierras';   // D183
+  FLOTA.grupos=d.grupos||[]; FLOTA.grupoDef=d.grupo_defecto||'tierras';   // D190
   FLOTA.fuente=d.fuente||''; FLOTA.historico=d.historico_maquinaria||0;
   renderFlota();
 }
@@ -437,7 +437,7 @@ function flAbrir(op, id, ing){
   FL.op=(op==='reingreso'?'alta':op); FL.msg=null;
   FL.clave = (op==='corregir'||op==='baja') ? { id_maquina:e.id_maquina, fecha_ingreso:e.fecha_ingreso } : null;
   const fr=(FL.frente!=='todos' && FL.frente) ? FL.frente : (FLOTA.frenteDef||'UF1-UF2');
-  const gr=(FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras');   // D183: hereda el filtro de grupo activo
+  const gr=(FL.grupo!=='todos' && FL.grupo) ? FL.grupo : (FLOTA.grupoDef||'tierras');   // D190: hereda el filtro de grupo activo
   if(op==='alta')      FL.vals={ id_maquina:'', tipo:'', propiedad:'propia', fecha_ingreso:hoyCol(), horas_prog:'', notas:'',
                                  frente:fr, grupo:gr, placa:'', proveedor:'', medidor:'' };
   if(op==='reingreso') FL.vals={ id_maquina:e.id_maquina, tipo:e.tipo, propiedad:e.propiedad||'propia',
@@ -466,7 +466,7 @@ function flSelFrente(){
     flFrentes().map(function(f){ return '<option value="'+esc(f)+'"'+(f===FL.vals.frente?' selected':'')+'>'+esc(f)+'</option>'; }).join('')+
     '</select>';
 }
-function flSelGrupo(){   // D183: disciplina de la máquina (tierras/drenajes)
+function flSelGrupo(){   // D190: disciplina de la máquina (tierras/drenajes)
   return '<select data-on-change="flSet(\'grupo\',this.value)">'+
     flListaGrupos().map(function(g){ return '<option value="'+esc(g)+'"'+(g===FL.vals.grupo?' selected':'')+'>'+esc(flGrupoLabel(g))+'</option>'; }).join('')+
     '</select>';
@@ -579,7 +579,7 @@ function flGrupos(){
   const q=String(FL.q||'').trim().toUpperCase();
   const pasa=function(e){
     if(FL.frente && FL.frente!=='todos' && flFrenteDe(e)!==FL.frente) return false;
-    if(FL.grupo && FL.grupo!=='todos' && flGrupoDe(e)!==FL.grupo) return false;   // D183
+    if(FL.grupo && FL.grupo!=='todos' && flGrupoDe(e)!==FL.grupo) return false;   // D190
     return !q || (e.id_maquina+' '+(e.tipo||'')+' '+(e.notas||'')+' '+(e.placa||'')+' '+(e.proveedor||'')).toUpperCase().indexOf(q)>=0;
   };
   const porMaq=flPorMaquina();
@@ -609,12 +609,12 @@ function flGrupos(){
 function renderFlota(){ renderFlotaCabecera(); renderFlotaLista(); }
 function flFiltro(v){ FL.q=v; renderFlotaLista(); }
 function flFrente(f){ FL.frente=f||'todos'; renderFlota(); }
-function flFiltroGrupo(g){ FL.grupo=g||'todos'; renderFlota(); }   // D183
+function flFiltroGrupo(g){ FL.grupo=g||'todos'; renderFlota(); }   // D190
 
 function renderFlotaCabecera(){
   const cont=document.getElementById('flotaCont'), puede=PUEDE_FLOTA;
   // El resumen se calcula SIN el filtro de búsqueda: es el estado de la obra, no de la búsqueda.
-  // (Los filtros de FRENTE y de GRUPO sí aplican, D183: «cuántas máquinas tengo hoy» se acota por proyecto y disciplina.)
+  // (Los filtros de FRENTE y de GRUPO sí aplican, D190: «cuántas máquinas tengo hoy» se acota por proyecto y disciplina.)
   const qGuardada=FL.q; FL.q=''; const g=flGrupos(); FL.q=qGuardada;
   const sinFicha=Object.keys(g.hoy).reduce(function(n,t){ return n+g.hoy[t].filter(function(x){ return x.e.con_ficha===false; }).length; },0);
   let html='';
@@ -625,7 +625,7 @@ function renderFlotaCabecera(){
           frs.map(function(f){ return '<button class="fchip'+(FL.frente===f?' on':'')+'" data-on-click="flFrente('+JSON.stringify(f).replace(/"/g,'&quot;')+')">'+esc(f)+
                  ((FLOTA.frentesParte||[]).indexOf(f)>=0?' <span class="fparte" title="El Parte Digital espera a estos equipos cada día">· parte</span>':'')+'</button>'; }).join('')+
         '</div>';
-  // D183: chips de GRUPO (disciplina). Ortogonal al frente; filtra la lista y la etiqueta por fila.
+  // D190: chips de GRUPO (disciplina). Ortogonal al frente; filtra la lista y la etiqueta por fila.
   const grs=flListaGrupos();
   html+='<div class="frente-chips grupo-chips">'+
           '<button class="fchip'+(FL.grupo==='todos'?' on':'')+'" data-on-click="flFiltroGrupo(\'todos\')">Todos los grupos</button>'+
@@ -767,7 +767,7 @@ function flAbrirQR(codigo, modoAlta){
   const cod=String(codigo||'').trim(); if(!cod) return;
   const info=flInfoMaquina(cod), url=parteLinkDe(cod);
   const enParte = modoAlta ? modoAlta.enParte : ((FLOTA.frentesParte||[]).indexOf(info?flFrenteDe(info):'')>=0);
-  const grupo = (modoAlta && modoAlta.grupo) || (info?flGrupoDe(info):'tierras');   // D183
+  const grupo = (modoAlta && modoAlta.grupo) || (info?flGrupoDe(info):'tierras');   // D190
   const sinFicha = info && info.con_ficha===false;
   let html='';
   if(modoAlta){

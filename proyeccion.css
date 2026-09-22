@@ -1,0 +1,137 @@
+  /* ============================================================================
+   * PROYECCIÓN (V3-11 Fase A / D183) — plan mensual, contrato + línea base, rendimientos
+   * y parámetros, editables tipo Excel directo en la base. Mismo lenguaje visual que la
+   * Revisión de DATA (data.css). Solo tokens de tema.css → claro/oscuro. CSP D170: sin inline.
+   * ==========================================================================*/
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+  .header{background:var(--header-grad);border-bottom:3px solid var(--accent);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;gap:10px;}
+  .header-left .label{font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;color:var(--accent-txt);text-transform:uppercase;}
+  .header-left h1{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;}
+  .header-user{font-size:12px;color:var(--muted);text-align:right;}
+  .header-user span{display:block;color:var(--accent-txt);font-weight:600;}
+  .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
+  .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
+  .container{max-width:1280px;margin:0 auto;width:100%;padding:14px 16px;flex:1 1 auto;display:flex;flex-direction:column;min-height:0;}
+  .intro,.barra,.toolbar,.nota,.extra,.leyenda{flex:0 0 auto;}
+
+  .intro{font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .intro b{color:var(--text);}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:0 4px;color:var(--text);}
+  kbd{font-family:'DM Sans',sans-serif;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text);}
+  .marca-demo{display:inline-block;width:0;height:0;border-top:7px solid var(--info);border-right:7px solid transparent;vertical-align:middle;}
+
+  /* Pestañas internas (las cuatro tablas) */
+  .barra{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;}
+  .ptabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px;}
+  .ptab{padding:8px 14px;border:none;border-radius:7px;background:none;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;white-space:nowrap;}
+  .ptab:hover{color:var(--text);}
+  .ptab.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--btn-txt);}
+  .ptab .n{display:inline-block;margin-left:6px;background:var(--info);color:#fff;border-radius:20px;padding:0 7px;font-size:10.5px;font-family:'DM Sans',sans-serif;letter-spacing:0;}
+  .ptab .e{display:inline-block;margin-left:5px;background:var(--error);color:#fff;border-radius:20px;padding:0 6px;font-size:10.5px;font-family:'DM Sans',sans-serif;}
+  .ultima{margin-left:auto;font-size:11.5px;color:var(--muted);}
+  .badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted);}
+  .badge.warn{border-color:var(--warn);color:var(--accent-txt);}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:10px;}
+  .btn{padding:10px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;white-space:nowrap;min-height:40px;}
+  .btn:hover{border-color:var(--accent);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .btn.primario{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:var(--btn-txt);}
+  .btn.copied{border-color:var(--success);color:var(--success-txt);}
+  .btn .n{display:inline-block;margin-left:6px;background:rgba(0,0,0,.18);border-radius:20px;padding:1px 8px;font-size:11px;font-family:'DM Sans',sans-serif;}
+  #btnGuardar{margin-left:auto;}
+
+  .nota{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px;}
+  .nota b{color:var(--text);}
+  .nota .aviso{background:rgba(239,106,92,.10);border:1px solid var(--error);border-radius:10px;padding:9px 12px;margin-bottom:8px;color:var(--text);}
+
+  /* Grilla (misma mecánica que data.css) */
+  /* la caja se ajusta al ancho de la tabla (son pocas columnas); si no cabe, se desplaza */
+  .tabla-wrap{overflow:auto;flex:0 1 auto;align-self:flex-start;min-height:120px;border:1px solid var(--border);border-radius:12px;background:var(--surface);outline:none;max-width:100%;}
+  .tabla-wrap:focus{box-shadow:inset 0 0 0 2px rgba(245,166,35,.35);}
+  table{border-collapse:separate;border-spacing:0;font-size:12.5px;table-layout:fixed;}
+  thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none;z-index:3;}
+  thead th.num{text-align:right;}
+  thead th.th-deriv{font-style:italic;}
+  thead th .rz{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:5;}
+  thead th .rz:hover{background:linear-gradient(90deg,transparent,var(--accent));opacity:.6;}
+  body.rz-activo{cursor:col-resize;user-select:none;}
+  body.rz-activo .tabla-wrap{cursor:col-resize;}
+  thead th.rownum,tbody td.rownum,tfoot td.rownum{width:44px;min-width:44px;text-align:center;color:var(--muted);cursor:default;background:var(--surface2);position:sticky;left:0;z-index:1;}
+  thead th.rownum{z-index:4;}
+  tbody td.rownum.acc,tfoot td.rownum.acc{left:auto;position:static;background:transparent;}
+  tbody td{padding:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);vertical-align:middle;}
+  tbody tr:nth-child(even) td{background:rgba(127,127,127,.06);}
+  tbody td.deriv{background:rgba(127,127,127,.11);}
+  tbody tr:nth-child(even) td.deriv{background:rgba(127,127,127,.16);}
+  tbody tr:nth-child(even) td.rownum:not(.acc){background:var(--surface2);}
+  tbody td.cell{cursor:cell;position:relative;}
+  tbody td.cell .cv{padding:4px 8px;min-height:26px;line-height:18px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  tbody td.deriv .cv{color:var(--muted);}
+  tbody td.clave .cv{font-weight:600;}
+  tbody td.cell.num .cv{text-align:right;font-variant-numeric:tabular-nums;}
+  /* celda con cuenta (=…): esquina marcada, como la marca de un comentario del Excel */
+  tbody td.cell.formula::before{content:'';position:absolute;top:0;left:0;border-top:7px solid var(--info);border-right:7px solid transparent;pointer-events:none;}
+  /* valor FIJO copiado del Excel (su fórmula apuntaba a otra celda: no se recalcula, revisión D183): otra marca */
+  tbody td.cell.formula-fija::before{content:'';position:absolute;top:0;left:0;border-top:7px solid var(--warn);border-right:7px solid transparent;pointer-events:none;}
+  /* celda cambiada y sin guardar */
+  tbody td.cell.mod .cv{color:var(--info);font-weight:600;}
+  /* celda con error: el texto tecleado, en rojo, con el motivo al pasar el ratón; no se guarda */
+  tbody td.cell.err{background:rgba(239,106,92,.16)!important;}
+  tbody td.cell.err .cv{color:var(--error-txt);font-weight:600;}
+  tbody td.cell.sel{background:rgba(245,166,35,.14)!important;}
+  tbody td.cell.err.sel{background:rgba(239,106,92,.26)!important;}
+  tbody td.cell.activa{box-shadow:inset 0 0 0 2px var(--accent);}
+  .editor{width:100%;border:none;background:var(--input-bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;padding:4px 8px;outline:none;min-height:26px;box-shadow:inset 0 0 0 2px var(--accent);}
+  .editor.num{text-align:right;}
+  select.editor{appearance:none;-webkit-appearance:none;background-image:var(--flecha);background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;}
+  tbody tr.dirty td.rownum{border-left:3px solid var(--info);}
+  tbody tr.alta td.rownum{color:var(--info);font-weight:700;}
+  .xbtn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;padding:4px 7px;}
+  .xbtn:hover{border-color:var(--error);color:var(--error-txt);}
+  td.vacio{padding:26px;text-align:center;color:var(--muted);}
+  /* Total al pie del plan (informativo) — pegado abajo al desplazarse */
+  tfoot td{position:sticky;bottom:0;background:var(--surface2);border-top:2px solid var(--border);border-right:1px solid var(--border);font-weight:700;z-index:2;}
+  tfoot td.rownum{z-index:3;}
+  tfoot td .cv{padding:6px 8px;text-align:right;font-variant-numeric:tabular-nums;}
+  tfoot td.pie-lbl{padding:6px 9px;font-family:'Syne',sans-serif;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);white-space:nowrap;}
+
+  /* Contrato: resumen por partida + línea de la base */
+  .extra{margin-top:12px;}
+  .extra:empty{display:none;}
+  .resumen{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .res-tit{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .res-wrap{overflow-x:auto;}
+  table.res{border-collapse:collapse;table-layout:auto;min-width:520px;width:100%;font-size:12.5px;}
+  table.res th{position:static;background:none;border-bottom:1px solid var(--border);border-right:none;padding:6px 8px;font-size:10px;}
+  table.res td{padding:6px 8px;border-bottom:1px solid var(--border);border-right:none;background:none!important;}
+  table.res .num{text-align:right;font-variant-numeric:tabular-nums;}
+  table.res .uf{color:var(--muted);font-size:11px;}
+  .info{font-size:12.5px;color:var(--muted);margin-top:10px;}
+  .info b{color:var(--text);}
+
+  .leyenda{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:11.5px;color:var(--muted);}
+  .lg::before{content:'';display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+  .lg.deriv::before{background:var(--muted);}
+  .lg.formula::before{background:var(--info);border-radius:0;width:0;height:0;border-top:9px solid var(--info);border-right:9px solid transparent;background:none;}
+  .lg.formula-fija::before{border-radius:0;width:0;height:0;border-top:9px solid var(--warn);border-right:9px solid transparent;background:none;}
+  .lg.err::before{background:var(--error);}
+  .lg.dirty::before{background:var(--info);}
+  .lg.sel::before{background:transparent;border:2px solid var(--accent);}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--success);color:var(--text);padding:11px 18px;border-radius:10px;font-size:13px;z-index:60;box-shadow:0 8px 30px rgba(0,0,0,.35);display:none;max-width:92vw;}
+  .toast.err{border-color:var(--error);}
+  .toast.aviso{border-color:var(--warn);}
+
+  @media(max-width:640px){
+    .header{padding:12px 16px;} .container{padding:14px 12px;}
+    .ultima{margin-left:0;width:100%;}
+    #btnGuardar{margin-left:0;}
+  }
+
+  /* Modo EMBED dentro del Hub del Jefe (V3-10): sin cabecera ni ayuda propias. */
+  html.embed .header{display:none;}
+  html.embed .intro{display:none;}
+  html.embed .container{max-width:none;padding:8px 12px;}

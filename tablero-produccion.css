@@ -300,14 +300,10 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .fuente button:hover:not(:disabled){border-color:var(--ambtx);color:var(--ambtx);}
 .fuente button:disabled{opacity:.45;cursor:progress;}
 .fuente button:focus-visible{outline:2px solid var(--amb);outline-offset:2px;}
-.cfg{border:1px solid var(--rule);border-top:0;padding:14px 16px;
-  display:flex;flex-direction:column;gap:11px;}
-.cfg label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);
-  display:block;margin-bottom:4px;}
-.cfg input{width:100%;font:inherit;font-size:12px;padding:7px 9px;color:var(--ink);
-  background:var(--bg);border:1px solid var(--rule);}
-.cfg input:focus{outline:none;border-color:var(--amb);}
-.cfg .fila{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+/* D185 · V3-11 B+C: fuera el panel de enlaces (.cfg) y la «Comparación con el Excel»
+   (.difp, D183): el Tablero ya no lee Excel de producción; la comparación con un
+   Excel queda solo como herramienta del sandbox (tools/sandbox/). El único botón que
+   queda en la barra es «Cargar partes de maquinaria» (admin/jefe). */
 
 /* ---------- planificado vs ejecutado del período ---------- */
 .pp{display:grid;grid-template-columns:126px 1fr 80px;gap:0 13px;align-items:center;
@@ -351,7 +347,7 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 /* D170: antes eran style= en línea (la CSP ya no los admite). Mismos valores. */
 .u-mb6{margin-bottom:6px;}
 .u-mt13{margin-top:13px;}
-.u-nota-cfg{font-size:11px;color:var(--mut);}
+/* .u-nota-cfg (nota del panel de enlaces) se fue con el panel (D185). */
 .u-sub-cadena{font-size:13px;color:var(--muted);}
 .secA.u-nota-cadena{text-align:right;max-width:470px;}
 .u-eje-propio{color:var(--accent-txt);font-weight:700;}

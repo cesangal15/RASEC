@@ -171,7 +171,7 @@
     .rp-fila input[type=text],.rp-fila input[placeholder=PR]{grid-column:1 / -1;}
   }
 
-  /* Secciones por grupo en «Equipos sin parte» (D183). */
+  /* Secciones por grupo en «Equipos sin parte» (D190). */
   .falt-grupo{font-family:'Syne',sans-serif;font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:10px 2px 4px;display:flex;align-items:center;gap:6px;}
   .falt-grupo span{background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:0 8px;font-size:10px;}
   .falt-grupo:first-child{margin-top:0;}

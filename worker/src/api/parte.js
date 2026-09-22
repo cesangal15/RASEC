@@ -362,7 +362,7 @@ async function parteHistorial_(c, codigo){
   });
 }
 function parteEstadoDe_(r){ return parteTexto_(r.estado).toLowerCase() || 'pendiente'; }
-// Minuto de FIN del turno tratando el cruce de medianoche (D181 — turno noche). Un turno que arranca 18:00
+// Minuto de FIN del turno tratando el cruce de medianoche (D188 — turno noche). Un turno que arranca 18:00
 // y termina 06:00 se reporta en el día que EMPIEZA, así que su hora_a (06:00) es del día siguiente y en
 // realidad ocurrió DESPUÉS que la de entrada: se le suman 24 h para que ordene como lo que es, lo último.
 // Sin hora_de válida (o sin cruce) es el minuto de hora_a tal cual, como antes.
@@ -372,7 +372,7 @@ export function parteFinMin_(horaDe, horaA){
   return (mDe>=0 && mA<mDe) ? mA+1440 : mA;
 }
 // Último `final` del equipo a partir de su historial (misma regla que el .gs: fecha, hora de FIN, timestamp;
-// D181: la hora de fin cruza medianoche por parteFinMin_, así el turno noche cuenta como el más reciente).
+// D188: la hora de fin cruza medianoche por parteFinMin_, así el turno noche cuenta como el más reciente).
 export function parteUltimoFinalDe_(hist, equipo){
   let mejor=null;
   (hist||[]).forEach(function(r){
@@ -391,7 +391,7 @@ async function parteUltimoFinal_(c, equipo){ return parteUltimoFinalDe_(await pa
 // Para los faltantes de la bandeja: el último final de TODOS los equipos en una sola consulta (índice parte_bandeja_ultimo_idx).
 async function parteUltimosFinales_(c){
   return memo_(c, 'ultimos', async function(){
-    // D181 (turno noche): entre filas del MISMO día, la que cruza medianoche (hora_a < hora_de) terminó al
+    // D188 (turno noche): entre filas del MISMO día, la que cruza medianoche (hora_a < hora_de) terminó al
     // día siguiente, así que ordena como la más reciente (CASE … DESC antes de hora_a). hora_de viaja en el
     // SELECT para que parteUltimoFinalDe_ recompute lo mismo en JS sobre la fila elegida.
     const filas=await c.sql`SELECT DISTINCT ON (codigo) id_registro, fecha, codigo, final, hora_de, hora_a, "timestamp"
@@ -445,7 +445,7 @@ export function parteExpandirReparto_(c, tramos){
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const total=(ini!==null && fin!==null) ? fin-ini : null;
     const mDe=parteHoraMin_(t.hora_de); let mA=parteHoraMin_(t.hora_a);
-    if(mA>=0 && mDe>=0 && mA<mDe) mA+=1440;   // D181: turno que cruza medianoche, el fin es del día siguiente
+    if(mA>=0 && mDe>=0 && mA<mDe) mA+=1440;   // D188: turno que cruza medianoche, el fin es del día siguiente
     const conHoras=(mDe>=0 && mA>=0 && mA>mDe);
     let acum=0, iniAct=ini, minAct=mDe;
     for(let j=0;j<rep.length;j++){
@@ -529,7 +529,7 @@ export async function parteReporte(c, body, ses){
   const ultimo=parteUltimoFinalDe_(hist, q);
   const idsEx={}; hist.forEach(function(r){ const id=parteTexto_(r.id_registro); if(id) idsEx[id]=1; });
   const ccRecientes={}; let hayHistorialCC=false;
-  // D181 (turno noche): nº de parte físico → días en que ya está registrado (no descartado). Si el mismo
+  // D188 (turno noche): nº de parte físico → días en que ya está registrado (no descartado). Si el mismo
   // parte llega con OTRA fecha es casi seguro el mismo turno subido dos veces (el riesgo del turno que cruza
   // medianoche); se marca PARTE_REPETIDO para que revisión lo mire y no se facture dos veces. Un reenvío de
   // la cola offline (mismo id_registro y misma fecha) no dispara nada: idsEx lo deduplica y la fecha coincide.
@@ -575,7 +575,7 @@ export async function parteReporte(c, body, ses){
     const dup = !!hDe && (hist.some(function(r){ return parteEstadoDe_(r)!=='descartado' && r.fecha===fecha && parteHoraStr_(r.hora_de)===hDe; })
              || filas.some(function(f){ return f[3]===fecha && parteHoraStr_(f[15])===hDe; }));
     if(dup) alertas.push('DUPLICADO');
-    // Mismo nº de parte físico ya subido en OTRO día (D181): posible doble carga del mismo turno noche.
+    // Mismo nº de parte físico ya subido en OTRO día (D188): posible doble carga del mismo turno noche.
     if(reporte && reportesPrevios[reporte] && !reportesPrevios[reporte][fecha]) alertas.push('PARTE_REPETIDO');
     if(sinCC) alertas.push('SIN_CC');
     else if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');

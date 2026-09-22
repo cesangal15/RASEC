@@ -280,7 +280,7 @@ export async function flotaGuardar(c, body, ses){
     ? ('El tipo «'+tipo+'» no está en la lista conocida: se guardó igual, sin regla de producción (solo flota y parte).') : '';
   const frente=normFrente_(body.frente);
   if(FLOTA_FRENTES.indexOf(frente)<0) return json(c, { ok:false, error:'El frente "'+(body.frente||'')+'" no se reconoce. Opciones: '+FLOTA_FRENTES.join(' · ')+'.' });
-  const grupo=normGrupo_(body.grupo);   // D183: disciplina (tierras/drenajes), ortogonal al frente
+  const grupo=normGrupo_(body.grupo);   // D190: disciplina (tierras/drenajes), ortogonal al frente
   if(FLOTA_GRUPOS.indexOf(grupo)<0) return json(c, { ok:false, error:'El grupo "'+(body.grupo||'')+'" no se reconoce. Opciones: '+FLOTA_GRUPOS.join(' · ')+'.' });
   const ficha={ placa:String(body.placa==null?'':body.placa).trim().toUpperCase(),
                 proveedor:String(body.proveedor==null?'':body.proveedor).trim(),
@@ -355,13 +355,13 @@ export async function flotaGuardar(c, body, ses){
       }
     });
   }catch(err){
-    // D183: si la columna `grupo` aún no existe (Worker desplegado antes de aplicar la migración 003),
+    // D190: si la columna `grupo` aún no existe (Worker desplegado antes de aplicar la migración 009),
     // el INSERT/UPDATE con `grupo` falla (42703). Mensaje claro en vez de un 500 opaco. La ficha del Parte
     // ya quedó asegurada (fichaParteAsegurar_ arriba); no es huérfana dañina (equivale a un equipo con ficha
-    // sin estancia) y se adopta sola al reintentar el alta tras aplicar 003.
+    // sin estancia) y se adopta sola al reintentar el alta tras aplicar 009.
     const m=String(err&&err.message||err);
     if(err&&err.code==='42703' && /grupo/i.test(m))
-      return json(c, { ok:false, error:'Falta aplicar la migración 003_grupo_flota.sql en la base de datos (columna «grupo» de la flota). Avisa a soporte; la estancia no se guardó.' });
+      return json(c, { ok:false, error:'Falta aplicar la migración 009_grupo_flota.sql en la base de datos (columna «grupo» de la flota). Avisa a soporte; la estancia no se guardó.' });
     throw err;
   }
 

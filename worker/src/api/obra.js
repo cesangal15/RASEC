@@ -7,9 +7,15 @@
  * aquí solo se decide, por `action`, a quién se llama, tras pasar por la puerta única (D109).
  *
  *   GET  ?action=tablero                 PÚBLICO (ANTES de la puerta, sin LOG: D159/D161) → tablero.js
+ *   GET  ?action=tablero_vivo            PÚBLICO (ANTES de la puerta, sin LOG; D185 = ampliación de D161 decidida por el
+ *                                        dueño: el Tablero en vivo con la DATA de Galca; index.js lo cachea 60 s) → tablero_vivo.js
+ *   GET  ?action=data_csv | proyeccion_csv   NO llegan aquí: index.js (servirCsv, D187) los atiende ANTES de la puerta con
+ *                                        la CLAVE DE LECTURA del Excel maestro (CLAVE_LECTURA_EXCEL) → obra/data_csv.js
  *   GET  (resto)                         TOKEN (puerta_ action||'ping') → lectura / flota / data / maquinaria
+ *                                        (proyeccion y proyeccion_tablero reciben además la sesión: V3-11 / D183)
  *   POST {action:'login'}                PÚBLICO (aún no hay token, D108) → auth.js login_
  *   POST {action:'enviar_data'|…}        TOKEN (puerta_ action||'reporte') → validarPayloadObra_ + handler
+ *                                        (D185: tablero_horas_guardar = las horas del libro de partes, admin/jefe)
  *   POST (sin action reconocida)         TOKEN → guardarReporte (reporte de capataz/chequeadora, L1132)
  *
  * Los handlers de escritura reciben la sesión de puerta_ como 3er argumento (ses={ok,usuario,rol,tolerado});
@@ -35,6 +41,10 @@ import { bandeja, consolidado, estado, cubicaje, volquetasDelDia, acumuladoDrena
 import { drenajesCatalogo, tramosCatalogo, enviarData, VAL_OBRA_ENVIAR } from './obra/data.js';
 import { maquinariaProduccion, maquinariaProduccionGuardar, VAL_OBRA_MAQPROD, VAL_OBRA_AJUSTE, VAL_OBRA_NUEVA } from './obra/maquinaria.js';
 import { guardarReporte, validarReporte_, VAL_OBRA_CANTIDAD } from './obra/reporte.js';
+import { gridLeer, gridGuardar, VAL_OBRA_GRID, VAL_OBRA_GRID_CAMBIO } from './obra/grilla.js';  // V3-08 / D181
+import { dataGridLeer, dataGridGuardar, VAL_DATA_GRID, VAL_DATA_GRID_CAMBIO } from './obra/datagrid.js';  // V3-08b / D181
+import { proyeccionLeer, proyeccionTablero, proyeccionGuardar, VAL_PROYECCION, VAL_PROYECCION_CAMBIO } from './obra/proyeccion.js';  // V3-11 / D183
+import { tableroVivoLeer, tableroHorasGuardar, VAL_MAX_HORAS_CHARS } from './obra/tablero_vivo.js';  // V3-11 Fases B+C / D185
 
 /* ---------- esquemas D166 que solo usa el router (Codigo.gs L2953–L2964) ---------- */
 const VAL_OBRA_FLOTA = {
@@ -58,6 +68,21 @@ function validarPayloadObra_(c, body){
      || valListaDe_(body.nuevas, VAL_OBRA_NUEVA, 'nuevas', 300);
   } else if(a==='flota_guardar'){
     f = valEsquema_(body, VAL_OBRA_FLOTA, '') || valEsquema_(body.clave, VAL_OBRA_FLOTA_CLAVE, 'clave');
+  } else if(a==='grid_guardar'){
+    f = valEsquema_(body, VAL_OBRA_GRID, '') || valListaDe_(body.cambios, VAL_OBRA_GRID_CAMBIO, 'cambios', 500);   // V3-08 / D181
+  } else if(a==='data_grid_guardar'){
+    f = valEsquema_(body, VAL_DATA_GRID, '') || valListaDe_(body.cambios, VAL_DATA_GRID_CAMBIO, 'cambios', 1000);  // V3-08b / D181
+  } else if(a==='proyeccion_guardar'){
+    f = valEsquema_(body, VAL_PROYECCION, '') || valListaDe_(body.cambios, VAL_PROYECCION_CAMBIO, 'cambios', 500);  // V3-11 / D183
+  } else if(a==='tablero_horas_guardar'){
+    // D185: `horas` = la salida de leerHoras (objeto); su FORMA la valida el handler con un texto legible (lista blanca).
+    const h=body.horas;
+    if(h===undefined || h===null || typeof h!=='object' || Array.isArray(h)) f={ campo:'horas', motivo:'debe ser un objeto' };
+    else {
+      let n=0; try{ n=JSON.stringify(h).length; }catch(err){ f={ campo:'horas', motivo:'no serializable' }; }
+      if(!f && n>VAL_MAX_HORAS_CHARS) f={ campo:'horas', motivo:'supera '+VAL_MAX_HORAS_CHARS+' caracteres' };
+      if(!f) f=valEsquema_(body, { archivo:['t',200] }, '');
+    }
   } else if(a==='tablero_guardar'){
     const foto=body.foto;
     if(foto!==undefined && (foto===null || typeof foto!=='object' || Array.isArray(foto))) f={ campo:'foto', motivo:'debe ser un objeto' };
@@ -79,6 +104,9 @@ export async function obraDoGet_(c, params){
   const a = String((params && params.action) || '').toLowerCase();
   // D159: ÚNICA lectura pública y va ANTES de la puerta; no escribe LOG (index.js pone c.pet.log.silencio).
   if(a==='tablero') return tableroLeer(c);
+  // D185: el Tablero EN VIVO también es público (ampliación de D161 decidida por el dueño): días plegados de la DATA,
+  // proyección sin `usuario` y horas de máquina guardadas; nada con nombres de personas. Sin LOG (index.js).
+  if(a==='tablero_vivo') return tableroVivoLeer(c, params);
   // D109: puerta única. La identidad sale del TOKEN y sobrescribe lo que venga en la petición.
   const p = await puerta_(c, params && params.token, a || 'ping');
   if(!p.ok) return p.respuesta;
@@ -91,6 +119,10 @@ export async function obraDoGet_(c, params){
   if(a==='volquetas')            return volquetasDelDia(c, params);
   if(a==='drenajes')             return drenajesCatalogo(c);
   if(a==='tramos')               return tramosCatalogo(c);       // D104: subtramos del eje para el selector
+  if(a==='grid')                 return gridLeer(c, params);     // V3-08 / D181: grilla editable de catálogos
+  if(a==='data_grid')            return dataGridLeer(c, params); // V3-08b / D181: revisión editable de DATA
+  if(a==='proyeccion')           return proyeccionLeer(c, params, ses);    // V3-11 / D183: las 4 tablas + puede_editar (servidor)
+  if(a==='proyeccion_tablero')   return proyeccionTablero(c, params, ses); // V3-11 / D183: plan/proyectado/contrato/base del Tablero (token, no público)
   if(a==='maquinas')             return maquinasCatalogo(c, params); // D138: flota vigente en una fecha
   if(a==='flota')                return flotaLeer(c, params);        // D139: estancias + avisos de la pestaña Flota
   if(a==='acumulado_drenajes')   return acumuladoDrenajes(c, params);
@@ -115,6 +147,10 @@ export async function obraDoPost_(c, body){
   if(body.action==='enviar_data')            return enviarData(c, body, ses);
   if(body.action==='maquinaria_produccion')  return maquinariaProduccionGuardar(c, body, ses);
   if(body.action==='flota_guardar')          return flotaGuardar(c, body, ses);   // D139: alta/baja de máquinas
+  if(body.action==='grid_guardar')           return gridGuardar(c, body, ses);    // V3-08 / D181: guarda la grilla
+  if(body.action==='data_grid_guardar')      return dataGridGuardar(c, body, ses); // V3-08b / D181: guarda DATA
+  if(body.action==='proyeccion_guardar')     return proyeccionGuardar(c, body, ses); // V3-11 / D183: guarda la Proyección (admin/jefe)
   if(body.action==='tablero_guardar')        return tableroGuardar(c, body, ses); // D158: publica la foto del tablero
+  if(body.action==='tablero_horas_guardar')  return tableroHorasGuardar(c, body, ses); // D185: guarda las horas del libro de partes
   return guardarReporte(c, body, ses);
 }

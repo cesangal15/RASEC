@@ -41,6 +41,18 @@
     base: 'https://api.galca.app',
     rutas: { obra: '/obra', asistencias: '/asistencias', parte: '/parte' }
   };
+  // MODO DEV/SANDBOX (tools/sandbox): SOLO cuando la página se sirve desde localhost/127.0.0.1, la API
+  // apunta al MISMO origen (el Worker local del sandbox) o al que fije `?api=<url>`. En producción
+  // (tm2.galca.app) esto NO se activa NUNCA: la base queda en api.galca.app. Es un ayudante para probar
+  // la app en local antes del corte oficial, no cambia nada del despliegue real.
+  try{
+    if(typeof location!=='undefined' && /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/.test(location.hostname)){
+      var _qp = new URLSearchParams(location.search).get('api');
+      if(_qp!==null){ try{ if(_qp) localStorage.setItem('tm2_api_local', _qp); else localStorage.removeItem('tm2_api_local'); }catch(e){} }
+      var _fijo=''; try{ _fijo = localStorage.getItem('tm2_api_local') || ''; }catch(e){}
+      API.base = _fijo || location.origin;   // p.ej. http://127.0.0.1:8099 (mismo servidor que sirve las pantallas)
+    }
+  }catch(e){}
   var URL_API = {};
   for (var k in API.rutas){
     URL_API[k] = /^https?:\/\//i.test(API.rutas[k]) ? API.rutas[k] : API.base + API.rutas[k];
