@@ -159,9 +159,15 @@ console.log('\n5 · jeisson y duvan revisan (D193); residente_uf3 no');
   ok('D198: el jefe lee la Base de aprobados', jb.ok===true && jb.filas.length===1 && jb.filas[0].id_registro==='j1', JSON.stringify(jb).slice(0,150));
   const jp=get(c,{ mod:'parte', op:'bandeja', fecha:'2026-09-16', token:T_JEFE });
   ok('D198: el jefe NO lee la bandeja de pendientes', jp.ok===false && /no revisa/.test(jp.error), JSON.stringify(jp).slice(0,150));
+  // D198: corrige campos de filas APROBADAS de la Base, pero no cambia estados
+  const jc=post(c,{ mod:'parte', op:'revisar', cambios:[{ id_registro:'j1', campos:{ centro_coste:'3701.02.07' } }] }, T_JEFE);
+  ok('D198: el jefe corrige el CC de una fila aprobada', jc.ok && jc.cambiadas===1 && jc.filas[0].centro_coste==='3701.02.07' && jc.filas[0].revisado_por==='jefe', JSON.stringify(jc).slice(0,200));
   const jr=post(c,{ mod:'parte', op:'revisar', cambios:[{ id_registro:'j1', estado:'descartado' }] }, T_JEFE);
-  ok('D198: el jefe NO puede revisar ni descartar', jr.ok===false && /no revisa/.test(jr.error||''), JSON.stringify(jr).slice(0,150));
+  ok('D198: el jefe NO descarta ni aprueba', jr.ok && jr.cambiadas===0 && /quien revisa/.test((jr.errores[0]||{}).error||''), JSON.stringify(jr).slice(0,200));
   ok('jeisson puede crear filas manuales (día sin operación)', m.ok && c._hojas.PARTE_BANDEJA._f[2][c.PARTE_BANDEJA_HEADERS.indexOf('origen')]==='manual', JSON.stringify(m).slice(0,150));
+  // D198: la fila manual j2 sigue PENDIENTE → el jefe no la toca
+  const jq=post(c,{ mod:'parte', op:'revisar', cambios:[{ id_registro:'j2', campos:{ centro_coste:'3701.02.07' } }] }, T_JEFE);
+  ok('D198: el jefe NO toca pendientes', jq.ok && jq.cambiadas===0 && /aprobadas/.test((jq.errores[0]||{}).error||''), JSON.stringify(jq).slice(0,200));
 }
 
 console.log('\n6 · op=repartir desde revisión');

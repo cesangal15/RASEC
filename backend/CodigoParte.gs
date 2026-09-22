@@ -802,7 +802,9 @@ function parteBandeja(e){
 const PARTE_CAMPOS_EDITABLES = ['fecha','reporte_num','inicial','final','horas_varada','horas_lluvia','hora_de','hora_a',
   'descripcion_trabajo','centro_coste','pr','uf','operador','observaciones'];
 function parteRevisar(body, ses){
-  if(!parteAutoriza_(ses)) return parteSinPermiso_();
+  // D198: el jefe corrige campos de filas YA aprobadas de la Base; no cambia estados (paridad con el Worker).
+  const soloBase=!parteAutoriza_(ses) && !!(ses && ses.ok) && String(ses.rol||'').trim().toLowerCase()==='jefe';
+  if(!parteAutoriza_(ses) && !soloBase) return parteSinPermiso_();
   const vp=parteValidarRevisar_(body); if(vp) return vp;   // D166: tipos/rangos/longitudes/fecha
   const cambios=Array.isArray(body.cambios) ? body.cambios : [];
   if(!cambios.length) return json({ ok:false, error:'No llegó ningún cambio.' });
@@ -817,6 +819,8 @@ function parteRevisar(body, ses){
     const v=leerRango_(sh,row,1,1,nCols)[0], obj={};
     PARTE_BANDEJA_HEADERS.forEach(function(k,i){ obj[k]=v[i]; });
     if(parteTexto_(obj.id_registro)!==id){ errores.push({ id_registro:id, error:'la fila se movió; recarga' }); return; }
+    if(soloBase && parteEstadoDe_(obj)!=='aprobado'){ errores.push({ id_registro:id, error:'solo se corrigen filas aprobadas de la Base' }); return; }
+    if(soloBase && parteTexto_(c.estado)){ errores.push({ id_registro:id, error:'aprobar o descartar lo hace quien revisa los partes' }); return; }
     const campos=c.campos||{}; let tocado=false, malo='';
     PARTE_CAMPOS_EDITABLES.forEach(function(k){
       if(malo || !campos.hasOwnProperty(k)) return;
@@ -952,7 +956,7 @@ function parteDoGet_(e){
   const p=puerta_(e, null, 'parte:'+op);                        // D109 + D166 (LOG, rate limit, mensaje genérico)
   if(!p.ok) return p.respuesta;
   const ses=p.ses;
-  // D198: el jefe CONSULTA la Base (solo lectura); no revisa ni edita (paridad con el Worker).
+  // D198: el jefe lee la Base (y en parteRevisar corrige campos de filas aprobadas); paridad con el Worker.
   if(op==='base' && !parteAutoriza_(ses) && ses && ses.ok && String(ses.rol||'').trim().toLowerCase()==='jefe') return parteBase(e);
   if(!parteAutoriza_(ses)) return parteSinPermiso_();
   if(op==='bandeja') return parteBandeja(e);

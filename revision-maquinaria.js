@@ -7,7 +7,8 @@ const ROLES = ['admin','encargado','residente','parte_maquinaria','residente_dre
 const USUARIOS_OK = ['jeisson','duvan'];   // D193: + duvan (asistencias de drenajes, lo usa Stiven)
 // A dónde vuelve «← Menú» según quién entró (el admin a su menú; el residente a su panel; jeisson a sus tiles).
 const VOLVER = { admin:'menu.html', residente:'residente.html', residente_dren:'seleccion-reporte.html', jefe:'hub-jefe.html' };
-// D198: el JEFE solo CONSULTA la Base de aprobados (sin Pendientes ni edición; el servidor le deja leer solo op=base).
+// D198: el JEFE trabaja solo la Base de aprobados: la lee y corrige sus campos (CC, horas…), sin Pendientes ni
+// aprobar/descartar/repartir (el servidor le abre op=base y op=revisar solo sobre filas aprobadas y sin estado).
 // Dentro del Panel de Obra la pantalla llega con ?embed=1&solo=base: sin cabecera propia y solo con la Base.
 const ROLES_LEEN_BASE = ['jefe'];
 const QS=(function(){ try{ return new URLSearchParams(location.search); }catch(e){ return { get:function(){ return null; } }; } })();
@@ -18,7 +19,8 @@ if(EMBED) document.documentElement.classList.add('embed');
 const rol=localStorage.getItem('rol')||'', usuario=(localStorage.getItem('usuario')||'').trim().toLowerCase();
 if(!rol || (ROLES.indexOf(rol)<0 && USUARIOS_OK.indexOf(usuario)<0 && ROLES_LEEN_BASE.indexOf(rol)<0) || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }
 const SOLO_BASE = ROLES_LEEN_BASE.indexOf(rol)>=0 || QS.get('solo')==='base';                 // D198
-const PUEDE_EDITAR_BASE = ROLES.indexOf(rol)>=0 || USUARIOS_OK.indexOf(usuario)>=0;            // el jefe: solo lectura
+const ES_REVISOR = ROLES.indexOf(rol)>=0 || USUARIOS_OK.indexOf(usuario)>=0;                   // aprueba, descarta y reparte
+const PUEDE_EDITAR_BASE = ES_REVISOR || ROLES_LEEN_BASE.indexOf(rol)>=0;                         // el jefe también corrige la Base
 document.getElementById('userDisplay').textContent=usuario+' · '+rol;
 const VOLVER_A = VOLVER[rol] || (USUARIOS_OK.indexOf(usuario)>=0 ? 'seleccion-reporte.html' : '');
 if(VOLVER_A){ const bm=document.getElementById('btnMenu'); bm.style.display='inline-block'; bm.setAttribute('data-on-click', "irA('"+VOLVER_A+"')"); }
@@ -502,7 +504,7 @@ function deshacerBase(){ if(GB) GB.deshacer(); }
 function rehacerBase(){ if(GB) GB.rehacer(); }
 // Descartar / volver a aprobar: quedan pendientes hasta Guardar (un solo Ctrl+Z las quita).
 function marcarAccion(accion, lista){
-  if(!PUEDE_EDITAR_BASE) return;                                   // D198: el jefe consulta, no descarta
+  if(!ES_REVISOR){ toast('Descartar o volver a aprobar lo hace quien revisa los partes.', true); return; }   // D198
   const sel=(lista||GB.marcadas()).filter(function(r){ return accion==='descartar' ? r.estado!=='descartado' : r.estado!=='aprobado'; });
   if(!sel.length){ toast(accion==='descartar'?'Marca las filas a descartar.':'Marca las filas a volver a aprobar.', true); return; }
   GB.pushUndo(); sel.forEach(function(r){ r._accion=accion; delete r._error; }); GB.pintar();
@@ -510,7 +512,7 @@ function marcarAccion(accion, lista){
 }
 function menuBase(sel, row){
   const n=sel.length, txt=n===1?'fila':(n+' filas'), items=[];
-  if(!PUEDE_EDITAR_BASE){ const al=row?alertasDe(row):[]; return al.length ? [{ t:'¿Qué significan sus alertas?', fn:function(){ toast(al.map(function(a){ return a+': '+(ALERTA_TXT[a]||a); }).join(' · ')); } }] : []; }
+  if(!ES_REVISOR){ const al=row?alertasDe(row):[]; return al.length ? [{ t:'¿Qué significan sus alertas?', fn:function(){ toast(al.map(function(a){ return a+': '+(ALERTA_TXT[a]||a); }).join(' · ')); } }] : []; }
   const conCambios=row && GB.pendientes().indexOf(row)>=0;
   items.push({ t:'Repartir en varios CC…', fn:function(){ abrirRepartir(row.id_registro); },
     deshabilitado: n!==1 ? 'Marca una sola fila' : conCambios ? 'Guarda primero los cambios de esta fila' : row.estado==='descartado' ? 'La fila está descartada' : '' });
