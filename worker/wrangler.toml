@@ -66,9 +66,9 @@ AUTH_V = "1"
 # galca-tm2sur (Supabase → Connect → Session pooler, puerto 5432, IPv4):
 #   npx wrangler hyperdrive create galca-tm2sur --connection-string="postgres://postgres.<ref>:<clave>@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
 # y pegar aquí el id que devuelve. Mientras no exista, src/db.js usa el secreto DATABASE_URL.
-# [[hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = "<id que devuelve wrangler hyperdrive create>"
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "fe977e189b484b6a97dce50edb0c4d63"
 
 # Rate limit por IP (120/min). Binding nativo de Cloudflare: cuenta entre TODOS los nodos de la red.
 # `namespace_id` es un entero cualquiera, único dentro de la cuenta. `period` solo admite 10 o 60.
