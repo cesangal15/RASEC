@@ -169,7 +169,7 @@ function ensureXLSX(){
 // Trabajo diferido a cuando el navegador esté ocioso (con respaldo por si no hay requestIdleCallback).
 function alOcioso(fn, ms){ if(window.requestIdleCallback) requestIdleCallback(fn,{timeout:ms||2000}); else setTimeout(fn, ms||600); }
 
-let STATE = { usuario:'', rol:'', fecha:'', data:null, exportCache:{}, tplBuf:null, tplName:'', tplRecordada:false, tplBundle:false, filaInicio:2, personal:null, completar:{}, persQuery:'', areaFiltro:'', precargado:false,
+let STATE = { usuario:'', rol:'', fecha:'', data:null, exportCache:{}, tplBuf:null, tplName:'', tplRecordada:false, tplBundle:false, filaInicio:2, personal:null, completar:{}, persQuery:'', persEditando:null, areaFiltro:'', precargado:false,
   // D133 — qué día y qué área están PINTADOS ahora mismo, que ya no tiene por qué coincidir con lo que
   // hay elegido en la barra: desde el botón "Consultar", elegir no es consultar. Sirven para dos cosas:
   // avisar de que lo que se ve es de otro día ("cambios sin consultar") y no relanzar la petición si se
@@ -2066,11 +2066,13 @@ function renderPersonalTabla(){
     h+=`<tr><td>${esc(p.nombre)}<br><small data-estilo="color:var(--muted)">${esc(p.cargo)}</small></td><td>${esc(p.codigo)}</td>`
       + `<td><select data-on-change="moverPersona(${p._row},this.value)">`+cuadrillas.map(c=>`<option ${c===p.cuadrilla?'selected':''}>${esc(c)}</option>`).join('')+'</select></td>'
       + `<td><span class="tag ${p.estado==='activo'?'activo':'inactivo'}">${esc(p.estado)}</span></td>`
-      + '<td>' + (p.estado==='activo'
+      + '<td>' + `<button class="mini-btn" title="Corregir código, cédula, nombre, cargo o fecha de ingreso" data-on-click="editarPersonaAbrir(${p._row})">Editar</button>`
+        + (p.estado==='activo'
           ? `<button class="mini-btn" data-on-click="retirarPersona(${p._row})">Retirar</button>`
           : `<button class="mini-btn" title="Deshacer un retiro por error (misma fila, sin hueco)" data-on-click="reactivarPersona(${p._row})">Reactivar</button>`
             + `<button class="mini-btn" title="Volvió tras un tiempo fuera: crea fila nueva desde una fecha, respeta los días inactivos" data-on-click="reingresarPersona(${p._row})">Reingresar</button>`)
         + '</td></tr>';
+    if(String(STATE.persEditando)===String(p._row)) h+=editarPersonaHtml(p);
   });
   if(!lista.length) h+='<tr><td colspan="5" data-estilo="color:var(--muted);text-align:center;padding:14px;">Sin coincidencias</td></tr>';
   h+='</tbody></table></div>';
@@ -2156,6 +2158,62 @@ async function moverPersona(row, cuadrilla){
   const r=await postPersonal({op:'mover', _row:row, cuadrilla});
   if(r.ok){ avisoPersonal('\u2713 '+nom+' movida a '+cuadrilla+'.'); cargarPersonal(); }
   else alert('Error: '+(r.error||'desconocido'));
+}
+
+/* D202 — Editar los datos de una persona (código, cédula, nombre, cargo, fecha de ingreso) sin darla de
+ * baja y de alta otra vez. La cuadrilla sigue yendo por el selector (MOVER). El Parte Navision y este
+ * resumen leen código/cargo de las asistencias YA guardadas, no de PERSONAL: por eso la casilla opcional
+ * «aplicar también a lo ya reportado desde…» corrige además esas filas (solo los campos que cambian). */
+function editarPersonaAbrir(row){
+  STATE.persEditando = String(STATE.persEditando)===String(row) ? null : row;   // segundo clic: cierra
+  renderPersonalTabla();
+  const i=document.getElementById('edCodigo'); if(i) i.focus();
+}
+function editarPersonaCerrar(){ STATE.persEditando=null; renderPersonalTabla(); }
+function editarPersonaHtml(p){
+  const hoy=new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'});
+  let desde=primerDiaDelMes(hoy);
+  if(p.fecha_ingreso && p.fecha_ingreso>desde) desde=p.fecha_ingreso;
+  return '<tr class="pers-edit"><td colspan="5"><div class="card" data-estilo="margin:4px 0 8px;">'
+    + '<div class="row">'
+    + `<div class="field"><label>Código</label><input type="text" id="edCodigo" value="${esc(p.codigo)}"></div>`
+    + `<div class="field"><label>Cédula</label><input type="text" id="edCedula" value="${esc(p.cedula)}"></div>`
+    + `<div class="field"><label>Nombre</label><input type="text" id="edNombre" value="${esc(p.nombre)}"></div>`
+    + `<div class="field"><label>Cargo</label><input type="text" id="edCargo" value="${esc(p.cargo)}"></div>`
+    + `<div class="field" data-estilo="max-width:150px;"><label>Ingreso desde</label><input type="date" id="edIngreso" value="${esc(p.fecha_ingreso||'')}"></div>`
+    + '</div>'
+    + '<label data-estilo="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;margin-top:8px;">'
+    + '<input type="checkbox" id="edPropagar" data-estilo="width:auto;">'
+    + 'Aplicar también a las asistencias ya reportadas desde '
+    + `<input type="date" id="edDesde" value="${esc(desde)}" max="${hoy}" data-estilo="width:auto;">`
+    + '</label>'
+    + '<p data-estilo="font-size:11px;color:var(--muted);margin:4px 0 10px;">Sin marcar, la corrección vale para lo que se reporte de aquí en adelante; '
+    + 'lo ya enviado (y el Excel Navision de esos días) conserva el dato viejo.</p>'
+    + `<button class="btn" data-on-click="guardarEdicionPersona(${p._row})">Guardar cambios</button> `
+    + '<button class="btn-ghost" data-on-click="editarPersonaCerrar()">Cancelar</button>'
+    + '</div></td></tr>';
+}
+async function guardarEdicionPersona(row){
+  const val=function(id){ const e=document.getElementById(id); return e ? e.value.trim() : ''; };
+  const payload={ op:'editar', _row:row, codigo:val('edCodigo'), cedula:val('edCedula'), nombre:val('edNombre'), cargo:val('edCargo') };
+  const ing=val('edIngreso'); if(ing) payload.fecha_ingreso=ing;
+  if(!payload.nombre){ alert('El nombre no puede quedar vacío.'); return; }
+  if(!payload.codigo && !payload.cedula){ alert('Pon al menos el código o la cédula: sin ninguno no se la reconoce en el Parte.'); return; }
+  const prop=document.getElementById('edPropagar');
+  if(prop && prop.checked){
+    const desde=val('edDesde');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)){ alert('Elige desde qué fecha aplicar la corrección a lo ya reportado.'); return; }
+    if(!confirm('Se corregirán también las asistencias de esta persona ya reportadas desde '+desde+'. ¿Continuar?')) return;
+    payload.propagar_desde=desde;
+  }
+  const r=await postPersonal(payload);
+  if(!r.ok){ alert('Error: '+(r.error||'desconocido')); return; }
+  STATE.persEditando=null;
+  const n=Number(r.asistencias_actualizadas)||0;
+  const cambios=(r.cambios||[]).length;
+  avisoPersonal(!cambios ? '✓ Sin cambios.' : ('✓ '+payload.nombre+' actualizada'+(payload.propagar_desde ? ' · '+n+' asistencia(s) corregida(s)' : '')+'.'));
+  if(n){ STATE.exportCache={}; await cargarResumen(); }   // el resumen y el Excel leen las asistencias corregidas
+  cargarPersonal();
 }
 
 // D170: antes eran expresiones en línea en el marcado; la CSP ya no las admite.

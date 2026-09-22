@@ -214,6 +214,10 @@ function configSeed(){
       {patron:'AVENSA', fijo:25.7},
       {patron:'PEKIN', fijo:67.5}
     ],
+    // Exclusión manual "Es UF3" (D175): botón hermano de "Es ASFALTO" en el detalle, Paso 5 y el
+    // visor de páginas. Solo aplica cuando el candidato de la BASE trae UF3, así que no todos los
+    // contratistas la necesitan (no todos mueven UF3) — este único interruptor la muestra/oculta.
+    excluirUF3Manual:true,
     // Áreas OBSERVADAS: van al acta normalmente, con observación "área X" visible.
     // (Decisión jul-2026: solo excluyen UF3 y ASFALTO; PLANTA/PUENTE/TM1/ODT… se incluyen con nota.)
     areasObservadas:['PLANTA','PUENTE','TM1','AMP','RCD','ZODME - RCD','DIVISO - PUENTE'],
@@ -285,6 +289,8 @@ function cargarConfig(){
         } else c.aliasColumnaRemision=configSeed().aliasColumnaRemision;
         // migración: km totales por origen (jul-2026)
         if(!c.kmPorOrigen) c.kmPorOrigen=configSeed().kmPorOrigen;
+        // migración: exclusión manual "Es UF3" (D175) — default ON para configs guardadas antes
+        if(c.excluirUF3Manual===undefined) c.excluirUF3Manual=true;
         return c;
       }
     }
@@ -1410,10 +1416,12 @@ const Acciones={
   _botones(rc){
     const b=[];
     const t=(estado,label,cls)=>`<button class="btn mini ${cls||'sec'}" onclick="Acciones.transicion('${rc.id}','${estado}')">${label}</button>`;
+    const uf3On=!!(S.config&&S.config.excluirUF3Manual);
     if(rc.estado==='NO_ENCONTRADA'){
       b.push(`<button class="btn mini" onclick="cerrarModal();UI.go(5)">🔍 Buscar en PDFs (Paso 5)</button>`);
       b.push(t('PENDIENTE_DIGITACION','→ Pendiente digitación'));
       b.push(t('EXCLUIDA_ASFALTO','Es ASFALTO'));
+      if(uf3On) b.push(t('EXCLUIDA_UF3','Es UF3'));
       b.push(t('ACEPTADA_MANUAL','Aceptar manual','ok'));
       b.push(t('RECHAZADA','Rechazar','danger'));
     } else if(rc.estado==='REVISION_MANUAL'||rc.estado==='MULTIPLE_EN_BASE'){
@@ -1428,6 +1436,7 @@ const Acciones={
       b.push(t('RECHAZADA','Rechazar','danger'));
       b.push(t('NO_ENCONTRADA','→ No encontrada'));
       if(rc.estado!=='EXCLUIDA_ASFALTO') b.push(t('EXCLUIDA_ASFALTO','Es ASFALTO'));
+      if(uf3On && rc.estado!=='EXCLUIDA_UF3') b.push(t('EXCLUIDA_UF3','Es UF3'));
     }
     return b.join('');
   },
@@ -2309,7 +2318,8 @@ const Paso5={
         <span class="note">OCR leyó: ${escapeHtml(leyo.join(', '))}</span>
         <span class="right"></span>
         ${fi>=0?`<button class="btn mini ok" onclick="Paso5.confirmar('${rc.id}',${fi},${c.page})">✔ Confirmar comprobante</button>
-        <button class="btn mini sec" onclick="Paso5.esAsfalto('${rc.id}',${fi},${c.page})">Es ASFALTO</button>`:''}
+        <button class="btn mini sec" onclick="Paso5.esAsfalto('${rc.id}',${fi},${c.page})">Es ASFALTO</button>
+        ${(S.config&&S.config.excluirUF3Manual)?`<button class="btn mini sec" onclick="Paso5.esUF3('${rc.id}',${fi},${c.page})">Es UF3</button>`:''}`:''}
         <button class="btn mini danger" onclick="Paso5.noEs('${rc.id}',${cands.indexOf(c)})">No es</button></div>
         <div class="ph note">renderizando página…</div>`;
       cp.appendChild(div);
@@ -2338,6 +2348,15 @@ const Paso5={
     const p=S.pdfs[fileIdx];
     rc.evidencia={archivo:p.name,pagina:page};
     setEstado(rc,'EXCLUIDA_ASFALTO','parte de asfalto en '+p.name+' p.'+page,false);
+    S.ui.faltanteSel=null;
+    autosave(); render();
+    this._visorRefrescar();
+  },
+  esUF3(rcId,fileIdx,page){
+    const rc=S.corte.reclamos.find(r=>r.id===rcId); if(!rc) return;
+    const p=S.pdfs[fileIdx];
+    rc.evidencia={archivo:p.name,pagina:page};
+    setEstado(rc,'EXCLUIDA_UF3','parte de UF3 en '+p.name+' p.'+page,false);
     S.ui.faltanteSel=null;
     autosave(); render();
     this._visorRefrescar();
@@ -2411,6 +2430,7 @@ const Paso5={
       return `<div class="flexrow" style="margin-bottom:8px">
         <button class="btn mini ok" onclick="Paso5.confirmar('${rc.id}',${fileIdx},${pg})">✔ Confirmar para ${escapeHtml(rc.remision)}</button>
         <button class="btn mini sec" onclick="Paso5.esAsfalto('${rc.id}',${fileIdx},${pg})">Es ASFALTO</button>
+        ${(S.config&&S.config.excluirUF3Manual)?`<button class="btn mini sec" onclick="Paso5.esUF3('${rc.id}',${fileIdx},${pg})">Es UF3</button>`:''}
         ${extra}</div>`;
     }
     const {chips,chipsOtras,falt,otras}=this._chipsFaltantes(fileIdx,pg,'marcarDesdeVisor');
@@ -3319,7 +3339,7 @@ if(typeof module!=='undefined'&&module.exports){
     pkDeTexto,ccCatalogo,propuestaPendiente,valoresActaPendiente,pendientesConComprobante,filasActaPendientes,CC_AREA_AJENA,
     pkMetros,kmTotalesPendiente,unidadDominante,reglaMaterialPendiente,ambitoPendiente,materialBasePendiente,numProforma,
     derivadosProforma,completarDesdeProforma,reclamosCompletados,huecosSinDato,reclamosConHuecos,CAMPOS_COMPLETABLES,LBL_CAMPO,
-    Paso3,Paso5,S,ESTADOS,ESTADOS_ACTA
+    Paso3,Paso5,Acciones,S,ESTADOS,ESTADOS_ACTA,ETIQUETA
   };
 }
 if(typeof document!=='undefined'){ init(); }

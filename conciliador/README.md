@@ -43,12 +43,39 @@ recarga las bases (Paso 1): se re-corren SOLO las `NO_ENCONTRADA` y
 
 `PENDIENTE → ENCONTRADA | NO_ENCONTRADA | MULTIPLE_EN_BASE | DUPLICADA_EN_PROFORMA | EXCLUIDA_UF3 | EXCLUIDA_OTRA_AREA | REVISION_MANUAL`
 
-Desde investigación/manual: `NO_ENCONTRADA → PENDIENTE_DIGITACION | EXCLUIDA_ASFALTO | RECHAZADA | ACEPTADA_MANUAL` (nota obligatoria).
+Desde investigación/manual: `NO_ENCONTRADA → PENDIENTE_DIGITACION | EXCLUIDA_ASFALTO | EXCLUIDA_UF3 | RECHAZADA | ACEPTADA_MANUAL` (nota obligatoria solo para Aceptar manual).
 
 **Solo excluyen UF3 y ASFALTO** (decisión jul-2026). Las áreas PLANTA, PUENTE,
 TM1, AMP, RCD, ODT…, etc. **NO excluyen**: la remisión va al acta como
 `ENCONTRADA` con la marca `AREA_OBSERVADA` y la observación "área X" en la
 columna S. (`EXCLUIDA_OTRA_AREA` queda solo como estado legado/manual.)
+
+### Exclusión manual por UF3 (D175)
+
+Antes, `EXCLUIDA_UF3` solo la ponía el clasificador automático cuando el
+candidato de la BASE traía UF3. Si el parte es de UF3 pero la remisión no
+está en la base (no hay candidato que lo diga), no había forma de excluirla
+como tal — solo quedaba marcarla "Es ASFALTO" para sacarla del corte, lo que
+dañaba el conteo del resumen. Ahora el botón **"Es UF3"** es hermano de
+**"Es ASFALTO"** en los mismos tres sitios, con el mismo comportamiento
+(transición auditada, nota con archivo/página como evidencia, reversible
+igual que cualquier transición manual):
+
+- El detalle de la reclamación (`Acciones._botones`), para `NO_ENCONTRADA` y
+  para deshacer una exclusión ya puesta.
+- Los candidatos del Paso 5 (`Paso5._renderCandidatos`).
+- El visor de páginas «Hojear» (`Paso5._visorAcciones`), con una faltante
+  seleccionada.
+
+Se oculta con el interruptor de configuración **`excluirUF3Manual`**
+(⚙️ Config → JSON, default `true`): apágalo para los contratistas que no
+mueven UF3 y el botón desaparece de los tres sitios — las filas
+`EXCLUIDA_UF3` que ya existan no se tocan. El resumen del Paso 7
+(`listar('EXCLUIDAS UF3',…)`) y el filtro de exportes ya contaban
+`EXCLUIDA_UF3` junto a `EXCLUIDA_ASFALTO` (solo `ENCONTRADA` +
+`ACEPTADA_MANUAL` van al acta), así que no hizo falta tocarlos.
+
+Verificación: `node backend/pruebas/verificar_conciliador_excluir_uf3.js`.
 
 Al acta van **solo** `ENCONTRADA` + `ACEPTADA_MANUAL`. Marcas transversales que
 no cambian el estado: `REZAGO` (nunca se excluye sola), `CELDA_MULTIPLE`,
@@ -470,4 +497,5 @@ node backend/pruebas/verificar_conciliador_ignorar_hoja.js          # IGNORAR un
 node backend/pruebas/verificar_conciliador_ocr_umbral_rojo.js       # umbral rojo adaptativo
 node backend/pruebas/verificar_conciliador_ocr_tiquete.js           # tiquete de báscula de PUTANA (pasada C)
 node backend/pruebas/verificar_conciliador_visor_paginas.js         # visor «Hojear»: navegación, cierre fijo, marcar faltantes desde la página
+node backend/pruebas/verificar_conciliador_excluir_uf3.js           # Es UF3 (D175): botones, transición, resumen/exportes, interruptor de config
 ```

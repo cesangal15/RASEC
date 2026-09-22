@@ -46,7 +46,14 @@ function periodoDeHoy(){
   if(d>=16){ ini=new Date(Date.UTC(y,m-1,16)); fin.setUTCMonth(fin.getUTCMonth()+1); }
   const iso=(dt)=>dt.toISOString().slice(0,10); return { desde:iso(ini), hasta:iso(fin) };
 }
-function frameSrc(tab){ let s=tab.page+'?embed=1'+(tab.extra||''); if(tab.fecha) s+='&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta); return s; }
+function frameSrc(tab){
+  let s=tab.page+'?embed=1'+(tab.extra||'');
+  if(tab.fecha) s+='&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta);
+  // V3-17: si el rango vino del selector «Actas», se lo pasamos a la pestaña (hoy solo lo usa data.js, para
+  // preseleccionar su filtro de vista «Acta» cuando las actas elegidas no son consecutivas).
+  if(tab.fecha && ACTA_SEL.size) s+='&actas='+encodeURIComponent(Array.from(ACTA_SEL).join(','));
+  return s;
+}
 
 function pintarTabs(){
   let h='';
@@ -72,7 +79,11 @@ function mostrar(id){
   actTab=id; try{ localStorage.setItem('tm2_hub_tab', id); }catch(e){} if(location.hash!=='#'+id) location.hash=id;
   pintarTabs();
 }
-function verFechas(){
+// V3-17: aplica el rango que ya está en #desde/#hasta (lo puso un chip, el selector «Actas» o los campos a
+// mano) a las pestañas con fecha; la pestaña activa se recarga ya (con el aviso de cambios sin guardar), las
+// demás quedan «stale» y se recargan al abrirlas. `verFechas()` (botón «Ver») además olvida la selección de
+// actas, porque un rango escrito a mano ya no corresponde a ninguna.
+function aplicarRango(){
   desde=document.getElementById('desde').value; hasta=document.getElementById('hasta').value||desde;
   if(!desde){ return; }
   TABS.forEach(function(t){
@@ -82,8 +93,9 @@ function verFechas(){
       frames[t.id].src=frameSrc(t); dirtyByTab[t.id]=0;
     } else { stale[t.id]=true; }
   });
-  pintarTabs(); pintarRapidos();
+  pintarTabs(); pintarRapidos(); pintarActas();
 }
+function verFechas(){ ACTA_SEL.clear(); aplicarRango(); }
 
 /* Rangos rápidos (D196): un clic fija el rango y lo aplica. Acta = periodo 16→15 (misma regla que actaDe). */
 function isoMenos(iso, n){ const d=new Date(iso+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-n); return d.toISOString().slice(0,10); }
@@ -107,8 +119,68 @@ function pintarRapidos(){
 }
 document.getElementById('rapidos').addEventListener('click', function(ev){
   const b=ev.target.closest && ev.target.closest('button[data-d]'); if(!b) return;
-  document.getElementById('desde').value=b.dataset.d; document.getElementById('hasta').value=b.dataset.h; verFechas();
+  ACTA_SEL.clear();   // V3-17: un chip de fecha ya no corresponde a las actas elegidas
+  document.getElementById('desde').value=b.dataset.d; document.getElementById('hasta').value=b.dataset.h; aplicarRango();
 });
+
+/* ---------- selector «Actas» (V3-17) — mismo control que data.js, para fijar el rango del Hub (y el de la
+ * pestaña DATA embebida) eligiendo una o varias actas en vez de fechas. Sin la tabla `periodos` aquí (el Hub
+ * no consulta data_grid): siempre la fórmula de respaldo, la misma que actaNum/periodoDeHoy. */
+const ACTA_SEL=new Set();
+let actasAbierto=false;
+function rangoDeActa(n){
+  const t=n-2, y=2025+Math.floor((t-1)/12), m=(((t-1)%12)+12)%12+1, pad=function(x){ return String(x).padStart(2,'0'); };
+  let ym=m-1, yy=y; if(ym<1){ ym=12; yy--; }
+  return { desde:yy+'-'+pad(ym)+'-16', hasta:y+'-'+pad(m)+'-15' };
+}
+function actaContiguas(nums){ for(let i=1;i<nums.length;i++) if(nums[i]-nums[i-1]!==1) return false; return true; }
+function etiquetaActas(){
+  if(!ACTA_SEL.size) return 'Elegir…';
+  const nums=Array.from(ACTA_SEL).map(Number).sort(function(a,b){ return a-b; });
+  if(nums.length===1) return 'Acta '+nums[0];
+  return actaContiguas(nums) ? ('Actas '+nums[0]+'–'+nums[nums.length-1]) : ('Acta '+nums.join(', '));
+}
+function pintarActas(){
+  const box=document.getElementById('fActas'); if(!box) return;
+  const v=box.querySelector('.ms-btn .v'); if(v) v.textContent=etiquetaActas();
+  box.classList.toggle('activo', ACTA_SEL.size>0);
+}
+function listaActas(){ const max=actaNum(periodoDeHoy().hasta), out=[]; for(let n=max;n>=1;n--) out.push(n); return out; }
+function onCambioActa(ev){
+  const cb=ev.target; if(!cb || cb.type!=='checkbox') return;
+  if(cb.checked) ACTA_SEL.add(cb.value); else ACTA_SEL.delete(cb.value);
+  if(!ACTA_SEL.size){ pintarActas(); return; }
+  const nums=Array.from(ACTA_SEL).map(Number).sort(function(a,b){ return a-b; });
+  document.getElementById('desde').value=rangoDeActa(nums[0]).desde;
+  document.getElementById('hasta').value=rangoDeActa(nums[nums.length-1]).hasta;
+  aplicarRango();
+}
+function abrirActas(){
+  cerrarActas();
+  const box=document.getElementById('fActas'); if(!box) return;
+  const pop=box.querySelector('.ms-pop'); actasAbierto=true;
+  let h='<div class="ms-lista">';
+  listaActas().forEach(function(n){
+    const r=rangoDeActa(n);
+    h+='<label class="ms-op"><input type="checkbox" value="'+n+'"'+(ACTA_SEL.has(String(n))?' checked':'')+'><span class="txt">Acta '+n+'</span><em>'+esc(r.desde.slice(5)+' – '+r.hasta.slice(5))+'</em></label>';
+  });
+  pop.innerHTML=h+'</div>'; pop.hidden=false; box.classList.add('abierto');
+  pop.addEventListener('change', onCambioActa);
+}
+function cerrarActas(){
+  if(!actasAbierto) return; actasAbierto=false;
+  const box=document.getElementById('fActas'); if(box){ const pop=box.querySelector('.ms-pop'); if(pop){ pop.hidden=true; pop.innerHTML=''; } box.classList.remove('abierto'); }
+}
+function montarActas(){
+  const box=document.getElementById('fActas'); if(!box) return;
+  box.innerHTML='<button type="button" class="ms-btn" aria-haspopup="listbox"><span class="t">Actas</span><span class="v"></span></button><div class="ms-pop" hidden></div>';
+  box.querySelector('.ms-btn').addEventListener('click', function(ev){ ev.stopPropagation(); if(actasAbierto) cerrarActas(); else abrirActas(); });
+  box.querySelector('.ms-pop').addEventListener('click', function(ev){ ev.stopPropagation(); });
+  document.addEventListener('click', function(){ cerrarActas(); });
+  document.addEventListener('keydown', function(ev){ if(ev.key==='Escape' && actasAbierto) cerrarActas(); });
+  pintarActas();
+}
+montarActas();
 ['desde','hasta'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
   const de=document.getElementById('desde'), ha=document.getElementById('hasta');
   if(id==='desde' && ha.value && de.value>ha.value) ha.value=de.value;   // sin rangos al revés
