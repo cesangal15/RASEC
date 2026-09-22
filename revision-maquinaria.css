@@ -16,6 +16,7 @@
   .logout-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;padding:4px 10px;cursor:pointer;margin-top:4px;font-family:'DM Sans',sans-serif;}
   .logout-btn:hover{border-color:var(--error);color:var(--error-txt);}
   .container{max-width:1280px;margin:0 auto;padding:18px 16px;}
+  .container.ancho{max-width:1680px;}                                /* D198: la Base usa el ancho como DATA */
   .tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);}
   .tab{padding:12px 18px;background:none;border:none;border-bottom:3px solid transparent;color:var(--muted);font-family:'Syne',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;margin-bottom:-1px;}
   .tab.on{color:var(--accent-txt);border-bottom-color:var(--accent);}
@@ -208,3 +209,13 @@
   #gridBase tr.b-no-aprob td.cq-c .cq-v{opacity:.6;}
   #gridBase tr.b-descartar td.cq-c .cq-v{text-decoration:line-through;color:var(--error-txt);opacity:.8;}
   @media(max-width:699px){ #btnGuardarBase{margin-left:0;} #vistaBase .cq-buscar{flex:1 1 100%;width:100%;} }
+
+  /* D198: dentro del Panel de Obra (?embed=1): sin cabecera propia, sin fechas propias (las pone el Hub) y a todo el ancho. */
+  html.embed body{padding:0;}
+  html.embed .header{display:none;}
+  html.embed .container,html.embed .container.ancho{max-width:none;padding:8px 12px;}
+  html.embed #vistaBase .fecha-local{display:none;}
+  html.embed .tabs{margin-bottom:8px;}
+  html.embed #tabBase{display:none;}
+  html.embed #vistaBase .intro.chico{display:none;}
+  #gridBase.cq-wrap{max-height:none;}

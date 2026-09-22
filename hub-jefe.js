@@ -29,9 +29,13 @@ const TABS = [
   { id:'base',    label:'Catálogos BASE',    page:'grilla.html', fecha:false, ver:PUEDE_EDITAR },
   // V3-11 / D183: la ven admin, jefe y residente (el mismo portero que proyeccion.html); quién edita lo decide el servidor.
   { id:'proyeccion', label:'Proyección',     page:'proyeccion.html', fecha:false, ver:['admin','jefe','residente'].indexOf(rol)>=0 },
+  // D198: la Base de aprobados del parte de maquinaria, SOLA (sin Pendientes ni aprobar). El jefe la consulta;
+  // admin/residente/revisores la editan como en su pantalla. Toma el rango del Hub.
+  { id:'maquinaria', label:'Base maquinaria', page:'revision-maquinaria.html', extra:'&solo=base', fecha:true,
+    ver:['admin','jefe','residente','residente_dren'].indexOf(rol)>=0 || USUARIOS_OK.indexOf(usuario)>=0 },
 ];
 const EXT = [ { id:'tablero', label:'Tablero ↗', href:'tablero-produccion.html' } ];
-const PAGE2TAB = { data:'data', grilla:'base', proyeccion:'proyeccion' };
+const PAGE2TAB = { data:'data', grilla:'base', proyeccion:'proyeccion', revision:'maquinaria' };
 
 let desde='', hasta='', actTab='', frames={}, dirtyByTab={}, stale={};
 
@@ -42,7 +46,7 @@ function periodoDeHoy(){
   if(d>=16){ ini=new Date(Date.UTC(y,m-1,16)); fin.setUTCMonth(fin.getUTCMonth()+1); }
   const iso=(dt)=>dt.toISOString().slice(0,10); return { desde:iso(ini), hasta:iso(fin) };
 }
-function frameSrc(tab){ let s=tab.page+'?embed=1'; if(tab.fecha) s+='&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta); return s; }
+function frameSrc(tab){ let s=tab.page+'?embed=1'+(tab.extra||''); if(tab.fecha) s+='&desde='+encodeURIComponent(desde)+'&hasta='+encodeURIComponent(hasta); return s; }
 
 function pintarTabs(){
   let h='';
@@ -57,7 +61,7 @@ function mostrar(id){
   const tab=TABS.filter(function(t){ return t.id===id; })[0]; if(!tab) return;
   let f=frames[id];
   if(f && stale[id]){   // el rango cambió mientras esta pestaña no estaba visible → recargar
-    if(!(id==='data' && dirtyByTab[id]>0 && !confirm('Hay cambios sin guardar en Revisión de DATA. ¿Recargar con el nuevo rango y descartarlos?'))){
+    if(!(dirtyByTab[id]>0 && !confirm('Hay cambios sin guardar en «'+tab.label+'». ¿Recargar con el nuevo rango y descartarlos?'))){
       f.src=frameSrc(tab); dirtyByTab[id]=0;
     }
     delete stale[id];
@@ -74,7 +78,7 @@ function verFechas(){
   TABS.forEach(function(t){
     if(!t.fecha || !frames[t.id]) return;
     if(t.id===actTab){
-      if(t.id==='data' && dirtyByTab[t.id]>0 && !confirm('Hay cambios sin guardar en Revisión de DATA. ¿Recargar con el nuevo rango y descartarlos?')) return;
+      if(dirtyByTab[t.id]>0 && !confirm('Hay cambios sin guardar en «'+t.label+'». ¿Recargar con el nuevo rango y descartarlos?')) return;
       frames[t.id].src=frameSrc(t); dirtyByTab[t.id]=0;
     } else { stale[t.id]=true; }
   });

@@ -6,11 +6,19 @@ const ROLES = ['admin','encargado','residente','parte_maquinaria','residente_dre
 // D178: `jeisson` entra por USUARIO (mismo patrón que la Flota, D139): es quien pone el CC a los partes.
 const USUARIOS_OK = ['jeisson','duvan'];   // D193: + duvan (asistencias de drenajes, lo usa Stiven)
 // A dónde vuelve «← Menú» según quién entró (el admin a su menú; el residente a su panel; jeisson a sus tiles).
-const VOLVER = { admin:'menu.html', residente:'residente.html', residente_dren:'seleccion-reporte.html' };
+const VOLVER = { admin:'menu.html', residente:'residente.html', residente_dren:'seleccion-reporte.html', jefe:'hub-jefe.html' };
+// D198: el JEFE solo CONSULTA la Base de aprobados (sin Pendientes ni edición; el servidor le deja leer solo op=base).
+// Dentro del Panel de Obra la pantalla llega con ?embed=1&solo=base: sin cabecera propia y solo con la Base.
+const ROLES_LEEN_BASE = ['jefe'];
+const QS=(function(){ try{ return new URLSearchParams(location.search); }catch(e){ return { get:function(){ return null; } }; } })();
+const EMBED = QS.get('embed')==='1';
+if(EMBED) document.documentElement.classList.add('embed');
 
 /* ---------- sesión (D82/D109) ---------- */
 const rol=localStorage.getItem('rol')||'', usuario=(localStorage.getItem('usuario')||'').trim().toLowerCase();
-if(!rol || (ROLES.indexOf(rol)<0 && USUARIOS_OK.indexOf(usuario)<0) || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }
+if(!rol || (ROLES.indexOf(rol)<0 && USUARIOS_OK.indexOf(usuario)<0 && ROLES_LEEN_BASE.indexOf(rol)<0) || !(window.TM2Auth && TM2Auth.get())){ location.href='index.html'; }
+const SOLO_BASE = ROLES_LEEN_BASE.indexOf(rol)>=0 || QS.get('solo')==='base';                 // D198
+const PUEDE_EDITAR_BASE = ROLES.indexOf(rol)>=0 || USUARIOS_OK.indexOf(usuario)>=0;            // el jefe: solo lectura
 document.getElementById('userDisplay').textContent=usuario+' · '+rol;
 const VOLVER_A = VOLVER[rol] || (USUARIOS_OK.indexOf(usuario)>=0 ? 'seleccion-reporte.html' : '');
 if(VOLVER_A){ const bm=document.getElementById('btnMenu'); bm.style.display='inline-block'; bm.setAttribute('data-on-click', "irA('"+VOLVER_A+"')"); }
@@ -58,7 +66,9 @@ function setGrupo(g){
 function verTab(t){
   document.getElementById('tabPend').classList.toggle('on', t==='pend'); document.getElementById('tabBase').classList.toggle('on', t==='base');
   document.getElementById('vistaPend').classList.toggle('hidden', t!=='pend'); document.getElementById('vistaBase').classList.toggle('hidden', t!=='base');
-  if(t==='base' && !BASE) cargarBase();
+  // D198: la Base usa TODO el ancho y el alto de la ventana (como la Revisión de DATA).
+  document.querySelector('.container').classList.toggle('ancho', t==='base');
+  if(t==='base'){ if(!BASE) cargarBase(); ajustarAltoBase(); }
 }
 
 /* ================= PENDIENTES ================= */
@@ -428,7 +438,6 @@ async function guardarRepartir(){
  * Repartir sigue siendo el modal de D178 (clic derecho). «Copiar para Excel» copia las APROBADAS visibles B → AR con
  * la misma regla que parteExcelFila_ del backend (excelFilaLocal), así que lo filtrado es lo que se copia. */
 let GB=null;          // la cuadrícula de la Base
-const PUEDE_EDITAR_BASE=true;   // quien entra a esta pantalla revisa (el guard de verdad está en el servidor, D109)
 function fmtMed(v){ return v==='HOROMETRO'?'Horómetro':v==='KM'?'Km':(v||''); }
 function totalAlto(r){ const t=num(r.total), tp=TOPES[r.medidor]; return t!==null && tp && t>tp.alerta; }
 const COLS_BASE=[
@@ -486,12 +495,14 @@ function kpisBase(vis){
 }
 function dirtyBase(n){
   document.getElementById('nBase').textContent=n; document.getElementById('btnGuardarBase').disabled=!n;
+  try{ if(window.parent!==window) window.parent.postMessage({tm2:'dirty', page:'revision', n:n}, location.origin); }catch(e){}   // D198: punto del Hub
   if(GB){ document.getElementById('bUndo').disabled=!GB.puedeDeshacer(); document.getElementById('bRedo').disabled=!GB.puedeRehacer(); }
 }
 function deshacerBase(){ if(GB) GB.deshacer(); }
 function rehacerBase(){ if(GB) GB.rehacer(); }
 // Descartar / volver a aprobar: quedan pendientes hasta Guardar (un solo Ctrl+Z las quita).
 function marcarAccion(accion, lista){
+  if(!PUEDE_EDITAR_BASE) return;                                   // D198: el jefe consulta, no descarta
   const sel=(lista||GB.marcadas()).filter(function(r){ return accion==='descartar' ? r.estado!=='descartado' : r.estado!=='aprobado'; });
   if(!sel.length){ toast(accion==='descartar'?'Marca las filas a descartar.':'Marca las filas a volver a aprobar.', true); return; }
   GB.pushUndo(); sel.forEach(function(r){ r._accion=accion; delete r._error; }); GB.pintar();
@@ -499,6 +510,7 @@ function marcarAccion(accion, lista){
 }
 function menuBase(sel, row){
   const n=sel.length, txt=n===1?'fila':(n+' filas'), items=[];
+  if(!PUEDE_EDITAR_BASE){ const al=row?alertasDe(row):[]; return al.length ? [{ t:'¿Qué significan sus alertas?', fn:function(){ toast(al.map(function(a){ return a+': '+(ALERTA_TXT[a]||a); }).join(' · ')); } }] : []; }
   const conCambios=row && GB.pendientes().indexOf(row)>=0;
   items.push({ t:'Repartir en varios CC…', fn:function(){ abrirRepartir(row.id_registro); },
     deshabilitado: n!==1 ? 'Marca una sola fila' : conCambios ? 'Guarda primero los cambios de esta fila' : row.estado==='descartado' ? 'La fila está descartada' : '' });
@@ -518,8 +530,15 @@ async function cargarBase(){
   if(caducada(d)) return;
   if(!d.ok){ toast(d.error||'No se pudo consultar', true); return; }
   BASE=d; if(d.listas) LISTAS=Object.assign({}, LISTAS, d.listas);
-  GB.cargar(d.filas||[]);
+  GB.cargar(d.filas||[]); ajustarAltoBase();
 }
+// D198: la cuadrícula ocupa el alto que queda en la ventana (sin scroll de página), como DATA.
+function ajustarAltoBase(){
+  const g=document.getElementById('gridBase'); if(!g || document.getElementById('vistaBase').classList.contains('hidden')) return;
+  const top=g.getBoundingClientRect().top + window.scrollY, pie=EMBED ? 10 : 58;
+  g.style.height=Math.max(260, Math.round(window.innerHeight - top - pie))+'px';
+}
+window.addEventListener('resize', ajustarAltoBase);
 function pintarBase(){ if(GB) GB.pintar(); }          // D193: cambiar Todos/Tierras/Drenajes repinta
 async function guardarBase(){
   if(!GB) return; if(GB.editando()) GB.cerrarEditor();
@@ -608,8 +627,12 @@ window.addEventListener('beforeunload', function(e){ if(GB && GB.pendientes().le
   document.getElementById('desde').value=d.toISOString().slice(0,10); document.getElementById('hasta').value=h;
   document.getElementById('fecha').addEventListener('change', cargarBandeja);
   pintarSegGrupo();   // D193
+  const qd=QS.get('desde'), qh=QS.get('hasta');                                    // D198: rango que manda el Hub
+  if(qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)){ document.getElementById('desde').value=qd; document.getElementById('hasta').value=(qh && /^\d{4}-\d{2}-\d{2}$/.test(qh))?qh:qd; }
   pintarRapidosBase();   // D197
-  cargarBandeja();
+  if(!PUEDE_EDITAR_BASE){ ['btnGuardarBase','bUndo','bRedo'].forEach(function(id){ const b=document.getElementById(id); if(b) b.classList.add('hidden'); }); }
+  if(SOLO_BASE){ ['tabPend','vistaPend'].forEach(function(id){ document.getElementById(id).classList.add('hidden'); }); verTab('base'); }
+  else cargarBandeja();
 })();
 
 // D170: antes eran expresiones en línea en el marcado; la CSP ya no las admite.

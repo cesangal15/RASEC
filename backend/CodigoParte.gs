@@ -952,6 +952,8 @@ function parteDoGet_(e){
   const p=puerta_(e, null, 'parte:'+op);                        // D109 + D166 (LOG, rate limit, mensaje genérico)
   if(!p.ok) return p.respuesta;
   const ses=p.ses;
+  // D198: el jefe CONSULTA la Base (solo lectura); no revisa ni edita (paridad con el Worker).
+  if(op==='base' && !parteAutoriza_(ses) && ses && ses.ok && String(ses.rol||'').trim().toLowerCase()==='jefe') return parteBase(e);
   if(!parteAutoriza_(ses)) return parteSinPermiso_();
   if(op==='bandeja') return parteBandeja(e);
   if(op==='base')    return parteBase(e);
