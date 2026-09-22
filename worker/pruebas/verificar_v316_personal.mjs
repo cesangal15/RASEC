@@ -21,6 +21,14 @@
  *      registrado' cuando falta en ambos sitios, Σn/Σh de `c` coherentes con la entrada, orden (h desc,
  *      luego k asc), 2 filas de la MISMA persona el mismo día con cargos distintos → cuenta por la
  *      PRIMERA fila, y que el JSON sigue sin nombres/cédulas/códigos.
+ *   8. Personal INDIRECTO fuera (V3-16, decisión del jefe): una fila con cargo Capataz/Encargado/Auxiliar
+ *      administrativo/Ingeniero residente (o su variante) NO cuenta en n/h/c, tanto si el cargo viene en la
+ *      FILA como si viene de la FICHA (cuando la fila no trae cargo); sin cargo en ningún sitio SÍ cuenta
+ *      (Sin cargo registrado). Otro cargo cualquiera de la lista de 012 (p. ej. Oficial) sigue contando.
+ *   9. Partida 'transporte' por la DESCRIPCIÓN del CC (cuando el código no matchea PERS_ACT): en 3701 y
+ *      3702, con los códigos reales (02.10, 02.11, 03.02, 03.04); PERS_ACT sigue ganando aunque la
+ *      descripción también empiece por «Transporte»; drenajes (06.x / 07.x) siguen fuera aunque su
+ *      descripción empiece por «Transporte».
  * Sale con código 1 si algo falla.
  */
 import fs from 'node:fs';
@@ -166,8 +174,9 @@ async function main(){
   await asis(sql, { fecha: FC, codigo: 'C102', nombre: 'CARGO C', cc: '3701.02.05| EXC', cargo: 'OFICIAL', hora_entrada: '07:00', hora_salida: '15:30' });
   await asis(sql, { fecha: FC, codigo: 'C103', nombre: 'CARGO D', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
   // Respaldo por CÓDIGO: 2 estancias en `personal`, manda la de fecha_ingreso MÁS RECIENTE (no la del INSERT).
-  await ficha(sql, { codigo: 'C104', cargo: 'Capataz de obra', fecha_ingreso: '2020-01-01' });
-  await ficha(sql, { codigo: 'C104', cargo: 'CAPATAZ', fecha_ingreso: '2023-05-01' });
+  // (cargos DIRECTOS a propósito: Capataz/Encargado quedarían fuera por la sección 8 de indirectos.)
+  await ficha(sql, { codigo: 'C104', cargo: 'Oficial de estructura', fecha_ingreso: '2020-01-01' });
+  await ficha(sql, { codigo: 'C104', cargo: 'OPERADOR DE BULLDOZER', fecha_ingreso: '2023-05-01' });
   await asis(sql, { fecha: FC, codigo: 'C104', nombre: 'CARGO E', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
   // Respaldo por CÉDULA (sin código), fecha_ingreso NULL = la MÁS ANTIGUA: no debe ganarle a una estancia con fecha.
   await ficha(sql, { cedula: '55501122', cargo: 'Ayudante de obra', fecha_ingreso: null });
@@ -185,8 +194,8 @@ async function main(){
   ok('«OFICIAL» NO se funde con «OFICIAL DE OBRA» (no inventa sinónimos): entrada aparte con n=1',
     !!cargo(gC, 'Oficial') && cargo(gC, 'Oficial').n === 1, cargo(gC, 'Oficial'));
   ok('sin cargo en la fila y sin ficha → «Sin cargo registrado»', !!cargo(gC, SIN_CARGO) && cargo(gC, SIN_CARGO).n === 1, cargo(gC, SIN_CARGO));
-  ok('respaldo por CÓDIGO desde `personal`: manda la estancia de fecha_ingreso MÁS RECIENTE (CAPATAZ, no Capataz de obra)',
-    !!cargo(gC, 'Capataz') && cargo(gC, 'Capataz').n === 1 && !cargo(gC, 'Capataz de obra'), cargo(gC, 'Capataz'));
+  ok('respaldo por CÓDIGO desde `personal`: manda la estancia de fecha_ingreso MÁS RECIENTE (Operador de bulldozer, no Oficial de estructura)',
+    !!cargo(gC, 'Operador de bulldozer') && cargo(gC, 'Operador de bulldozer').n === 1 && !cargo(gC, 'Oficial de estructura'), cargo(gC, 'Operador de bulldozer'));
   ok('respaldo por CÉDULA desde `personal` (sin código): fecha_ingreso NULL = la más antigua, no le gana a la fechada (AYUDANTE, no Ayudante de obra)',
     !!cargo(gC, 'Ayudante') && cargo(gC, 'Ayudante').n === 1 && !cargo(gC, 'Ayudante de obra'), cargo(gC, 'Ayudante'));
   const gCargoAmbos = cargo(gC, 'Oficial de obra');
@@ -214,6 +223,57 @@ async function main(){
     r5.ok === true && Array.isArray(r5.dias) && r5.proy && typeof r5.proy === 'object');
   ok('`personal` es null y trae `personal_error` legible', r5.personal === null && typeof r5.personal_error === 'string' && r5.personal_error.length > 0, r5.personal_error);
   ok('`personal_hasta` queda vacío', r5.personal_hasta === '', r5.personal_hasta);
+
+  console.log('\n' + casos + ' comprobaciones · ' + fallos + ' fallo(s) (fin de la sección de ASISTENCIA sin tabla; el resto necesita una BD nueva)');
+
+  titulo('7 · reconstruir BD para las secciones de indirectos y transporte (la 6 dejó ASISTENCIA sin tabla)');
+  const { sql: sql2 } = await abrirPglite();
+  for (const f of migraciones) await sql2.exec(fs.readFileSync(path.join(SQL_DIR, f), 'utf8'));
+
+  titulo('8 · personal INDIRECTO fuera (V3-16, decisión del jefe): ni n, ni h, ni c');
+  const FI = '2026-09-15';
+  await asis(sql2, { fecha: FI, codigo: 'C200', nombre: 'CAP FILA', cc: '3701.02.05| EXC', cargo: 'Capataz de obra', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FI, codigo: 'C201', nombre: 'ENC FILA', cc: '3701.02.05| EXC', cargo: 'ENCARGADO', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FI, codigo: 'C202', nombre: 'RES FILA', cc: '3701.02.05| EXC', cargo: 'Residente', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FI, codigo: 'C203', nombre: 'AUX FILA', cc: '3701.02.05| EXC', cargo: 'Auxiliar administrativo', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FI, codigo: 'C204', nombre: 'OFI DIRECTO', cc: '3701.02.05| EXC', cargo: 'Oficial', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FI, codigo: 'C205', nombre: 'SIN CARGO', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
+  // indirecto por FICHA (la fila no trae cargo): también debe quedar fuera.
+  await ficha(sql2, { codigo: 'C206', cargo: 'Capataz', fecha_ingreso: '2024-01-01' });
+  await asis(sql2, { fecha: FI, codigo: 'C206', nombre: 'CAP FICHA', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
+  const r8 = await tableroVivoLeer(c(sql2), {});
+  const g8 = grupo(r8.personal, FI, 'UF1', 'excavacion');
+  ok('solo cuentan las 2 filas directas (Oficial + Sin cargo): n=2', !!g8 && g8.n === 2, g8);
+  ok('ningún indirecto (capataz/encargado/residente/auxiliar) aparece en `c`, ni por fila ni por ficha',
+    !cargo(g8, 'Capataz de obra') && !cargo(g8, 'Encargado') && !cargo(g8, 'Ingeniero residente') && !cargo(g8, 'Auxiliar administrativo') && !cargo(g8, 'Capataz'),
+    g8.c);
+  ok('«Oficial» (directo) y «Sin cargo registrado» SÍ cuentan', !!cargo(g8, 'Oficial') && cargo(g8, 'Oficial').n === 1 && !!cargo(g8, SIN_CARGO) && cargo(g8, SIN_CARGO).n === 1, g8.c);
+  const texto8 = JSON.stringify(r8);
+  ok('ningún indirecto infla las horas del grupo (h = solo las 2 filas directas, 07:00-15:30 c/u)', Math.abs(g8.h - 15) < 0.02, g8.h);
+
+  titulo('9 · partida «transporte» por DESCRIPCIÓN del CC (código no matchea PERS_ACT) y drenajes fuera');
+  const FT = '2026-09-16';
+  await asis(sql2, { fecha: FT, codigo: 'T001', nombre: 'X', cc: '3701.02.10| Transporte de terraplén (100 m a 1 km)', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FT, codigo: 'T002', nombre: 'X', cc: '3701.02.11| Transporte materiales provenientes de excavación (más de 1 km)', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FT, codigo: 'T003', nombre: 'X', cc: '3702.03.02| Transporte de subbase granular', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FT, codigo: 'T004', nombre: 'X', cc: '3702.03.04| Transporte de base granular', hora_entrada: '07:00', hora_salida: '15:30' });
+  // PERS_ACT manda aunque la descripción también empiece por «Transporte»
+  await asis(sql2, { fecha: FT, codigo: 'T005', nombre: 'X', cc: '3701.02.05| Transporte interno de material excavado', hora_entrada: '07:00', hora_salida: '15:30' });
+  // drenajes con descripción «Transporte…»: siguen fuera (deriveArea)
+  await asis(sql2, { fecha: FT, codigo: 'T006', nombre: 'X', cc: '3701.06.02| Transporte de material seleccionado (ODT)', hora_entrada: '07:00', hora_salida: '15:30' });
+  // otro código sin matchear PERS_ACT y sin «Transporte» al inicio: sigue en 'otras'
+  await asis(sql2, { fecha: FT, codigo: 'T007', nombre: 'X', cc: '3701.I0408| Movilización de personal', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql2, { fecha: FT, codigo: 'T008', nombre: 'X', cc: '3701.02.09| Riego de agua en caminos y accesos', hora_entrada: '07:00', hora_salida: '15:30' });
+  const r9 = await tableroVivoLeer(c(sql2), {});
+  ok('3701.02.10 (código no en PERS_ACT, descripción «Transporte…») → transporte UF1', !!grupo(r9.personal, FT, 'UF1', 'transporte') && grupo(r9.personal, FT, 'UF1', 'transporte').n >= 1, grupo(r9.personal, FT, 'UF1', 'transporte'));
+  ok('3701.02.11 también → transporte UF1', grupo(r9.personal, FT, 'UF1', 'transporte').n === 2, grupo(r9.personal, FT, 'UF1', 'transporte'));
+  ok('3702.03.02 y 3702.03.04 → transporte UF2 (n=2)', !!grupo(r9.personal, FT, 'UF2', 'transporte') && grupo(r9.personal, FT, 'UF2', 'transporte').n === 2, grupo(r9.personal, FT, 'UF2', 'transporte'));
+  ok('02.05 con descripción «Transporte…»: PERS_ACT manda → excavacion, NO transporte', !!grupo(r9.personal, FT, 'UF1', 'excavacion') && grupo(r9.personal, FT, 'UF1', 'excavacion').n === 1, grupo(r9.personal, FT, 'UF1', 'excavacion'));
+  ok('06.02 (ODT) con descripción «Transporte…»: sigue fuera del Tablero (drenajes)', !(r9.personal || []).some(function(x){ return x.f === FT && x.n > 6; }));
+  const totalFT = (r9.personal || []).filter(function(x){ return x.f === FT; }).reduce(function(s, x){ return s + x.n; }, 0);
+  ok('total del día FT = 7 (T001..T005, T007, T008; T006 de drenajes queda fuera)', totalFT === 7, totalFT);
+  ok('I0408 (transporte de personal, código sin PERS_ACT y descripción que NO empieza por «Transporte») → otras',
+    !!grupo(r9.personal, FT, 'UF1', 'otras') && grupo(r9.personal, FT, 'UF1', 'otras').n === 2, grupo(r9.personal, FT, 'UF1', 'otras'));
 
   console.log('\n' + casos + ' comprobaciones · ' + fallos + ' fallo(s)');
   process.exit(fallos ? 1 : 0);

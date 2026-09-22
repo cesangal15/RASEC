@@ -50,10 +50,18 @@ const PERSONAL=[
   {f:'2026-09-10',uf:'UF1',act:'terraplen', n:6, h:48},
   {f:'2026-09-11',uf:'UF1',act:'terraplen', n:7, h:56},
   {f:'2026-09-10',uf:'UF1',act:'otras',     n:2, h:16},
+  /* Fila «Transporte»: personal DIRECTO (el Worker ya excluye capataces,
+   * encargados, auxiliares administrativos e ingenieros residentes). */
+  {f:'2026-09-10',uf:'UF1',act:'transporte',n:4, h:32,c:[{k:'Conductor',n:3,h:24},{k:'Ayudante',n:1,h:8}]},
+  {f:'2026-09-10',uf:'UF2',act:'transporte',n:1, h:8, c:[{k:'Conductor',n:1,h:8}]},
+  {f:'2026-09-11',uf:'UF1',act:'transporte',n:2, h:16,c:[{k:'Conductor',n:2,h:16}]},
 ];
 /* Misma foto pero SIN `c` en ninguna entrada — «foto vieja» (D316): ninguna
  * fila debe poder desplegarse. */
 const PERSONAL_SIN_CARGO=PERSONAL.map(x=>{ const y=Object.assign({},x); delete y.c; return y; });
+/* Foto SIN ninguna entrada `act:'transporte'` — «respuesta vieja» anterior a
+ * la fila Transporte debe verse vacía (— / 0,0), como Subbase hoy. */
+const PERSONAL_SIN_TRANSPORTE=PERSONAL.filter(x=>x.act!=='transporte');
 const PROY={
   fc:1,
   plan:{ '2026-09':{excavacion:5000,terraplen:2000,subbase:200,base:0,noaprov:300} },
@@ -258,6 +266,7 @@ const server=http.createServer((req,res)=>{
     await pg.goto(BASE+'/tablero-produccion.html');
     await pg.waitForFunction(()=>document.getElementById('perT').textContent!=='—');
     ok('con el período completo se avisa que la asistencia llega solo hasta el 12 sep', /asistencia hasta el 12-sep/.test(await $(pg,'#perSub').textContent()));
+    ok('subtítulo dice que es personal DIRECTO', /personal directo/.test(await $(pg,'#perSub').textContent()));
     // se filtra al rango 10–12 sep (3 días) para las cuentas exactas
     await $(pg,'#escala .ecell').nth(0).click(); await $(pg,'#escala .ecell').nth(2).click();
     await pg.waitForFunction(()=>/10–12 sep/.test(document.getElementById('diaResumen').textContent));
@@ -272,6 +281,15 @@ const server=http.createServer((req,res)=>{
        JSON.stringify(porNombre['Excavación']));
     ok('Terraplén trae cifras correctas pero NO es desplegable (sin `c` en sus entradas)',
        porNombre['Terraplén'] && porNombre['Terraplén'].cols[0]==='6,5' && porNombre['Terraplén'].cols[1]==='104,0' && !porNombre['Terraplén'].abrible);
+    ok('orden de filas: Excavación, Terraplén, Subbase, BTC/Base, Transporte, Otras actividades, Total',
+       JSON.stringify(filas.map(f=>f.nm))===JSON.stringify(['Excavación','Terraplén','Subbase','BTC / Base','Transporte','Otras actividades','Total']),
+       JSON.stringify(filas.map(f=>f.nm)));
+    ok('Transporte (personal directo): 3,5 personas/día · 56,0 horas-hombre, y es desplegable',
+       porNombre['Transporte'] && porNombre['Transporte'].cols[0]==='3,5' && porNombre['Transporte'].cols[1]==='56,0' && porNombre['Transporte'].abrible,
+       JSON.stringify(porNombre['Transporte']));
+    ok('el Total incluye Transporte: 19,0 personas/día · 456,0 h',
+       porNombre['Total'] && porNombre['Total'].cols[0]==='19,0' && porNombre['Total'].cols[1]==='456,0',
+       JSON.stringify(porNombre['Total']));
     // abre el desglose de Excavación
     ok('cerrado por defecto: sin subfilas', await $(pg,'#perTabla .phDrop').count()===0);
     await $(pg,'#perTabla .ph.abrible').first().click();
@@ -301,7 +319,37 @@ const server=http.createServer((req,res)=>{
     await $(pg,'#uf button:has-text("Todo")').click();
     await $(pg,'#perTabla .ph.abrible').first().click();
     ok('un segundo clic cierra el desglose', await $(pg,'#perTabla .phDrop').count()===0);
+    // Transporte: se despliega por cargo igual que las demás
+    await $(pg,'#perTabla .ph.abrible').nth(1).click();   // 2º abrible: Excavación(0), Transporte(1)
+    const cargosT=await pg.$$eval('#perTabla .phDrop .phC', els=>els.map(e=>({
+      nm:e.querySelector('.nm').textContent.trim(),
+      cols:[...e.querySelectorAll('.num')].map(n=>n.textContent.trim())
+    })));
+    ok('Transporte por cargo: Conductor 3,0/48,0 h primero (más horas), Ayudante 0,5/8,0 h después',
+       JSON.stringify(cargosT.map(c=>c.nm))===JSON.stringify(['Conductor','Ayudante']) &&
+       cargosT[0].cols[0]==='3,0' && cargosT[0].cols[1]==='48,0' &&
+       cargosT[1].cols[0]==='0,5' && cargosT[1].cols[1]==='8,0',
+       JSON.stringify(cargosT));
+    await $(pg,'#perTabla .ph.abrible').nth(1).click();   // cierra Transporte
     erroresGlobal.push(...errores.map(e=>'[personal-cargo] '+e));
+    await pg.context().close();
+  }
+
+  console.log('\n4b · Sin ninguna entrada `transporte` (respuesta vieja): fila vacía, como Subbase');
+  {
+    const { pg, errores }=await pagina({width:1200,height:1000}, PERSONAL_SIN_TRANSPORTE);
+    await pg.goto(BASE+'/tablero-produccion.html');
+    await pg.waitForFunction(()=>document.getElementById('perT').textContent!=='—');
+    const filas=await pg.$$eval('#perTabla .ph', els=>els.map(e=>({
+      nm:e.querySelector('.nm').lastChild.textContent.trim(),
+      abrible:e.classList.contains('abrible'),
+      cols:[...e.querySelectorAll('.num')].map(n=>n.textContent.trim())
+    })));
+    const porNombre=Object.fromEntries(filas.map(f=>[f.nm,f]));
+    ok('sin ninguna entrada `act:transporte`: la fila sale vacía (— / 0,0), sin flecha',
+       porNombre['Transporte'] && porNombre['Transporte'].cols[0]==='—' && porNombre['Transporte'].cols[1]==='0,0' && !porNombre['Transporte'].abrible,
+       JSON.stringify(porNombre['Transporte']));
+    erroresGlobal.push(...errores.map(e=>'[personal-sin-transporte] '+e));
     await pg.context().close();
   }
 

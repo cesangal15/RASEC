@@ -1513,6 +1513,7 @@ const ACT_PERS=[
   {k:'terraplen', n:'Terraplén',    c:'var(--s2)'},
   {k:'subbase',   n:'Subbase',      c:'var(--s3)'},
   {k:'base',      n:'BTC / Base',   c:'var(--s4)'},
+  {k:'transporte',n:'Transporte',   c:'var(--s5)'},
   {k:'otras',     n:'Otras actividades', c:'var(--neutro)'}
 ];
 function ambitoTxt(p){
@@ -1523,8 +1524,10 @@ function personal(p){
   if(!sub||!c) return;
   const amb=ambitoTxt(p);
   /* `personal` solo trae TIERRAS (deriveArea, D70): drenajes (ODT/ODL) queda
-     fuera porque este Tablero es de tierras. */
-  sub.textContent='personas y horas-hombre de tierras cargadas en la asistencia · '+amb;
+     fuera porque este Tablero es de tierras. Además el Worker filtra al
+     personal DIRECTO: sin capataces, encargados, auxiliares administrativos
+     ni ingenieros residentes. */
+  sub.textContent='personas y horas-hombre del personal directo de tierras en la asistencia · '+amb;
   c.innerHTML='';
   if(!Array.isArray(TM2.personal)){
     c.appendChild(el('div','nota', TM2.personal_error
