@@ -26,11 +26,17 @@
  *          horas_meta  = {archivo, cargado_ts ('YYYY-MM-DD HH:MM' Bogotá)} o null. Sin `cargado_por`.
  *          datos_hasta = la última FECHA de la DATA ('' si no hay); generado = ahora en Bogotá 'YYYY-MM-DD HH:MM'.
  *          personal    = V3-16: horas-hombre y nº de personas por partida, desde ASISTENCIA (solo UF1/UF2, presentes,
- *                        con CC). [{f, uf:'UF1'|'UF2', act:'excavacion'|'terraplen'|'subbase'|'base'|'otras', n, h}],
- *                        una entrada por (f, uf, act) con n>0 o h>0, ordenada por f/uf/act. `h` con el MISMO
- *                        clasificador del Parte de Navision (horas-nomina.js, D112: una sola fuente) — nunca copiado.
- *                        null (+ `personal_error`) si ASISTENCIA no se pudo leer: el resto de tablero_vivo sigue igual.
- *                        Sin ningún nombre/cédula/código/cuadrilla/CC crudo (D161: lectura pública sin token).
+ *                        con CC). [{f, uf:'UF1'|'UF2', act:'excavacion'|'terraplen'|'subbase'|'base'|'otras', n, h,
+ *                        c:[{k, n, h}]}], una entrada por (f, uf, act) con n>0 o h>0, ordenada por f/uf/act. `h` con
+ *                        el MISMO clasificador del Parte de Navision (horas-nomina.js, D112: una sola fuente) — nunca
+ *                        copiado. `c` = desglose por CARGO normalizado (sin tildes/mayúsculas/espacios de más;
+ *                        etiqueta capitalizada), ordenado por h desc y luego k asc; Σn/Σh de `c` = n/h de la entrada
+ *                        (con redondeo). Cargo = asistencia.cargo si no está vacío, si no la ficha de PERSONAL (la
+ *                        estancia de fecha_ingreso más reciente); vacío en ambos → 'Sin cargo registrado'. Una
+ *                        persona con 2 filas de cargo distinto el mismo (f,uf,act) cuenta en `c` por el cargo de su
+ *                        PRIMERA fila. null (+ `personal_error`) si ASISTENCIA no se pudo leer: el resto de
+ *                        tablero_vivo sigue igual. Sin ningún nombre/cédula/código/cuadrilla/CC crudo (D161: lectura
+ *                        pública sin token); `c` solo lleva etiquetas de cargo y cifras agregadas.
  *          personal_hasta = la última fecha con filas de asistencia incluidas ('' si ninguna).
  *   POST {action:'tablero_horas_guardar', horas, archivo}  TOKEN, admin/jefe → guarda la salida de leerHoras del libro
  *        de partes (una vez, cuando llega uno nuevo) → {ok, horas_meta:{archivo, cargado_ts, partes, corte}, version}
@@ -43,7 +49,7 @@
  *
  * Contexto `c` = { sql, env, secreto, authV, pet:{t0, log}, memo }. Lo arma src/index.js por petición.
  */
-import { OBRA_ID, ZONA_HORARIA, json, permiso_, logMarcar_, fdateValida_, fdate } from '../../comun.js';
+import { OBRA_ID, ZONA_HORARIA, json, permiso_, logMarcar_, fdateValida_, fdate, deriveArea } from '../../comun.js';
 import { sumaPorDia_ } from './pliegue.js';
 import { proyeccionTableroDatos_ } from './proyeccion.js';
 import { gzipB64_, gunzipB64_ } from './tablero.js';
@@ -97,7 +103,9 @@ function jsonbObjeto_(v){
 /* ---------- V3-16: personal (horas-hombre y nº de personas) por (fecha, UF, partida) ----------
  * Del CC crudo de ASISTENCIA ('3701.02.05| EXCAVACION…') solo el código antes de '|' importa: el prefijo
  * (3701→UF1, 3702→UF2; cualquier otro —3703, etc.— se EXCLUYE) y, si el código completo es «NNNN.NN.NN»,
- * el sufijo decide la partida (PERS_ACT); cualquier otra forma (I010305, más segmentos…) es 'otras'. */
+ * el sufijo decide la partida (PERS_ACT); cualquier otra forma (I010305, más segmentos…) es 'otras'.
+ * El Tablero es de TIERRAS: las filas de drenajes (deriveArea de comun.js, D70: capítulo 06.* ODT, 07.* ODL)
+ * no entran, así que «otras» son solo los demás CC de tierras (conformación, transporte, encargados…). */
 function ufDeCC_(cod){
   const m = /^(3701|3702)\./.exec(cod);
   return m ? (m[1]==='3701' ? 'UF1' : 'UF2') : '';
@@ -106,36 +114,94 @@ function actDeCC_(cod){
   const m = /^(?:3701|3702)\.(\d{2}\.\d{2})$/.exec(cod);
   return m ? (PERS_ACT[m[1]] || 'otras') : 'otras';
 }
+export const SIN_CARGO = 'Sin cargo registrado';        // etiqueta cuando el cargo falta en asistencia y en la ficha
+// 'ñ'/'Ñ' se preservan (D112-style, sin tocar la lógica de terceros): NFD descompondría la tilde de la eñe
+// junto con los acentos normales, así que se protege antes de quitar diacríticos.
+function sinTildes_(s){
+  return String(s||'').replace(/[ñÑ]/g, function(ch){ return ch==='ñ' ? '\u0001' : '\u0002'; })
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\u0001/g, 'ñ').replace(/\u0002/g, 'Ñ');
+}
+// Clave para agrupar variantes de escritura (sin tildes, MAYÚSCULAS, espacios colapsados) + etiqueta a mostrar
+// (la clave en minúsculas con la primera letra en mayúscula). NO corrige erratas ni inventa sinónimos.
+function normCargo_(s){
+  const t = sinTildes_(s).toUpperCase().replace(/\s+/g, ' ').trim();
+  if(!t) return { key:'', label:SIN_CARGO };
+  return { key:t, label: t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() };
+}
+// Mapa codigo/cedula -> cargo de PERSONAL, con la estancia de fecha_ingreso MÁS RECIENTE (NULL = la más
+// antigua; MISMO criterio que horasPersona, asistencias/lectura.js). Una sola consulta, sin filas repetidas.
+function fichaCargoMapa_(filasPersonal){
+  const porCodigo = new Map(), porCedula = new Map();
+  filasPersonal.forEach(function(p){
+    const codigo = String(p.codigo||'').trim(), cedula = String(p.cedula||'').trim(), fi = fdate(p.fecha_ingreso);
+    const cargo = String(p.cargo||'').trim();
+    if(codigo){ const a = porCodigo.get(codigo); if(!a || fi >= a.fi) porCodigo.set(codigo, { cargo:cargo, fi:fi }); }
+    if(cedula){ const a = porCedula.get(cedula); if(!a || fi >= a.fi) porCedula.set(cedula, { cargo:cargo, fi:fi }); }
+  });
+  return function(codigo, cedula){
+    if(codigo && porCodigo.has(codigo)) return porCodigo.get(codigo).cargo;
+    if(cedula && porCedula.has(cedula)) return porCedula.get(cedula).cargo;
+    return '';
+  };
+}
 // {personal, personal_hasta} o {personal:null, personal_error}. Nunca tumba tablero_vivo: el que llama
 // atrapa cualquier excepción (tabla sin migrar, columna que falte…) y sigue sin este bloque.
 async function personalDelTablero_(c){
-  const filas = await c.sql`SELECT fecha, codigo, cedula, nombre, cc, hora_entrada, hora_salida, turno
-    FROM asistencia WHERE obra_id=${OBRA_ID} AND presente='Si' AND cc<>'' ORDER BY fecha`;
+  const filas = await c.sql`SELECT fecha, codigo, cedula, nombre, cargo, cc, hora_entrada, hora_salida, turno, id_registro
+    FROM asistencia WHERE obra_id=${OBRA_ID} AND presente='Si' AND cc<>'' ORDER BY fecha, id_registro`;
   const cfg = await getConfigMap(c), festivos = await getFestivos(c), turnos = await turnosCliente_(c);
-  const grupos = new Map();       // 'f|uf|act' -> { f, uf, act, personas:Set, h }
+  // Respaldo de cargo desde la FICHA (PERSONAL): si esta consulta falla, se sigue sin ese respaldo (regla 1).
+  let cargoDeFicha_ = function(){ return ''; };
+  try{
+    const fp = await c.sql`SELECT codigo, cedula, cargo, fecha_ingreso FROM personal WHERE obra_id=${OBRA_ID}`;
+    cargoDeFicha_ = fichaCargoMapa_(fp);
+  }catch(err){ /* sin respaldo de ficha; el cargo de la fila (o SIN_CARGO) sigue funcionando */ }
+
+  const grupos = new Map();       // 'f|uf|act' -> { f, uf, act, personas:Set, h, cargos:Map<clave,{label,personas,h}>, asig:Map<id,clave> }
   let hasta = '';
   for(let i=0;i<filas.length;i++){
     const r = filas[i];
     const cod = String(r.cc||'').split('|')[0].trim();
     const uf = ufDeCC_(cod);
     if(!uf) continue;                                    // no es UF1/UF2 (p. ej. 3703 = UF3): se excluye
+    if(deriveArea(cod)!=='tierras') continue;            // el Tablero es de TIERRAS: drenajes ODT (.06.*) y ODL (.07.*) fuera (D70)
     const f = fdate(r.fecha);
     if(f > hasta) hasta = f;
     const act = actDeCC_(cod);
     const key = f+'|'+uf+'|'+act;
     let g = grupos.get(key);
-    if(!g){ g = { f:f, uf:uf, act:act, personas:new Set(), h:0 }; grupos.set(key, g); }
-    const id = String(r.codigo||'').trim() || String(r.cedula||'').trim() || String(r.nombre||'').trim();
-    if(id) g.personas.add(id);                            // dedupe por identidad (por seguridad; D126)
+    if(!g){ g = { f:f, uf:uf, act:act, personas:new Set(), h:0, cargos:new Map(), asig:new Map() }; grupos.set(key, g); }
+    const codigo = String(r.codigo||'').trim(), cedula = String(r.cedula||'').trim();
+    const idPersona = codigo || cedula || String(r.nombre||'').trim();
+    if(idPersona) g.personas.add(idPersona);              // dedupe por identidad (por seguridad; D126)
+    // Sin identidad (codigo/cedula/nombre vacíos, caso raro): cada fila es su propia "persona" para el
+    // desglose por cargo, así una fila anónima nunca se funde con otra (no cuenta en `n`, igual que antes).
+    const id = idPersona || ('__anon'+i);
     const tipoJ = tipoJornadaDeFecha(f, festivos);
     const tr = turnoRowFor(r.turno, f, turnos, tipoJ);
     const cl = clasificarHoras(tipoJ, r.hora_entrada, r.hora_salida, cfg, tr);
-    g.h += (cl.ordinarias||0) + (cl.ord_domfest||0) + (cl.extra_diurna||0) + (cl.extra_nocturna||0) + (cl.extra_domfest||0);
+    const horasFila = (cl.ordinarias||0) + (cl.ord_domfest||0) + (cl.extra_diurna||0) + (cl.extra_nocturna||0) + (cl.extra_domfest||0);
+    g.h += horasFila;
+    // Cargo por fila: asistencia.cargo si no está vacío, si no la ficha de PERSONAL. Dos filas de la MISMA
+    // persona con cargos distintos el mismo (f,uf,act): manda el cargo de su PRIMERA fila (regla 3).
+    let clave = g.asig.get(id);
+    if(clave === undefined){
+      const cargoTxt = String(r.cargo||'').trim() || cargoDeFicha_(codigo, cedula);
+      const nc = normCargo_(cargoTxt);
+      clave = nc.key;
+      g.asig.set(id, clave);
+      if(!g.cargos.has(clave)) g.cargos.set(clave, { label:nc.label, personas:new Set(), h:0 });
+      if(idPersona) g.cargos.get(clave).personas.add(idPersona);
+    }
+    g.cargos.get(clave).h += horasFila;
   }
   const claves = [...grupos.keys()].sort();
   const personal = claves.map(function(k){
     const g = grupos.get(k);
-    return { f:g.f, uf:g.uf, act:g.act, n:g.personas.size, h:Math.round(g.h*100)/100 };
+    const c2 = [...g.cargos.values()].map(function(x){ return { k:x.label, n:x.personas.size, h:Math.round(x.h*100)/100 }; })
+      .sort(function(a, b){ return b.h !== a.h ? b.h - a.h : (a.k < b.k ? -1 : (a.k > b.k ? 1 : 0)); });
+    return { f:g.f, uf:g.uf, act:g.act, n:g.personas.size, h:Math.round(g.h*100)/100, c:c2 };
   }).filter(function(x){ return x.n>0 || x.h>0; });
   return { personal:personal, personal_hasta:hasta };
 }

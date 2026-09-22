@@ -15,13 +15,19 @@
  *   5. Ninguna clave de persona (nombre/cédula/código/cuadrilla/cc) en el JSON de la respuesta pública.
  *   6. Si ASISTENCIA falla al leer (tabla ausente): personal:null + personal_error, y el resto de
  *      tablero_vivo (dias, proy, horas) sigue funcionando.
+ *   7. Desglose por CARGO (`c`): normalización (variantes de mayúsculas/tildes/espacios agrupadas;
+ *      «OFICIAL» ≠ «OFICIAL DE OBRA»), respaldo desde `personal` cuando la fila no trae cargo (incluida
+ *      la regla de la estancia de fecha_ingreso más reciente, NULL = la más antigua), 'Sin cargo
+ *      registrado' cuando falta en ambos sitios, Σn/Σh de `c` coherentes con la entrada, orden (h desc,
+ *      luego k asc), 2 filas de la MISMA persona el mismo día con cargos distintos → cuenta por la
+ *      PRIMERA fila, y que el JSON sigue sin nombres/cédulas/códigos.
  * Sale con código 1 si algo falla.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { abrirPglite } from './pglite.js';
-import { tableroVivoLeer } from '../src/api/obra/tablero_vivo.js';
+import { tableroVivoLeer, SIN_CARGO } from '../src/api/obra/tablero_vivo.js';
 import { clasificarHoras, turnoRowFor, tipoJornadaDeFecha } from '../../horas-nomina.js';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
@@ -40,16 +46,24 @@ const PERSONAS = [
 ];
 const CUADRILLA = 'CUAD-PRUEBA-V316';
 
+let asisSeq = 0;
 async function asis(sql, fila){
-  const id = 'v316-' + Math.random().toString(36).slice(2);
+  // id_registro CRECIENTE: el desglose por cargo ordena por (fecha, id_registro) y la regla de la
+  // «primera fila» (misma persona, mismo f/uf/act, cargos distintos) necesita un orden determinista.
+  const id = 'v316-' + String(++asisSeq).padStart(6, '0') + '-' + Math.random().toString(36).slice(2);
   await sql`INSERT INTO asistencia (obra_id, id_registro, "timestamp", fecha, reporta, cuadrilla, codigo, cedula,
       nombre, cargo, cc, proyecto, hora_entrada, hora_salida, presente, motivo_ausencia, observacion, turno)
     VALUES ('tm2sur', ${id}, now(), ${fila.fecha}, 'prueba', ${CUADRILLA}, ${fila.codigo || ''}, ${fila.cedula || ''},
-      ${fila.nombre || ''}, 'oficial', ${fila.cc}, '3701', ${fila.hora_entrada || ''}, ${fila.hora_salida || ''},
-      ${fila.presente || 'Si'}, '', '', ${fila.turno || ''})`;
+      ${fila.nombre || ''}, ${fila.cargo === undefined ? 'oficial' : fila.cargo}, ${fila.cc}, '3701',
+      ${fila.hora_entrada || ''}, ${fila.hora_salida || ''}, ${fila.presente || 'Si'}, '', '', ${fila.turno || ''})`;
+}
+async function ficha(sql, p){
+  await sql`INSERT INTO personal (obra_id, cedula, codigo, nombre, cargo, cuadrilla, estado, fecha_ingreso)
+    VALUES ('tm2sur', ${p.cedula || ''}, ${p.codigo || ''}, ${p.nombre || ''}, ${p.cargo || ''}, '', 'activo', ${p.fecha_ingreso === undefined ? null : p.fecha_ingreso})`;
 }
 const c = (sql) => ({ sql, memo: {}, pet: { t0: Date.now(), log: null } });
 function grupo(personal, f, uf, act){ return (personal || []).find(function(x){ return x.f === f && x.uf === uf && x.act === act; }); }
+function cargo(g, k){ return (g && g.c || []).find(function(x){ return x.k === k; }); }
 
 async function main(){
   const { sql } = await abrirPglite();
@@ -71,6 +85,8 @@ async function main(){
   await asis(sql, { fecha: HOY, codigo: 'C014', nombre: 'X', cc: '3703.02.05| UF3 EXCLUIDO', hora_entrada: '07:00', hora_salida: '15:30' });
   await asis(sql, { fecha: HOY, codigo: 'C015', nombre: 'X', cc: '', hora_entrada: '07:00', hora_salida: '15:30' });                                // sin CC
   await asis(sql, { fecha: HOY, codigo: 'C016', nombre: 'X', cc: '3701.02.05| AUSENTE', hora_entrada: '', hora_salida: '', presente: 'No' });        // ausente
+  await asis(sql, { fecha: HOY, codigo: 'C017', nombre: 'X', cc: '3701.06.04| Acero de refuerzo Fy=420 Mpa.', hora_entrada: '07:00', hora_salida: '15:30' });   // drenajes ODT
+  await asis(sql, { fecha: HOY, codigo: 'C018', nombre: 'X', cc: '3702.07.01| Excavaciones varias sin clasicar', hora_entrada: '07:00', hora_salida: '15:30' }); // drenajes ODL
 
   const r1 = await tableroVivoLeer(c(sql), {});
   ok('ok:true y `personal` es un array (no null)', r1.ok === true && Array.isArray(r1.personal), r1.personal_error);
@@ -83,7 +99,9 @@ async function main(){
   ok('3703 (UF3) EXCLUIDO: nadie en UF3 y no infla ningún grupo UF1/UF2/otras de más',
     !(r1.personal || []).some(function(x){ return x.uf !== 'UF1' && x.uf !== 'UF2'; }));
   const totalPersonas = (r1.personal || []).filter(function(x){ return x.f === HOY; }).reduce(function(s, x){ return s + x.n; }, 0);
-  ok('sin CC y ausente NO cuentan (6 personas repartidas en 5 grupos, ni 8 ni 9)', totalPersonas === 6, totalPersonas);
+  ok('sin CC, ausente y drenajes (06.* ODT, 07.* ODL) NO cuentan (6 personas repartidas en 5 grupos)', totalPersonas === 6, totalPersonas);
+  ok('drenajes fuera: «otras» UF1 sigue con 1 persona (solo el Taller) y no hay grupo «otras» UF2',
+    grupo(r1.personal, HOY, 'UF1', 'otras').n === 1 && !grupo(r1.personal, HOY, 'UF2', 'otras'));
   ok('personal_hasta = la última fecha con asistencia', r1.personal_hasta === HOY, r1.personal_hasta);
   ok('ordenado por f, uf, act', JSON.stringify(r1.personal.map(x => x.f + '|' + x.uf + '|' + x.act))
     === JSON.stringify([...r1.personal].sort((a, b) => (a.f + a.uf + a.act) < (b.f + b.uf + b.act) ? -1 : 1).map(x => x.f + '|' + x.uf + '|' + x.act)));
@@ -137,9 +155,59 @@ async function main(){
   ['C001', 'C002', 'C010', 'C020', 'C030'].forEach(function(cod){ if (texto.indexOf('"' + cod + '"') >= 0) fugas.push(cod); });
   ok('ni un nombre, cédula, código, cuadrilla o CC crudo en el JSON de tablero_vivo', fugas.length === 0, fugas);
   const clavesPersonal = new Set(); (rNoc.personal || []).forEach(function(x){ Object.keys(x).forEach(function(k){ clavesPersonal.add(k); }); });
-  ok('cada fila de `personal` es EXACTAMENTE {f, uf, act, n, h}', JSON.stringify([...clavesPersonal].sort()) === JSON.stringify(['act', 'f', 'h', 'n', 'uf']), [...clavesPersonal]);
+  ok('cada fila de `personal` es EXACTAMENTE {f, uf, act, n, h, c}', JSON.stringify([...clavesPersonal].sort()) === JSON.stringify(['act', 'c', 'f', 'h', 'n', 'uf']), [...clavesPersonal]);
+  const clavesCargo = new Set(); (rNoc.personal || []).forEach(function(x){ (x.c || []).forEach(function(y){ Object.keys(y).forEach(function(k){ clavesCargo.add(k); }); }); });
+  ok('cada entrada de `c` es EXACTAMENTE {k, n, h} (nunca nombre/cédula/código)', JSON.stringify([...clavesCargo].sort()) === JSON.stringify(['h', 'k', 'n']), [...clavesCargo]);
 
-  titulo('5 · ASISTENCIA no se puede leer: personal:null + personal_error, sin tumbar el resto');
+  titulo('5 · desglose por CARGO (`c`): normalización, respaldo de `personal`, `SIN CARGO`, Σn/Σh, orden y «primera fila»');
+  const FC = '2026-09-10';
+  await asis(sql, { fecha: FC, codigo: 'C100', nombre: 'CARGO A', cc: '3701.02.05| EXC', cargo: 'Oficial De Obra', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql, { fecha: FC, codigo: 'C101', nombre: 'CARGO B', cc: '3701.02.05| EXC', cargo: 'OFICIAL DE OBRA', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql, { fecha: FC, codigo: 'C102', nombre: 'CARGO C', cc: '3701.02.05| EXC', cargo: 'OFICIAL', hora_entrada: '07:00', hora_salida: '15:30' });
+  await asis(sql, { fecha: FC, codigo: 'C103', nombre: 'CARGO D', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
+  // Respaldo por CÓDIGO: 2 estancias en `personal`, manda la de fecha_ingreso MÁS RECIENTE (no la del INSERT).
+  await ficha(sql, { codigo: 'C104', cargo: 'Capataz de obra', fecha_ingreso: '2020-01-01' });
+  await ficha(sql, { codigo: 'C104', cargo: 'CAPATAZ', fecha_ingreso: '2023-05-01' });
+  await asis(sql, { fecha: FC, codigo: 'C104', nombre: 'CARGO E', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
+  // Respaldo por CÉDULA (sin código), fecha_ingreso NULL = la MÁS ANTIGUA: no debe ganarle a una estancia con fecha.
+  await ficha(sql, { cedula: '55501122', cargo: 'Ayudante de obra', fecha_ingreso: null });
+  await ficha(sql, { cedula: '55501122', cargo: 'AYUDANTE', fecha_ingreso: '2019-01-01' });
+  await asis(sql, { fecha: FC, cedula: '55501122', nombre: 'CARGO F', cc: '3701.02.05| EXC', cargo: '', hora_entrada: '07:00', hora_salida: '15:30' });
+  // Dos filas la MISMA persona, mismo (f,uf,act), cargos DISTINTOS: cuenta por la cargo de su PRIMERA fila,
+  // pero las horas de las 2 filas SUMAN en ese cargo (regla 3).
+  await asis(sql, { fecha: FC, codigo: 'C110', nombre: 'CARGO G', cc: '3701.02.05| EXC AM', cargo: 'Oficial de obra', hora_entrada: '07:00', hora_salida: '11:00' });
+  await asis(sql, { fecha: FC, codigo: 'C110', nombre: 'CARGO G', cc: '3701.02.05| EXC PM', cargo: 'Ayudante de obra', hora_entrada: '11:00', hora_salida: '15:30' });
+
+  const rC = await tableroVivoLeer(c(sql), {});
+  const gC = grupo(rC.personal, FC, 'UF1', 'excavacion');
+  ok('«Oficial De Obra» y «OFICIAL DE OBRA» agrupan: normaliza tildes/mayúsculas/espacios (más C110 abajo, n=3)',
+    !!cargo(gC, 'Oficial de obra') && cargo(gC, 'Oficial de obra').n === 3, cargo(gC, 'Oficial de obra'));
+  ok('«OFICIAL» NO se funde con «OFICIAL DE OBRA» (no inventa sinónimos): entrada aparte con n=1',
+    !!cargo(gC, 'Oficial') && cargo(gC, 'Oficial').n === 1, cargo(gC, 'Oficial'));
+  ok('sin cargo en la fila y sin ficha → «Sin cargo registrado»', !!cargo(gC, SIN_CARGO) && cargo(gC, SIN_CARGO).n === 1, cargo(gC, SIN_CARGO));
+  ok('respaldo por CÓDIGO desde `personal`: manda la estancia de fecha_ingreso MÁS RECIENTE (CAPATAZ, no Capataz de obra)',
+    !!cargo(gC, 'Capataz') && cargo(gC, 'Capataz').n === 1 && !cargo(gC, 'Capataz de obra'), cargo(gC, 'Capataz'));
+  ok('respaldo por CÉDULA desde `personal` (sin código): fecha_ingreso NULL = la más antigua, no le gana a la fechada (AYUDANTE, no Ayudante de obra)',
+    !!cargo(gC, 'Ayudante') && cargo(gC, 'Ayudante').n === 1 && !cargo(gC, 'Ayudante de obra'), cargo(gC, 'Ayudante'));
+  const gCargoAmbos = cargo(gC, 'Oficial de obra');
+  ok('2 filas de la MISMA persona con cargos distintos: cuenta por la cargo de la PRIMERA fila (Oficial de obra, no Ayudante de obra)',
+    gCargoAmbos.n === 3, gCargoAmbos);   // C100 + C101 + C110 (su 1ª fila fue «Oficial de obra»)
+  function sumaCl_(cl){ return cl.ordinarias + cl.ord_domfest + cl.extra_diurna + cl.extra_nocturna + cl.extra_domfest; }
+  const hFull = sumaCl_(clasificarHoras('lv', '07:00', '15:30', {}, null));       // C100, C101: turno completo
+  const hAmPm = sumaCl_(clasificarHoras('lv', '07:00', '11:00', {}, null)) + sumaCl_(clasificarHoras('lv', '11:00', '15:30', {}, null)); // C110: 2 filas
+  const hEspOficial = Math.round((2 * hFull + hAmPm) * 100) / 100;
+  ok('…pero SUS HORAS (las 2 filas de C110) suman en ese cargo (Oficial de obra), no en Ayudante de obra',
+    Math.abs(gCargoAmbos.h - hEspOficial) < 0.02, [gCargoAmbos.h, hEspOficial]);
+  ok('«Ayudante de obra» (2ª fila de C110) no se lleva NINGUNA hora de C110: solo queda el respaldo de cédula (AYUDANTE)',
+    (gC.c.filter(function(x){ return x.k === 'Ayudante de obra'; }).length === 0), gC.c);
+
+  const sumaN = gC.c.reduce(function(s, x){ return s + x.n; }, 0), sumaH = Math.round(gC.c.reduce(function(s, x){ return s + x.h; }, 0) * 100) / 100;
+  ok('Σn de `c` = n de la entrada', sumaN === gC.n, [sumaN, gC.n]);
+  ok('Σh de `c` ≈ h de la entrada (redondeos)', Math.abs(sumaH - gC.h) < 0.05, [sumaH, gC.h]);
+  const ordenado = gC.c.every(function(x, i){ if (i === 0) return true; const p = gC.c[i - 1]; return p.h > x.h || (p.h === x.h && p.k <= x.k); });
+  ok('`c` viene ordenado por h desc y luego k asc', ordenado, gC.c);
+
+  titulo('6 · ASISTENCIA no se puede leer: personal:null + personal_error, sin tumbar el resto');
   await sql.exec('DROP TABLE asistencia');
   const r5 = await tableroVivoLeer(c(sql), {});
   ok('tablero_vivo sigue ok:true, con `dias`/`proy` intactos (esta BD de pruebas no cargó `data`, así que `dias` está vacío pero sigue siendo un array)',

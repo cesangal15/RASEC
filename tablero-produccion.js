@@ -736,6 +736,10 @@ let sel=TM2.per.length-1, uf='Todo', abierto=null;
    ISO de la propia `p.d`. Se reinicia SOLO al cambiar de período (lo hace `pinta()`,
    comparando contra `perActual`); el filtro de UF no lo toca. */
 let selDias=null, perActual=null;
+/* V3-16: qué partida tiene abierto su desglose por cargo (una sola a la vez,
+   mismo patrón que `abierto` en la cadena). Se reinicia solo al cambiar de
+   período; sobrevive a cambios de UF/selección de días. */
+let personalAbierto=null;
 
 /* La excavación no viene desglosada por UF en el origen (DATOS trae una sola
    columna). Con filtro de UF se omite en vez de repetir el total en las dos. */
@@ -1162,26 +1166,25 @@ function cadena(sel_p){
 }
 
 /* -------------------------------------------------- producción diaria */
+/* V3-15(b): la gráfica se AMPLÍA a la selección de la escala — con selección,
+   `dd` son SOLO esos días (barras más anchas, eje y curvas recalculados sobre
+   ellos); sin selección, el período completo, igual que antes. Las barras ya
+   NO son clicables (la escala de abajo es el único selector): solo tooltip. */
 function diaria(p){
-  const vis=visibles();
-  const vals=p.d.map(d=>vis.map(a=>valDia(d,a)));
+  const vis=visibles(), dd=diasFiltrados(p);
+  const vals=dd.map(d=>vis.map(a=>valDia(d,a)));
   const max=Math.max(1,...vals.flat());
   document.getElementById('maxDia').innerHTML=f0(max)+'<span>m³ máx</span>';
   document.getElementById('capDia').textContent=
     'Producción diaria del período'+(uf==='Todo'?'':' · sólo '+uf);
-  /* V3-15(a): con el selector de mes ahora al final (Evolución), se deja aquí un
-     apunte de qué período se ve y un enlace ancla a esa sección. */
+  /* V3-15(a) enmendado: el selector de mes vive arriba (Evolución); aquí solo el
+     apunte discreto de qué período se ve, sin enlace (ya no hace falta). */
   const nota=document.getElementById('capDiaNota');
-  if(nota){
-    nota.innerHTML='';
-    nota.appendChild(document.createTextNode('Periodo '+eti(p.p)+' · cambia el mes en '));
-    const a=document.createElement('a'); a.href='#secEvolucion'; a.textContent='Evolución ↓';
-    nota.appendChild(a);
-  }
+  if(nota) nota.textContent='Periodo '+eti(p.p);
   const bg=document.getElementById('diaBg'), g=document.getElementById('dia'),
-        x=document.getElementById('diaX'), cl=document.getElementById('clima');
-  bg.innerHTML='';g.innerHTML='';x.innerHTML='';cl.innerHTML='';
-  p.d.forEach((d,i)=>{
+        x=document.getElementById('diaX');
+  bg.innerHTML='';g.innerHTML='';x.innerHTML='';
+  dd.forEach((d,i)=>{
     const b=el('span');
     if(d.t==='LLUVIAS')b.style.background='var(--lluvia)';
     else if(d.t==='LLUVIAS PARCIALES')b.style.background='var(--lluvia-par)';
@@ -1190,17 +1193,6 @@ function diaria(p){
     const tot=vals[i].reduce((s,v)=>s+v,0);
     const climaTxt=(CLIMA[d.t]||CLIMA[''])[0];
     col.title=d.f+' · '+f0(tot)+' m³ · '+climaTxt;
-    /* V3-15(b): un día es focusable y clicable; Enter/Espacio hacen lo mismo que
-       el clic. Fuera de la selección se atenúa (no desaparece). */
-    const enSel=!selDias || (d.f>=selDias.a && d.f<=selDias.b);
-    if(selDias && !enSel) col.classList.add('atenuado');
-    col.tabIndex=0; col.setAttribute('role','button');
-    col.setAttribute('aria-pressed', (selDias && enSel) ? 'true' : 'false');
-    col.setAttribute('aria-label','Día '+d.f+', '+f0(tot)+' m³, '+climaTxt+
-      (selDias && enSel ? ', dentro de la selección' : ''));
-    const activar=()=>seleccionarDia(d.f);
-    col.onclick=activar;
-    col.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); activar(); } };
     vis.forEach((a,j)=>{
       const s=el('i'), fr=vals[i][j]/max;
       s.style.height=(fr*100)+'%'; s.style.background=a.c;
@@ -1208,9 +1200,7 @@ function diaria(p){
       col.appendChild(s);});
     g.appendChild(col);
     x.appendChild(el('span',null,d.f.slice(8)));
-    const c=el('span',(CLIMA[d.t]||CLIMA[''])[1]);c.title=col.title;cl.appendChild(c);
   });
-  resumenDia(p);
   /* Curvas punteadas: media acumulada día a día, en EJE PROPIO Y LOGARÍTMICO.
      Vuelve a petición del usuario, y con un objetivo distinto del que tuvo la
      primera vez: aquí no se trata de comparar una actividad con otra —eso no
@@ -1237,10 +1227,10 @@ function diaria(p){
   const SVGNS='http://www.w3.org/2000/svg';
   const svg=document.getElementById('curvas');svg.innerHTML='';
   const ejeD=document.getElementById('ejeMed');if(ejeD)ejeD.innerHTML='';
-  const n=p.d.length;
+  const n=dd.length;
   const medias=vis.map((a,j)=>{
     let acc=0;
-    return p.d.map((d,i)=>{ acc+=vals[i][j]; return acc/(i+1); });
+    return dd.map((d,i)=>{ acc+=vals[i][j]; return acc/(i+1); });
   });
   const pos=medias.flat().filter(v=>v>0);
   const medHi=Math.max(1,...pos);
@@ -1285,22 +1275,125 @@ function diaria(p){
     pl.setAttribute('stroke-linejoin','round');
     svg.appendChild(pl);
   });
-  // leyenda de clima + relación lluvia/producción
-  const lc=document.getElementById('legClima');lc.innerHTML='';
-  Object.keys(CLIMA).forEach(k=>{
-    const it=el('div','it');const sw=el('span','sw '+CLIMA[k][1]);
-    it.append(sw,el('span',null,CLIMA[k][0]));lc.appendChild(it);
-  });
-  const tot=p.d.map((d,i)=>vals[i].reduce((s,v)=>s+v,0));
+  resumenDia(p);
+  // relación lluvia/producción sobre lo mostrado (período completo o selección)
+  const lc=document.getElementById('legClima');
+  const relLluvia=lc?lc.querySelector('.relLluvia'):null;
+  if(relLluvia) relLluvia.remove();
+  const tot=dd.map((d,i)=>vals[i].reduce((s,v)=>s+v,0));
   const llu=[],sec=[];
-  p.d.forEach((d,i)=>{if(d.t==='LLUVIAS')llu.push(tot[i]);else if(d.t==='SOLEADO')sec.push(tot[i]);});
+  dd.forEach((d,i)=>{if(d.t==='LLUVIAS')llu.push(tot[i]);else if(d.t==='SOLEADO')sec.push(tot[i]);});
   const med=v=>v.length?v.reduce((s,x)=>s+x,0)/v.length:0;
-  if(llu.length>=3&&sec.length>=3){
-    const s=el('div');s.style.color='var(--accent-txt)';
+  if(lc && llu.length>=3&&sec.length>=3){
+    const s=el('div','relLluvia');s.style.color='var(--accent-txt)';
     s.textContent=llu.length+' días de lluvia promedian '+f0(med(llu))+' m³ frente a '+
       f0(med(sec))+' en los '+sec.length+' soleados';
     lc.appendChild(s);
   }
+}
+
+/* -------------------------------------------------- V3-15(b): escala de tiempo
+   Tira de días del PERÍODO COMPLETO (siempre, no se amplía) que hace de selector
+   único: clic = un día; arrastre (ratón/táctil, pointer events) = rango; clic en
+   otro día con uno ya elegido = rango entre ambos (mismo criterio de
+   `seleccionarDia`); teclado: flechas mueven el foco, Shift+flecha extiende el
+   rango, Enter/Espacio elige, Esc quita el filtro. Cada celda lleva el número del
+   día y su color de clima (mismos colores/leyenda de siempre). */
+let arrastre=null;        // {origen:idx} mientras se arrastra con el puntero
+let anclaTeclado=null;    // idx fijo del rango mientras se extiende con Shift+flecha
+let escalaPeriodoDom=null;   // período para el que YA existen las celdas en el DOM
+/* Las celdas se CREAN una sola vez por período (`construirEscala`) y en cada
+   repintado solo se les actualizan clases/atributos (`actualizarEscala`): si se
+   recrearan con cada `pinta()` —como al Shift+flecha, que la llama para
+   extender el rango— el nodo enfocado quedaría desprendido del DOM y el
+   teclado perdería el foco a media navegación. */
+function construirEscala(cont,p){
+  cont.innerHTML='';
+  const dias=p.d;
+  /* clic/tap simple (sin arrastre real) = mismo comportamiento de siempre. */
+  const clicSimple=idx=>{ anclaTeclado=null; seleccionarDia(dias[idx].f); };
+  const rangoEntre=(i0,i1)=>{
+    const a=Math.min(i0,i1), b=Math.max(i0,i1);
+    selDias={a:dias[a].f,b:dias[b].f};
+  };
+  dias.forEach((d,i)=>{
+    const cl=(CLIMA[d.t]||CLIMA[''])[1];
+    const cel=el('div','ecell '+cl);
+    cel.dataset.idx=i;
+    cel.tabIndex=0; cel.setAttribute('role','button');
+    cel.appendChild(el('span','num',d.f.slice(8).replace(/^0/,'')));
+    cel.onpointerdown=e=>{
+      if(e.button!=null && e.button!==0) return;
+      arrastre={origen:i, movido:false};
+      cont.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+    cel.onkeydown=e=>{
+      if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+        e.preventDefault();
+        const dir=e.key==='ArrowRight'?1:-1;
+        const dest=Math.max(0,Math.min(dias.length-1,i+dir));
+        if(e.shiftKey){
+          if(anclaTeclado==null) anclaTeclado=i;
+          rangoEntre(anclaTeclado,dest);
+          pinta();
+        }
+        const viva=cont.children[dest];
+        if(viva) viva.focus();
+      } else if(e.key==='Enter'||e.key===' '){
+        e.preventDefault(); clicSimple(i);
+      } else if(e.key==='Escape'){
+        e.preventDefault(); anclaTeclado=null; quitarFiltroDia();
+      }
+    };
+    cont.appendChild(cel);
+  });
+  cont.onpointermove=e=>{
+    if(!arrastre) return;
+    const t=document.elementFromPoint(e.clientX,e.clientY);
+    const c=t&&t.closest('.ecell');
+    if(!c || !cont.contains(c)) return;
+    const idx=+c.dataset.idx;
+    if(idx!==arrastre.origen) arrastre.movido=true;
+    if(arrastre.movido){ rangoEntre(arrastre.origen, idx); pinta(); }
+  };
+  cont.onpointerup=e=>{
+    if(!arrastre) return;
+    try{ cont.releasePointerCapture(e.pointerId); }catch(err){}
+    if(!arrastre.movido) clicSimple(arrastre.origen);
+    arrastre=null;
+  };
+  cont.onpointercancel=()=>{ arrastre=null; };
+}
+function actualizarEscala(cont,p){
+  const dias=p.d;
+  Array.from(cont.children).forEach((cel,i)=>{
+    const d=dias[i]; if(!d) return;
+    const enSel=!selDias || (d.f>=selDias.a && d.f<=selDias.b);
+    cel.classList.toggle('sel', !!(selDias && enSel));
+    cel.classList.toggle('atenuado', !!(selDias && !enSel));
+    cel.setAttribute('aria-pressed', (selDias && enSel) ? 'true' : 'false');
+    const climaTxt=(CLIMA[d.t]||CLIMA[''])[0];
+    const totDia=ACT.reduce((s,a)=>s+valDia(d,a),0);
+    cel.setAttribute('aria-label',d.f.slice(8)+' '+MES[+d.f.slice(5,7)-1]+' · '+
+      climaTxt.toLowerCase()+' · '+f0(totDia)+' m³'+(selDias&&enSel?', dentro de la selección':''));
+    cel.title=cel.getAttribute('aria-label');
+  });
+  // leyenda de clima (siempre el período completo, no se amplía)
+  const lc=document.getElementById('legClima'); if(!lc) return;
+  lc.innerHTML='';
+  Object.keys(CLIMA).forEach(k=>{
+    const it=el('div','it');const sw=el('span','sw '+CLIMA[k][1]);
+    it.append(sw,el('span',null,CLIMA[k][0]));lc.appendChild(it);
+  });
+}
+function escala(p){
+  const cont=document.getElementById('escala'); if(!cont) return;
+  if(escalaPeriodoDom!==p.p || cont.children.length!==p.d.length){
+    construirEscala(cont,p);
+    escalaPeriodoDom=p.p;
+  }
+  actualizarEscala(cont,p);
 }
 
 /* Franja de resumen de la gráfica diaria (V3-15b): con selección, el día o rango
@@ -1335,14 +1428,17 @@ function resumenDia(p){
 /* ============================================================================
  * V3-16 — HORAS DEL PERSONAL POR ACTIVIDAD
  *
- * `TM2.personal`: [{f,uf,act,n,h}] (un renglón por fecha·UF·actividad, D316) o
+ * `TM2.personal`: [{f,uf,act,n,h,c}] (un renglón por fecha·UF·actividad, D316) o
  * null (+ `TM2.personal_error`) si Galca no lo pudo traer, o simplemente ausente
  * en una respuesta vieja / la foto de respaldo — los tres casos se tratan igual:
  * "sin datos". Ámbito = los días del filtro V3-15(b) si hay selección, si no el
  * período completo; UF = Todo (UF1+UF2) / UF1 / UF2, tal cual el filtro de la
  * cabecera — aquí la excavación SÍ se reparte por UF (a diferencia de la
  * producción), así que las cinco filas se ven en cualquier UF.
- * ==========================================================================*/
+ *
+ * `c`: [{k,n,h}] desglose por cargo (k ya normalizado por el Worker; "Sin cargo
+ * registrado" cuando falta en la ficha de personal). Una foto vieja sin `c` en
+ * NINGUNA entrada -> ninguna fila se despliega (sin flecha, D316). */
 const ACT_PERS=[
   {k:'excavacion',n:'Excavación',   c:'var(--s1)'},
   {k:'terraplen', n:'Terraplén',    c:'var(--s2)'},
@@ -1357,7 +1453,9 @@ function personal(p){
   const sub=document.getElementById('perSub'), c=document.getElementById('perTabla');
   if(!sub||!c) return;
   const amb=ambitoTxt(p);
-  sub.textContent='personas y horas-hombre cargadas en la asistencia · '+amb;
+  /* `personal` solo trae TIERRAS (deriveArea, D70): drenajes (ODT/ODL) queda
+     fuera porque este Tablero es de tierras. */
+  sub.textContent='personas y horas-hombre de tierras cargadas en la asistencia · '+amb;
   c.innerHTML='';
   if(!Array.isArray(TM2.personal)){
     c.appendChild(el('div','nota', TM2.personal_error
@@ -1367,22 +1465,36 @@ function personal(p){
   }
   const fechas=diasFiltrados(p).map(d=>d.f), enAmbito=new Set(fechas);
   const ufOk=x=>uf==='Todo'||x.uf===uf;
+  /* Foto vieja sin `c` en absoluto -> ninguna fila se despliega (D316). */
+  const hayCargo=TM2.personal.some(x=>x && Array.isArray(x.c));
   const filas=[]; let maxH=0;
   const totPorDia={};
   ACT_PERS.forEach(a=>{
-    const porDia={};
+    const porDia={}, cargos={};
     TM2.personal.forEach(x=>{
       if(!x || x.act!==a.k || !ufOk(x) || !enAmbito.has(x.f)) return;
       const r=(porDia[x.f]=porDia[x.f]||{n:0,h:0});
       r.n+=num(x.n); r.h+=num(x.h);
       const rt=(totPorDia[x.f]=totPorDia[x.f]||{n:0,h:0});
       rt.n+=num(x.n); rt.h+=num(x.h);
+      if(Array.isArray(x.c)) x.c.forEach(cg=>{
+        const k=cg.k||'Sin cargo registrado';
+        const rc=(cargos[k]=cargos[k]||{n:0,h:0});
+        rc.n+=num(cg.n); rc.h+=num(cg.h);
+      });
     });
-    const claves=Object.keys(porDia);
+    const claves=Object.keys(porDia), nd=claves.length;
     const sn=claves.reduce((s,f)=>s+porDia[f].n,0);
     const sh=claves.reduce((s,f)=>s+porDia[f].h,0);
     if(sh>maxH) maxH=sh;
-    filas.push({a, prom:claves.length?sn/claves.length:0, sh, sn, nd:claves.length});
+    /* Personas/día del cargo = Σn del cargo ÷ nº de días con reporte de ESTA
+       partida (el mismo `nd` de arriba, no un conteo de días por cargo). */
+    const cargoFilas=Object.keys(cargos).map(k=>
+      ({k, n:cargos[k].n, h:cargos[k].h, prom:nd?cargos[k].n/nd:0}));
+    /* «Sin cargo registrado» siempre al final; el resto por horas desc. */
+    const sinCargo=x=>x.k==='Sin cargo registrado'?1:0;
+    cargoFilas.sort((x,y)=>sinCargo(x)-sinCargo(y) || (y.h-x.h));
+    filas.push({a, prom:nd?sn/nd:0, sh, sn, nd, cargos:cargoFilas});
   });
   const clavesT=Object.keys(totPorDia);
   const snT=clavesT.reduce((s,f)=>s+totPorDia[f].n,0);
@@ -1401,16 +1513,51 @@ function personal(p){
   head.append(el('div',null,'Actividad'),el('div',null,'Personas/día'),
               el('div',null,'Horas-hombre'),el('div'));
   c.appendChild(head);
-  filas.forEach(({a,prom,sh,sn,nd})=>{
-    const r=el('div','ph');
+  filas.forEach(({a,prom,sh,sn,nd,cargos})=>{
+    /* V3-16: fila desplegable como en la cadena «Por qué vamos así» (misma
+       idea de `abierto`/`.chainR`): solo se abre si hay desglose por cargo. */
+    const puedeAbrir=hayCargo && cargos.length>0;
+    const abierta=puedeAbrir && personalAbierto===a.k;
+    const r=el('div','ph'+(puedeAbrir?' abrible':''));
     r.title=sn?'persona-días: '+f0(sn):'sin asistencia en '+amb;
-    r.append(el('div','nm',a.n));
+    const nm=el('div','nm');
+    if(puedeAbrir) nm.appendChild(el('span','flecha',abierta?'▾':'▸'));
+    nm.appendChild(document.createTextNode(a.n));
+    nm.title=a.n;
+    r.append(nm);
     r.append(el('div','num',nd?f1(prom):'—'));
     r.append(el('div','num',f1(sh)));
     const bar=el('div','phBar'); const i=el('i');
     i.style.width=(maxH>0?sh/maxH*100:0)+'%'; i.style.background=a.c;
     bar.appendChild(i); r.appendChild(bar);
+    if(puedeAbrir){
+      r.tabIndex=0; r.setAttribute('role','button');
+      r.setAttribute('aria-expanded', abierta?'true':'false');
+      if(abierta) r.style.background='var(--grid)';
+      const abrir=()=>{ personalAbierto=abierta?null:a.k; pinta(); };
+      r.onclick=abrir;
+      r.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); abrir(); } };
+    }
     c.appendChild(r);
+    if(abierta){
+      const drop=el('div','phDrop');
+      const maxCH=Math.max(1,...cargos.map(cg=>cg.h));
+      cargos.forEach(cg=>{
+        const sin=cg.k==='Sin cargo registrado';
+        const cr=el('div','phC'+(sin?' phCsin':''));
+        if(sin) cr.title='falta el cargo en la ficha de personal';
+        cr.append(el('div','nm',cg.k));
+        cr.append(el('div','num',nd?f1(cg.prom):'—'));
+        cr.append(el('div','num',f1(cg.h)));
+        const cbar=el('div','phBar phBarL'); const ci=el('i');
+        ci.style.width=(maxCH>0?cg.h/maxCH*100:0)+'%'; ci.style.background=a.c;
+        cbar.appendChild(ci); cr.appendChild(cbar);
+        drop.appendChild(cr);
+      });
+      c.appendChild(drop);
+    }
+    /* Punto de extensión (backlog, aún sin definir): una futura columna «Meta
+       del mes» por cargo iría aquí, junto a Personas/día y Horas-hombre. */
   });
   const rt=el('div','ph phTot');
   rt.title=snT?'persona-días: '+f0(snT):'';
@@ -1594,13 +1741,14 @@ function fechaCorta(s){
   return m ? (+m[3])+'-'+MES[+m[2]-1]+(m[4]?' '+m[4]:'') : String(s||'');
 }
 /* Renglón EN VIVO (lo pidió el dueño así): «En vivo · DATA al dd-mmm · maquinaria
-   al dd-mmm (archivo)». DATA al = último día con DATA en Galca; maquinaria al =
-   último parte del libro guardado; entre paréntesis, el nombre del archivo. */
+   al dd-mmm». DATA al = último día con DATA en Galca; maquinaria al = último
+   parte del libro guardado. SIN el nombre del archivo (pedido del dueño): el
+   renglón normal y los avisos de éxito quedan limpios; solo los ERRORES de
+   carga siguen nombrando el archivo que falló (ver `cargarPartes`). */
 function txtVivo(d){
   const v=d.vivo||{};
   let s='<b>En vivo</b> · DATA al <b>'+esc(fechaCorta(v.datos_hasta||d.corte_prod||ultimaProd()))+'</b>';
-  if(d.corte_horas) s+=' · maquinaria al <b>'+esc(fechaCorta(d.corte_horas))+'</b>'+
-                       (v.horas_archivo?' ('+esc(v.horas_archivo)+')':'');
+  if(d.corte_horas) s+=' · maquinaria al <b>'+esc(fechaCorta(d.corte_horas))+'</b>';
   else s+=' · sin partes de maquinaria cargados';
   return s;
 }
@@ -1864,7 +2012,9 @@ async function cargarPartes(archivo){
   const b=$('btnPartes'); if(b) b.disabled=true;
   const t0=Date.now();
   try{
-    estado('Leyendo el libro de partes «'+esc(archivo.name)+'»… (uno grande tarda unos segundos)',false);
+    /* Aviso transitorio sin nombre de archivo (pedido del dueño); los errores de
+       carga, más abajo, SÍ lo llevan — ahí importa saber cuál libro falló. */
+    estado('Leyendo el libro de partes… (uno grande tarda unos segundos)',false);
     await new Promise(r=>setTimeout(r,40));        // deja pintar el aviso antes del XLSX.read, que bloquea
     const wb=await leerLibro(archivo,['BASE MAQUINARIA']);
     const H=MOTOR.leerHoras(wb);
@@ -1879,9 +2029,11 @@ async function cargarPartes(archivo){
     ORIGEN.aviso = ok ? txt : '<span class="warn">la '+txt+', pero no se pudo recalcular en vivo: recarga la página</span>';
     pintaEstado();
   }catch(err){
-    /* En el renglón (ORIGEN.aviso) y no con estado(): así sobrevive a repintar al elegir otro mes. */
+    /* En el renglón (ORIGEN.aviso) y no con estado(): así sobrevive a repintar al elegir otro mes.
+       Los ERRORES sí llevan el nombre del archivo (a diferencia del renglón normal y los avisos de
+       éxito, D316): hace falta saber cuál libro falló. */
     const motivo=String((err&&err.message)||'error desconocido').replace(/[\s.]+$/,'');
-    ORIGEN.aviso='<span class="warn">no se pudo cargar el libro de partes: '+esc(motivo)+
+    ORIGEN.aviso='<span class="warn">no se pudo cargar «'+esc(archivo.name)+'»: '+esc(motivo)+
       '; la maquinaria guardada sigue siendo la anterior'+(err&&err.sesion?' (vuelve a entrar con tu usuario y cárgalo otra vez)':'')+'</span>';
     pintaEstado();
   }finally{ if(b) b.disabled=false; }
@@ -1958,11 +2110,11 @@ function pinta(){
   const p=TM2.per[sel];
   /* V3-15(b): el filtro de días es del PERÍODO, no de la sesión: cambiar de mes
      lo reinicia (cambiar de UF, no — eso lo deja intacto `evolucion()`/`controles()`). */
-  if(perActual!==p.p){ perActual=p.p; selDias=null; }
+  if(perActual!==p.p){ perActual=p.p; selDias=null; personalAbierto=null; anclaTeclado=null; }
   document.getElementById('perT').textContent=eti(p.p);
   document.getElementById('perR').textContent=rango(p.p)+' · '+p.d.length+' días registrados';
   document.getElementById('perC').textContent='';
-  controles();evolucion();cadena(p);diaria(p);personal(p);planPeriodo(p);avance();aprov(p);pintaEstado();
+  controles();evolucion();escala(p);diaria(p);planPeriodo(p);avance();aprov(p);cadena(p);personal(p);pintaEstado();
 }
 try{const g=localStorage.getItem('tm2-tema');if(g)document.documentElement.setAttribute('data-tema',g);}catch(e){}
 /* 1. Se pinta YA con lo último visto en este equipo (o la copia incluida)… */

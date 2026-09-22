@@ -46,9 +46,24 @@
     <input type="file" id="filPartes" accept=".xlsx,.xlsm" hidden>
   </div>
 
-  <!-- V3-15(a): orden decidido por el dueño — diaria (+ filtro de días) · personal ·
-       [plan vs ejecutado ‖ aprovechamiento] · avance · cadena · evolución (el selector
-       de mes sigue ahí abajo; por eso la nota de periodo de aquí enlaza a esa sección). -->
+  <!-- V3-15(a) enmendado: orden decidido por el dueño — evolución (arriba, ahí se
+       elige el mes) · diaria (+ escala/filtro de días) · [plan vs ejecutado ‖
+       aprovechamiento] · avance · cadena · personal (al final). -->
+  <div class="blk" id="secEvolucion">
+    <div class="secH">
+      <div class="syne secK" id="capEvo">Evolución período a período</div>
+      <div class="rule"></div>
+      <div class="leyenda" id="legEvo"></div>
+      <div class="secN">m³ compactos · clic para ver el mes</div>
+    </div>
+    <div class="plot">
+      <div class="ymax" id="maxEvo"></div>
+      <div class="bars" id="evo"></div>
+      <div></div>
+      <div class="xlab" id="evoX"></div>
+    </div>
+  </div>
+
   <div class="blk">
     <div class="secH">
       <div class="syne secT" id="capDia">Producción diaria del período</div>
@@ -68,20 +83,16 @@
       <div class="eje" id="ejeMed"></div>
       <div class="bajo">
         <div class="xlab" id="diaX"></div>
-        <div class="climaT">Clima del día</div>
-        <div class="clima" id="clima"></div>
-        <div class="leg" id="legClima"></div>
       </div>
     </div>
-  </div>
-
-  <div class="blk">
-    <div class="secH">
-      <div class="syne secT">Horas del personal por actividad</div>
-      <div class="rule"></div>
+    <!-- V3-15(b): la tira de clima ES AHORA la escala de tiempo/selector — siempre
+         con TODO el período, clic/arrastre/teclado eligen día o rango; la gráfica
+         de arriba se amplía a lo elegido. -->
+    <div class="escalaWrap">
+      <div class="escalaT">Escala de tiempo · elige un día o arrastra un rango</div>
+      <div class="escala" id="escala" role="group" aria-label="Selector de días del período"></div>
+      <div class="leg" id="legClima"></div>
     </div>
-    <div class="secN" id="perSub"></div>
-    <div id="perTabla" class="u-mt13"></div>
   </div>
 
   <div class="cols">
@@ -123,19 +134,13 @@
     <div id="chain"></div>
   </div>
 
-  <div class="blk" id="secEvolucion">
+  <div class="blk">
     <div class="secH">
-      <div class="syne secK" id="capEvo">Evolución período a período</div>
+      <div class="syne secT">Horas del personal por actividad</div>
       <div class="rule"></div>
-      <div class="leyenda" id="legEvo"></div>
-      <div class="secN">m³ compactos · clic para ver el mes</div>
     </div>
-    <div class="plot">
-      <div class="ymax" id="maxEvo"></div>
-      <div class="bars" id="evo"></div>
-      <div></div>
-      <div class="xlab" id="evoX"></div>
-    </div>
+    <div class="secN" id="perSub"></div>
+    <div id="perTabla" class="u-mt13"></div>
   </div>
 </div></div>
 
