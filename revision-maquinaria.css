@@ -222,7 +222,7 @@
   .seg-grupo.en-barra{margin:0;align-self:center;}                     /* D198: en la barra de la Base (modo solo Base) */
   .seg-grupo.en-barra button{padding-top:5px;padding-bottom:5px;}
 
-  /* D206 — continuidad del medidor, turno noche y selector de CC con buscador */
+  /* D207 — continuidad del medidor, turno noche y selector de CC con buscador */
   .badge.noche{border-color:rgba(58,155,220,0.5);color:var(--uf1-txt);}
   .mas1{text-transform:none;color:var(--uf1-txt);letter-spacing:0;}
   .fila .cont{font-size:12px;color:var(--muted);margin-top:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);line-height:1.45;}

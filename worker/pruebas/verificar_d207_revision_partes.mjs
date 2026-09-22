@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verificación D206 — revisión de partes: continuidad del medidor EN VIVO, horario raro y lista completa de CC.
+ * Verificación D207 — revisión de partes: continuidad del medidor EN VIVO, horario raro y lista completa de CC.
  * parteContinuidad_ y parteBandeja REALES del Worker sobre Postgres en memoria (PGlite) con el esquema 001–009:
  *
  *   1 · INICIAL_DISTINTO se recalcula contra el parte ANTERIOR real (fecha + hora de fin): un aviso sellado que ya
@@ -10,7 +10,7 @@
  *   4 · HORARIO_RARO: 17:00→16:30 (23,5 h) se marca; 17:00→04:30 (11,5 h) no.
  *   5 · Lista de CC de la bandeja: PARTE_CC + BASE, UF → área → código, pseudo-CC al final; la fila guarda 27 columnas.
  *
- *   node worker/pruebas/verificar_d206_revision_partes.mjs
+ *   node worker/pruebas/verificar_d207_revision_partes.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
