@@ -66,6 +66,25 @@ const PROY={
  * comprobar que el renglón EN VIVO no repite el nombre del archivo (encargo
  * adicional del dueño). */
 const ARCHIVO_FIXTURE='partes_septiembre_2026.xlsx';
+/* V3-15b: partes CRUDOS de horas (2 máquinas de excavación + 1 de terraplén), en
+ * varios días del período y repartidos entre UF1/UF2, con mantenimiento y
+ * lluvia — para comprobar que el filtro de días (V3-15b) también filtra la
+ * maquinaria de «Por qué vamos así» (bloqueDias del motor). Sin partes el 13 ni
+ * el 14-sep a propósito: el corte de horas (`corte`, más abajo) queda en el
+ * 13-sep, así que el 13 prueba «selección sin partes dentro del corte» y el 14
+ * prueba «selección más allá del corte». */
+const EXC_PARTES=[
+  {p:'2026-09',f:'2026-09-10',act:'excavacion',cod:'EXC001',tipo:'EXCAVADORA',uf:'UF1',h:6,mtto:0,varada:0,lluvia:0,averia:0},
+  {p:'2026-09',f:'2026-09-10',act:'excavacion',cod:'CAT320',tipo:'EXCAVADORA',uf:'UF2',h:4,mtto:0,varada:0,lluvia:1,averia:0},
+  {p:'2026-09',f:'2026-09-11',act:'excavacion',cod:'EXC001',tipo:'EXCAVADORA',uf:'UF1',h:5,mtto:1,varada:0,lluvia:0,averia:0},
+  {p:'2026-09',f:'2026-09-12',act:'excavacion',cod:'EXC001',tipo:'EXCAVADORA',uf:'UF2',h:7,mtto:0,varada:0,lluvia:0,averia:0},
+];
+const TER_PARTES=[
+  {p:'2026-09',f:'2026-09-10',act:'terraplen',cod:'MO03',tipo:'MOTONIVELADORA',uf:'UF1',h:4,mtto:0,varada:0,lluvia:0,averia:0},
+  {p:'2026-09',f:'2026-09-11',act:'terraplen',cod:'MO03',tipo:'MOTONIVELADORA',uf:'UF2',h:3,mtto:0,varada:0,lluvia:0,averia:0},
+  {p:'2026-09',f:'2026-09-12',act:'terraplen',cod:'MO03',tipo:'MOTONIVELADORA',uf:'UF1',h:2,mtto:0,varada:0,lluvia:0,averia:0},
+];
+const HORAS_V315B={ partes:EXC_PARTES.concat(TER_PARTES), cc:[], descartadas:0, negativas:0, corte:'2026-09-13' };
 function fixtureVivo(personal, opts){
   opts=opts||{};
   const j={ ok:true, dias:DIAS, fc:1, fc_dias:1, proy:PROY, horas:null,
@@ -78,6 +97,10 @@ function fixtureVivo(personal, opts){
                         uf:'UF1',h:5,mtto:0,varada:0,lluvia:0,averia:0}],
               cc:[], descartadas:0, negativas:0, corte:'2026-09-14' };
     j.horas_meta={ archivo:ARCHIVO_FIXTURE, cargado_ts:'2026-09-18 10:00' };
+  }
+  if(opts.horasCustom){
+    j.horas=opts.horasCustom;
+    j.horas_meta={ archivo:'', cargado_ts:'2026-09-18 10:00' };
   }
   return j;
 }
@@ -380,6 +403,155 @@ const server=http.createServer((req,res)=>{
     erroresGlobal.push(...errores.map(e=>'[390] '+e));
     await pg.context().close();
   }
+  console.log('\n9 · El filtro de días también filtra la maquinaria (cadena «Por qué vamos así», V3-15b)');
+  {
+    const { pg, errores }=await pagina({width:1440,height:1400}, PERSONAL, { horasCustom:HORAS_V315B });
+    await pg.goto(BASE+'/tablero-produccion.html');
+    await pg.waitForFunction(()=>document.getElementById('perT').textContent!=='—');
+
+    /* Aritmética escrita APARTE, a partir del mismo fixture, para comprobar la
+     * fórmula (no solo que la pantalla llame a bloqueDias): standby por máquina =
+     * sus días DISTINTOS × su jornada programada, menos mantenimiento/varada/
+     * avería; utilización = horas ÷ standby ajustado; eficiencia = (producción ÷
+     * horas) ÷ vara por hora; velocidad = producción ÷ (vara por hora × 8 × días-
+     * máquina). Formato con los mismos separadores que `f0/f1/pct` de la página
+     * (sin depender del locale de Node). */
+    const HPROG_T={EXC001:6.4,CAT320:5,MO03:6.4};
+    const round1=n=>+n.toFixed(1), round4=n=>+n.toFixed(4);
+    function calc(dd,partes,key,metaHact){
+      const prod=dd.reduce((s,d)=>s+(d[key]||0),0);
+      const g={horas:0,mtto:0,varada:0,lluvia:0,averia:0,maq:{}};
+      for(const x of partes){
+        g.horas+=x.h; g.mtto+=x.mtto; g.varada+=x.varada; g.lluvia+=x.lluvia; g.averia+=x.averia;
+        const q=(g.maq[x.cod]=g.maq[x.cod]||{h:0,perd:0,dias:new Set(),ajuste:0});
+        q.h+=x.h; q.perd+=x.mtto+x.varada+x.lluvia+x.averia; q.ajuste+=x.mtto+x.varada+x.averia; q.dias.add(x.f);
+      }
+      const maq=Object.entries(g.maq).map(([cod,q])=>{
+        const hprog=HPROG_T[cod]||6.4;
+        return { cod, h:round1(q.h), perd:round1(q.perd), dias:q.dias.size,
+                 sb:round1(q.dias.size*hprog), sb_aj:round1(Math.max(0,q.dias.size*hprog-q.ajuste)) };
+      });
+      const vivas=maq.filter(q=>(q.h+q.perd)>0);
+      const sb=round1(vivas.reduce((s,q)=>s+q.sb,0));
+      const ajuste=round1(g.mtto+g.varada+g.averia);
+      const sbAj=round1(Math.max(0,sb-ajuste));
+      const util=sbAj>0 ? round4(Math.min(1,g.horas/sbAj)) : null;
+      const mh=g.horas>0 ? Math.round(prod/g.horas*100)/100 : null;   // r2, como m.mh del motor
+      const metaHora=+metaHact.toFixed(2);
+      const ef=metaHora ? mh/metaHora : 0;
+      const dmaq=vivas.reduce((s,q)=>s+q.dias,0);
+      const espVel=(metaHora&&dmaq>0) ? metaHora*8*dmaq : null;
+      const vel=espVel ? prod/espVel : null;
+      const nd=dd.filter(d=>(d[key]||0)>0).length;
+      return { horas:g.horas, util, ef, vel, espVel, prod, sbAj, lluvia:g.lluvia, nd, falta:round1(sbAj-g.horas) };
+    }
+    const F0=n=>{ n=Math.round(n||0); return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); };
+    const F1=n=>{ n=n||0; const neg=n<0; n=Math.abs(n); const [ip,dp]=n.toFixed(1).split('.');
+      return (neg?'-':'')+ip.replace(/\B(?=(\d{3})+(?!\d))/g,'.')+','+dp; };
+    const PCT=n=>Math.round((n||0)*100)+'%';
+    function subUtilEsperado(c){
+      if(c.falta<=0) return F1(c.horas)+' de '+F1(c.sbAj)+' h de standby · '+F1(Math.max(0,-c.falta))+' h de más';
+      const llu=Math.min(c.lluvia||0,c.falta), mudo=+(c.falta-llu).toFixed(1), tr=[];
+      if(llu>0) tr.push(F1(llu)+' por lluvia'); if(mudo>0) tr.push(F1(mudo)+' sin motivo anotado');
+      return F1(c.horas)+' de '+F1(c.sbAj)+' h de standby · faltaron '+F1(c.falta)+' h'+(tr.length?': '+tr.join(' y '):'');
+    }
+    const fila=()=>pg.locator('#chain .chainR').nth(0);
+    const lnk=i=>fila().locator('.lnk').nth(i);
+    async function leerFila(){
+      return { horas:await lnk(0).locator('.syne.val').textContent(), horasSub:await lnk(0).locator('.s').textContent(),
+               util:await lnk(1).locator('.syne.val').textContent(), utilSub:await lnk(1).locator('.s').textContent(),
+               ef:await lnk(2).locator('.syne.val').textContent(),
+               vel:await fila().locator('.velC .syne.big').textContent(), velSub:await fila().locator('.velC .s').textContent() };
+    }
+    const D=Object.fromEntries(DIAS.filter(d=>d.p==='2026-09').map(d=>[d.f,d]));
+    const excTodos=HORAS_V315B.partes.filter(x=>x.act==='excavacion');
+    const terTodos=HORAS_V315B.partes.filter(x=>x.act==='terraplen');
+    const META_H_EXC=850/8, META_H_TER=450/8;
+
+    const avanceInicial=await $(pg,'#avance').textContent(), planInicial=await $(pg,'#planPer').textContent();
+
+    // a) sin selección: cifras del período completo — no hay regresión sobre lo de siempre
+    {
+      const c=calc(Object.values(D), excTodos, 'exc', META_H_EXC);
+      const f=await leerFila();
+      ok('sin selección: horas/utilización/eficiencia/velocidad de excavación coinciden con el período completo',
+         f.horas===F0(c.horas) && f.util===PCT(c.util) && f.ef===PCT(c.ef) && f.vel===PCT(c.vel), JSON.stringify({f,c}));
+    }
+
+    // b) un día (10-sep)
+    await $(pg,'#escala .ecell').nth(0).click();
+    await pg.waitForFunction(()=>/^10 sep/.test(document.querySelector('.selTit').textContent.trim()));
+    {
+      const c=calc([D['2026-09-10']], excTodos.filter(x=>x.f==='2026-09-10'), 'exc', META_H_EXC);
+      const f=await leerFila();
+      ok('un día (10-sep): horas '+F0(c.horas)+' h · utilización '+PCT(c.util)+' · eficiencia '+PCT(c.ef)+' · velocidad '+PCT(c.vel),
+         f.horas===F0(c.horas) && f.util===PCT(c.util) && f.ef===PCT(c.ef) && f.vel===PCT(c.vel) &&
+         f.utilSub===subUtilEsperado(c) && f.velSub===F0(c.prod)+' m³ de '+F0(c.espVel)+' m³' &&
+         f.horasSub===c.nd+' días con registro', JSON.stringify({f,c}));
+      ok('la nota de la cadena dice el ámbito de un día', (await $(pg,'#chainNote').textContent())==='Maquinaria el 10 sep');
+    }
+
+    // c) rango 10-12 sep
+    await $(pg,'#escala .ecell').nth(2).click();
+    await pg.waitForFunction(()=>/10–12 sep/.test(document.querySelector('.selTit').textContent));
+    {
+      const dd=[D['2026-09-10'],D['2026-09-11'],D['2026-09-12']];
+      const partes=excTodos.filter(x=>x.f>='2026-09-10' && x.f<='2026-09-12');
+      const c=calc(dd, partes, 'exc', META_H_EXC);
+      const f=await leerFila();
+      ok('rango 10–12 sep: horas '+F0(c.horas)+' h · utilización '+PCT(c.util)+' · eficiencia '+PCT(c.ef)+' · velocidad '+PCT(c.vel),
+         f.horas===F0(c.horas) && f.util===PCT(c.util) && f.ef===PCT(c.ef) && f.vel===PCT(c.vel) &&
+         f.utilSub===subUtilEsperado(c), JSON.stringify({f,c}));
+      ok('la nota de la cadena dice el ámbito del rango', (await $(pg,'#chainNote').textContent())==='Maquinaria del 10 al 12 sep');
+      // captura con una actividad de la cadena desplegada (su desglose por máquina)
+      await fila().click();
+      await pg.waitForFunction(()=>document.querySelectorAll('#chain .drop').length===1);
+      await pg.screenshot({ path:process.env.CAPTURA_CADENA || path.join(OUT,'cadena_filtro.png'), fullPage:true });
+    }
+
+    // d) filtro de UF combinado con el rango — terraplén, que SÍ viene partido por UF
+    // (la excavación se omite: DATOS no la trae partida por UF, como en el resto de la página)
+    await $(pg,'#uf button:has-text("UF1")').click();
+    await pg.waitForFunction(()=>/Sólo UF1/.test(document.getElementById('chainNote').textContent));
+    {
+      const dd=[D['2026-09-10'],D['2026-09-11'],D['2026-09-12']];
+      const partes=terTodos.filter(x=>x.uf==='UF1' && x.f>='2026-09-10' && x.f<='2026-09-12');
+      const c=calc(dd, partes, 'ter1', META_H_TER);
+      const f=await leerFila();
+      ok('rango + UF1: fila de terraplén con horas '+F0(c.horas)+' h · utilización '+PCT(c.util)+' · eficiencia '+PCT(c.ef)+' · velocidad '+PCT(c.vel),
+         f.horas===F0(c.horas) && f.util===PCT(c.util) && f.ef===PCT(c.ef) && f.vel===PCT(c.vel), JSON.stringify({f,c}));
+      ok('con UF puesta la nota sigue diciendo el rango, además de que la excavación no viene por UF',
+         (await $(pg,'#chainNote').textContent())==='Maquinaria del 10 al 12 sep · Sólo UF1 · la excavación no viene partida por UF');
+    }
+    await $(pg,'#uf button:has-text("Todo")').click();
+
+    // e) selección sin partes, DENTRO del corte de horas (13-sep): mensaje claro, sin retroceder de período
+    await $(pg,'#escala .ecell').nth(3).click();
+    await pg.waitForFunction(()=>/^13 sep/.test(document.querySelector('.selTit').textContent.trim()));
+    ok('13-sep sin partes: mensaje claro y sin fila de cadena',
+       /^Sin partes de maquinaria el 13 sep\.$/.test((await $(pg,'#chain .nota').textContent()).trim()) &&
+       await $(pg,'#chain .chainR').count()===0);
+
+    // f) selección MÁS ALLÁ del corte de horas (14-sep): mismo mensaje + hasta cuándo llega la maquinaria
+    await $(pg,'#escala .ecell').nth(3).click();          // 13-sep ya estaba solo: este clic lo apaga
+    await $(pg,'#escala .ecell').nth(4).click();           // 14-sep, selección nueva de un día
+    await pg.waitForFunction(()=>/^14 sep/.test(document.querySelector('.selTit').textContent.trim()));
+    ok('14-sep, más allá del corte: mensaje + aviso de hasta cuándo llega la maquinaria cargada',
+       /^Sin partes de maquinaria el 14 sep\. Maquinaria cargada hasta el 13-sep\.$/.test((await $(pg,'#chain .nota').textContent()).trim()));
+
+    // g) foto sin partes crudos: bloqueDias no sobrevive a una foto publicada en JSON
+    await pg.evaluate(()=>{ delete TM2.bloqueDias; pinta(); });
+    ok('sin bloqueDias (foto sin cálculo en vivo) con selección puesta: pide recalcular en vivo, sin romper la página',
+       /necesita el cálculo en vivo/.test(await $(pg,'#chain .nota').textContent()));
+
+    // el filtro de días sigue sin tocar Plan vs ejecutado ni Avance acumulado (van por período completo)
+    ok('Plan vs ejecutado y Avance acumulado no cambian con la selección de días puesta',
+       (await $(pg,'#avance').textContent())===avanceInicial && (await $(pg,'#planPer').textContent())===planInicial);
+
+    erroresGlobal.push(...errores.map(e=>'[cadena-dias] '+e));
+    await pg.context().close();
+  }
+
   ok('sin errores de consola/JS en ninguna de las páginas', erroresGlobal.length===0, erroresGlobal.join(' | ').slice(0,500));
 
   await browser.close(); server.close();
