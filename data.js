@@ -161,9 +161,9 @@ function ordenarPor(i){ if(ordCol===i){ ordDir=-ordDir; } else { ordCol=i; ordDi
 
 /* ---------- ancho de columnas (arrastrable, se guarda en el navegador) ---------- */
 // D182: sin orden/proyecto/liberacion. Un ancho guardado de una columna que ya no llega se ignora.
-const ANCHO_DEF={ fecha:96, grupo:90, centro_de_costo:104, capitulo:150, descripcion:250,
-  unidad_funcional:56, elemento:160, abs_inicial:82, abs_final:82, acta:56,
-  unidad_medida:70, largo:78, espesor:78, fc:78, cantidad:78, clima:110, observacion:200 };
+const ANCHO_DEF={ fecha:92, grupo:150, centro_de_costo:100, capitulo:170, descripcion:290,
+  unidad_funcional:50, elemento:160, abs_inicial:74, abs_final:74, acta:50,
+  unidad_medida:62, largo:80, espesor:66, fc:52, cantidad:88, clima:120, observacion:200 };
 let ANCHOS={};
 try{ ANCHOS=JSON.parse(localStorage.getItem('tm2_data_anchos')||'{}')||{}; }catch(e){ ANCHOS={}; }
 function anchoDe(k){ const v=ANCHOS[k]; return (typeof v==='number'&&v>0)?v : (ANCHO_DEF[k]||90); }
@@ -183,7 +183,7 @@ function pintarCols(){
 }
 function pintarCab(){
   let h='<th class="rownum">#</th>';
-  COLS.forEach(function(c,i){ h+='<th data-k="'+c.k+'" data-on-click="ordenarPor('+i+')" title="'+(c.edita?'editable':'calculado')+'">'+esc(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'<span class="rz" data-k="'+c.k+'" title="Arrastra para el ancho · doble clic para reiniciar"></span></th>'; });
+  COLS.forEach(function(c,i){ h+='<th class="'+(c.edita?'':'deriv')+(c.tipo==='num'?' num':'')+'" data-k="'+c.k+'" data-on-click="ordenarPor('+i+')" title="'+(c.edita?'editable':'calculado')+'">'+esc(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'<span class="rz" data-k="'+c.k+'" title="Arrastra para el ancho · doble clic para reiniciar"></span></th>'; });
   if(PUEDE_EDITAR) h+='<th class="rownum"></th>';
   document.getElementById('cab').innerHTML=h;
   pintarCols();
@@ -236,7 +236,13 @@ function filasVisibles(){
   }
   return vis;
 }
-function disp(r, c){ const v=r[c.k]; if(v===''||v==null) return ''; if(c.tipo==='num' && c.k==='cantidad') return fmt(v); return String(v); }
+// Números con el MISMO formato en todas las columnas (es-CO: 1.247,92). Solo es la vista: editar, copiar y
+// guardar usan el valor crudo. Cantidad a 2 decimales (como siempre); el resto conserva hasta 3.
+function disp(r, c){
+  const v=r[c.k]; if(v===''||v==null) return '';
+  if(c.tipo==='num'){ if(c.k==='cantidad') return fmt(v); const n=num(v); if(n!=null) return n.toLocaleString('es-CO',{maximumFractionDigits:3}); }
+  return String(v);
+}
 function celHTML(r, c, ci, ri){
   const cls='cell'+(c.edita?'':' deriv')+(c.tipo==='num'?' num':'')+' col-'+c.k;
   const d=disp(r,c);
@@ -244,7 +250,10 @@ function celHTML(r, c, ci, ri){
 }
 function filaHTML(r, ri){
   const sinCC=!String(r.centro_de_costo||'').trim();
-  let h='<tr data-r="'+ri+'" data-fila="'+esc(r._key)+'" class="'+(pendiente(r)?'dirty ':'')+(sinCC?'sincc':'')+'">';
+  // Separador de día: solo con el orden natural (o por fecha), cuando la fecha cambia respecto a la fila anterior.
+  const porFecha=(ordCol<0 || (COLS[ordCol] && COLS[ordCol].k==='fecha'));
+  const diaNuevo=porFecha && ri>0 && VIS[ri-1] && String(VIS[ri-1].fecha||'')!==String(r.fecha||'');
+  let h='<tr data-r="'+ri+'" data-fila="'+esc(r._key)+'" class="'+(pendiente(r)?'dirty ':'')+(sinCC?'sincc ':'')+(diaNuevo?'dia-nuevo':'')+'">';
   h+='<td class="rownum">'+(r._alta?'+':(ri+1))+'</td>';
   COLS.forEach(function(c,ci){ h+=celHTML(r,c,ci,ri); });
   if(PUEDE_EDITAR) h+='<td class="rownum acc"><button class="xbtn" title="Eliminar fila" data-on-click="bajaFila(\''+esc(r._key)+'\')">✕</button></td>';
@@ -256,6 +265,8 @@ function pintar(){
   cuerpo.innerHTML = VIS.length ? VIS.map(filaHTML).join('') : '<tr><td class="vacio" colspan="'+(COLS.length+2)+'">Sin filas en el rango.</td></tr>';
   if(act && act.r>=VIS.length) act=anc=null;
   pintarKPIs(); aplicaSel();
+  // Resalta los filtros que están aplicados (para no olvidar que la vista está recortada).
+  FILTROS.forEach(function(f){ const el=document.getElementById(f.id); if(el && el.parentNode) el.parentNode.classList.toggle('activo', el.value!==''); });
 }
 
 /* ---------- selección / navegación (modo hoja de cálculo) ---------- */
@@ -534,6 +545,7 @@ function pintarKPIs(){
   VIS.forEach(function(r){ const n=num(r.cantidad); if(n!=null) suma+=n; if(!String(r.centro_de_costo||'').trim()) sincc++; });
   document.getElementById('kCant').textContent=fmt(suma);
   document.getElementById('kSinCC').textContent=sincc;
+  const ks=document.getElementById('kpiSinCC'); if(ks) ks.classList.toggle('oculto', sincc===0);
 }
 // D182: el CLIMA no ensucia la fila —viaja aparte, un {op:'clima'} por día (dirtyCambios)—; si una fila solo
 // cambió de clima no se manda (el servidor no la reescribe ni la re-deriva), pero en pantalla se marca igual.

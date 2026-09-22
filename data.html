@@ -42,37 +42,44 @@
     <span id="soloLectura" class="badge warn" data-estilo="display:none;">Tu rol entra en SOLO LECTURA</span>
   </div>
 
+  <!-- Barra de comandos (una línea): fechas · edición · resumen del filtro · Guardar a la derecha. -->
   <div class="toolbar">
-    <div class="f fecha-local"><label>Desde</label><input type="date" id="desde"></div>
-    <div class="f fecha-local"><label>Hasta</label><input type="date" id="hasta"></div>
-    <button class="btn primario fecha-local" data-on-click="consultar()">Consultar →</button>
-    <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;">＋ Fila</button>
-    <button class="btn" id="btnFill" data-on-click="rellenar()" data-estilo="display:none;">Rellenar ↓</button>
-    <button class="btn" id="btnUndo" data-on-click="deshacer()" data-estilo="display:none;" title="Deshacer (Ctrl+Z)" disabled>↶ Deshacer</button>
-    <button class="btn" id="btnRedo" data-on-click="rehacer()" data-estilo="display:none;" title="Rehacer (Ctrl+Y)" disabled>↷ Rehacer</button>
-    <button class="btn" data-on-click="copiarSel(this)">📋 Copiar</button>
-    <button class="btn" data-on-click="recargar()">↻ Recargar</button>
-    <button class="btn primario" id="btnGuardar" data-on-click="guardar(this)" data-estilo="display:none;" disabled>💾 Guardar <span class="n" id="nDirty">0</span></button>
+    <div class="grupo-btn fecha-local">
+      <input type="date" id="desde" aria-label="Desde" title="Desde">
+      <span class="a">→</span>
+      <input type="date" id="hasta" aria-label="Hasta" title="Hasta">
+      <button class="btn primario" data-on-click="consultar()">Consultar</button>
+    </div>
+    <div class="grupo-btn">
+      <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;" title="Añadir una fila">＋ Fila</button>
+      <button class="btn" id="btnFill" data-on-click="rellenar()" data-estilo="display:none;" title="Rellenar hacia abajo (Ctrl+D)">↓ Rellenar</button>
+      <button class="btn ico" id="btnUndo" data-on-click="deshacer()" data-estilo="display:none;" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
+      <button class="btn ico" id="btnRedo" data-on-click="rehacer()" data-estilo="display:none;" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷</button>
+    </div>
+    <div class="grupo-btn">
+      <button class="btn" data-on-click="copiarSel(this)" title="Copia la selección (o todo lo filtrado) para pegar en Excel">Copiar</button>
+      <button class="btn ico" data-on-click="recargar()" title="Recargar desde la base" aria-label="Recargar">↻</button>
+    </div>
+    <div class="kpis" aria-live="polite">
+      <span class="kpi"><b id="kFilas">0</b> filas</span>
+      <span class="kpi"><span class="l">Σ cantidad</span> <b id="kCant">0</b></span>
+      <span class="kpi warn" id="kpiSinCC"><b id="kSinCC">0</b> sin CC</span>
+    </div>
+    <button class="btn primario guardar" id="btnGuardar" data-on-click="guardar(this)" data-estilo="display:none;" disabled>Guardar <span class="n" id="nDirty">0</span></button>
   </div>
 
   <!-- Filtros de la vista (se llenan con los valores presentes en el rango; filtran en vivo, sin recargar). -->
   <div class="filtros" id="filtros">
-    <div class="f"><label>Acta</label><select id="fActa" data-on-change="pintar()"><option value="">Todas</option></select></div>
-    <div class="f"><label>Grupo</label><select id="fGrupo" data-on-change="pintar()"><option value="">Todos</option></select></div>
-    <div class="f"><label>Capítulo</label><select id="fCap" data-on-change="pintar()"><option value="">Todos</option></select></div>
-    <div class="f"><label>UF</label><select id="fUf" data-on-change="pintar()"><option value="">Todas</option></select></div>
-    <div class="f grow"><label>Actividad</label><select id="fAct" data-on-change="pintar()"><option value="">Todas</option></select></div>
-    <div class="f grow"><label>Buscar</label><input type="text" id="q" placeholder="texto en cualquier columna…" data-on-input="pintar()"></div>
-    <div class="f"><label>Alto de fila</label><select id="fAlto" data-on-change="setAlto(this.value)">
-      <option value="compacto">Compacto</option><option value="normal">Normal</option><option value="amplio">Amplio (texto completo)</option>
-    </select></div>
-    <button class="btn" id="btnLimpiar" data-on-click="limpiarFiltros()">✕ Limpiar</button>
-  </div>
-
-  <div class="kpis">
-    <div class="kpi"><div class="v" id="kFilas">0</div><div class="l">Filas</div></div>
-    <div class="kpi"><div class="v" id="kCant">0</div><div class="l">Σ Cantidad (filtradas)</div></div>
-    <div class="kpi warn"><div class="v" id="kSinCC">0</div><div class="l">Sin CC (revisar)</div></div>
+    <input type="text" id="q" class="buscar" placeholder="Buscar en cualquier columna…" aria-label="Buscar" data-on-input="pintar()">
+    <label class="f"><span>Acta</span><select id="fActa" data-on-change="pintar()"><option value="">Todas</option></select></label>
+    <label class="f"><span>Grupo</span><select id="fGrupo" data-on-change="pintar()"><option value="">Todos</option></select></label>
+    <label class="f"><span>Capítulo</span><select id="fCap" data-on-change="pintar()"><option value="">Todos</option></select></label>
+    <label class="f"><span>UF</span><select id="fUf" data-on-change="pintar()"><option value="">Todas</option></select></label>
+    <label class="f grow"><span>Actividad</span><select id="fAct" data-on-change="pintar()"><option value="">Todas</option></select></label>
+    <button class="btn link" id="btnLimpiar" data-on-click="limpiarFiltros()">Limpiar filtros</button>
+    <label class="f alto"><span>Filas</span><select id="fAlto" data-on-change="setAlto(this.value)">
+      <option value="compacto">Compactas</option><option value="normal">Normales</option><option value="amplio">Texto completo</option>
+    </select></label>
   </div>
 
   <div class="tabla-wrap" id="wrap" tabindex="0">
@@ -88,6 +95,7 @@
     <span class="lg sincc">■ sin CC / actividad no reconocida</span>
     <span class="lg dirty">■ sin guardar</span>
     <span class="lg sel">■ selección</span>
+    <span class="lg dia">— cambio de día</span>
   </div>
 
   <!-- listas para autocompletar (se llenan por JS) -->
