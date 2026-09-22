@@ -83,11 +83,13 @@ const PARTE_CC_PSEUDO = [
 // Quién revisa: los roles con login que ya existen (encargado, admin, residente) y el rol nuevo
 // `parte_maquinaria` para la persona dedicada al parte (alta = fila en USUARIOS con
 // redirige=revision-maquinaria.html, D108; cero código). El jefe NO: solo lectura en obra.
-const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria'];
+// D193: el residente de drenajes también revisa (con el filtro Tierras/Drenajes de la pantalla).
+const PARTE_ROLES_REVISAN = ['admin','encargado','residente','parte_maquinaria','residente_dren'];
 // D178: `jeisson` (rol `asistencia_plus`, quien pone el CC a los partes en papel, D174) también revisa,
 // por USUARIO y no por rol —mismo patrón que FLOTA_USUARIOS_ESCRIBEN (D139)—: no se amplía el rol de
 // asistencias, se le abre la puerta a él.
-const PARTE_USUARIOS_REVISAN = ['jeisson'];
+// D193: duvan (asistencias de drenajes; lo usa Stiven) también revisa — enmienda D178, que lo dejaba fuera.
+const PARTE_USUARIOS_REVISAN = ['jeisson','duvan'];
 // D178: chips de actividades habituales que ve el operador (pedido del residente: las 5 más usadas y,
 // si no está, texto libre que corrige revisión). El backend recorta aquí; el formulario no muestra más.
 const PARTE_MAX_HABITUALES = 5;
@@ -369,6 +371,22 @@ function parteEtiquetaItem_(item, filasTipo, tabla, ccs){
   if(f) return f.actividad;
   return parteNombreItem_(item, ccs) || item;
 }
+// V3-19: dos chips nunca llevan la MISMA frase (p. ej. cuatro «Excavacion» con CC distintos en la retro de
+// llantas): si la frase ya la usa un chip anterior, se toma otra frase de ese ítem (primero las del tipo, luego
+// cualquiera), luego el nombre de catálogo y, en último caso, la frase con el ítem al lado. El orden no cambia.
+function parteEtiquetasUnicas_(lista, filasTipo, tabla, ccs){
+  const usadas={};
+  lista.forEach(function(a){
+    let lab=a.actividad;
+    if(usadas[normTexto(lab)]){
+      const frases=function(fs){ return fs.filter(function(x){ return x.item===a.item && x.actividad; }).sort(function(p,q){ return q.veces-p.veces; }).map(function(x){ return x.actividad; }); };
+      const cands=frases(filasTipo||[]).concat(frases(tabla), [a.nombre||parteNombreItem_(a.item, ccs)]);
+      lab=cands.filter(function(t){ return t && !usadas[normTexto(t)]; })[0] || (a.actividad+" · "+a.item);
+    }
+    usadas[normTexto(lab)]=1; a.actividad=lab;
+  });
+  return lista;
+}
 /* Tres capas (backlog 4.06): habituales = ítems del EQUIPO en los últimos 30 días (PARTE_BANDEJA) +
  * los de su TIPO en la tabla; todas = la tabla entera sin repetir ítem. Nada se recorta: lo que no
  * está en habituales está en todas, y lo que no está en todas se escribe en texto libre (SIN_CC). */
@@ -402,7 +420,7 @@ function parteActividades_(q, hist){
   });
   todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:normTexto(a.actividad)>normTexto(b.actividad)?1:(a.item<b.item?-1:1); });
   // D178: solo las PARTE_MAX_HABITUALES (5) más usadas; lo demás va por texto libre (SIN_CC → revisión).
-  return { habituales:habituales.slice(0,PARTE_MAX_HABITUALES), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
+  return { habituales:parteEtiquetasUnicas_(habituales.slice(0,PARTE_MAX_HABITUALES), delTipo, tabla, ccs), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
 }
 // ¿Se espera este equipo en esa fecha? Devuelve la ficha (con `frente`) o null.
 function parteEquipoVigente_(cod, fecha){

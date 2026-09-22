@@ -82,7 +82,8 @@ const server=http.createServer((req,res)=>{
   pg.on('console',m=>{ if(m.type()==='error' && !/ERR_FAILED|ERR_INTERNET_DISCONNECTED|net::/.test(m.text())) errores.push(m.text()); });
   pg.on('dialog',d=>d.dismiss());
   await pg.route(/fonts\.(googleapis|gstatic)\.com/, r=>r.abort());
-  await pg.route(/api\.galca\.app/, async r=>{
+  // auth.js (modo sandbox): servida desde 127.0.0.1 la API va al MISMO origen (/obra, /asistencias, /parte)
+  await pg.route(u=>/api\.galca\.app/.test(u.href) || /^\/(obra|asistencias|parte)$/.test(u.pathname), async r=>{
     if(sinSenal){ await r.abort('internetdisconnected'); return; }
     const u=new URL(r.request().url()); let out;
     if(r.request().method()==='POST'){ posts++; out=ctx.doPost({ postData:{ contents:r.request().postData()||'{}' } }); }

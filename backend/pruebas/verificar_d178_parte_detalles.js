@@ -7,7 +7,7 @@
  *   2 · Solo 5 actividades habituales; el CC derivado con ítem numérico sale bien.
  *   3 · Un parte que llega con «3701.2.1» se guarda normalizado y sin CC_DESCONOCIDO; revisión también normaliza.
  *   4 · Alias de operadores: la lista funde variantes y el parte guarda el canónico.
- *   5 · `jeisson` (rol asistencia_plus) revisa; `duvan` (asistencia_plus_dren) no.
+ *   5 · `jeisson` (rol asistencia_plus) y, desde D193, `duvan` revisan; `residente_uf3` (asistencia_plus_uf3) no.
  *   6 · op=repartir: la original queda descartada, N filas pendientes encadenadas, ids únicos, SIN_CC recalculado.
  *   7 · depurarOperadoresParte(): simulación no toca; aplicar marca variantes NO y corrige la bandeja.
  *
@@ -76,7 +76,7 @@ function cargar(){
 }
 const get =(ctx,p)=>ctx.doGet({ parameter:p });
 const post=(ctx,b,token)=>ctx.doPost({ postData:{ contents:JSON.stringify(token?Object.assign({token:token},b):b) } });
-const T_ADMIN=tokenDe('admin','admin'), T_JEISSON=tokenDe('jeisson','asistencia_plus'), T_DUVAN=tokenDe('duvan','asistencia_plus_dren');
+const T_ADMIN=tokenDe('admin','admin'), T_JEISSON=tokenDe('jeisson','asistencia_plus'), T_DUVAN=tokenDe('duvan','asistencia_plus_dren'), T_UF3=tokenDe('residente_uf3','asistencia_plus_uf3');
 function tramo(o){ return Object.assign({ fecha:'2026-09-16', reporte_num:'0501', operador:'Nelson Rangel', hora_de:'07:00', hora_a:'15:30',
   centro_coste:'3701.02.11', pr:14400, descripcion_trabajo:'Cargue terraplen', observaciones:'' }, o); }
 
@@ -141,7 +141,7 @@ console.log('\n4 · Alias de operadores');
   ok('un nombre que no es alias pasa tal cual', c.parteOperadorCanon_('Nelson Rangel')==='Nelson Rangel' && c.parteOperadorCanon_('')==='');
 }
 
-console.log('\n5 · jeisson revisa; duvan no');
+console.log('\n5 · jeisson y duvan revisan (D193); residente_uf3 no');
 {
   const c=cargar();
   post(c,{ mod:'parte', op:'reporte', codigo:'VOL048', tramos:[ tramo({ id_registro:'j1', inicial:27120, final:27200 }) ] });
@@ -150,7 +150,9 @@ console.log('\n5 · jeisson revisa; duvan no');
   const e=post(c,{ mod:'parte', op:'revisar', cambios:[{ id_registro:'j1', estado:'aprobado' }] }, T_JEISSON);
   ok('jeisson aprueba y queda como revisado_por', e.ok && e.filas[0].estado==='aprobado' && e.filas[0].revisado_por==='jeisson', JSON.stringify(e).slice(0,150));
   const d=get(c,{ mod:'parte', op:'bandeja', fecha:'2026-09-16', token:T_DUVAN });
-  ok('duvan (asistencia_plus_dren) NO entra', d.ok===false && /no revisa/.test(d.error), JSON.stringify(d).slice(0,150));
+  ok('duvan (asistencia_plus_dren) entra desde D193', d.ok===true, JSON.stringify(d).slice(0,150));
+  const u=get(c,{ mod:'parte', op:'bandeja', fecha:'2026-09-16', token:T_UF3 });
+  ok('residente_uf3 (asistencia_plus_uf3) NO entra', u.ok===false && /no revisa/.test(u.error), JSON.stringify(u).slice(0,150));
   const m=post(c,{ mod:'parte', op:'reporte', origen:'manual', codigo:'VOL048', tramos:[ tramo({ id_registro:'j2', inicial:27200, final:27210, reporte_num:'', centro_coste:'Taller', descripcion_trabajo:'Taller' }) ] }, T_JEISSON);
   ok('jeisson puede crear filas manuales (día sin operación)', m.ok && c._hojas.PARTE_BANDEJA._f[2][c.PARTE_BANDEJA_HEADERS.indexOf('origen')]==='manual', JSON.stringify(m).slice(0,150));
 }

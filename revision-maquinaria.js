@@ -2,11 +2,11 @@
 if(window.TM2Estilos) TM2Estilos.aplicar();
 const APPS_SCRIPT_URL = GALCA_ENV.url.obra;          // entorno.js (D168): producción o prueba
 const API = APPS_SCRIPT_URL + '?mod=parte';
-const ROLES = ['admin','encargado','residente','parte_maquinaria'];
+const ROLES = ['admin','encargado','residente','parte_maquinaria','residente_dren'];   // D193: + residente de drenajes
 // D178: `jeisson` entra por USUARIO (mismo patrón que la Flota, D139): es quien pone el CC a los partes.
-const USUARIOS_OK = ['jeisson'];
+const USUARIOS_OK = ['jeisson','duvan'];   // D193: + duvan (asistencias de drenajes, lo usa Stiven)
 // A dónde vuelve «← Menú» según quién entró (el admin a su menú; el residente a su panel; jeisson a sus tiles).
-const VOLVER = { admin:'menu.html', residente:'residente.html' };
+const VOLVER = { admin:'menu.html', residente:'residente.html', residente_dren:'seleccion-reporte.html' };
 
 /* ---------- sesión (D82/D109) ---------- */
 const rol=localStorage.getItem('rol')||'', usuario=(localStorage.getItem('usuario')||'').trim().toLowerCase();
@@ -38,6 +38,23 @@ let BAND={pendientes:[],revisadas:[],faltantes:[]};
 let dirty={};          // id_registro → {campo:valor}
 let BASE=null;         // respuesta de op=base
 let editando=null;     // id en edición en la tabla Base
+/* D193 — filtro Todos / Tierras / Drenajes. El grupo es el de la FLOTA (maquinas.grupo, D190), que llega en
+ * listas.equipos y en los faltantes; un equipo fuera de la flota vigente (FUERA_DE_FLOTA) cuenta como tierras,
+ * igual que en el backend. Se recuerda por navegador; el residente de drenajes y duvan abren en Drenajes la
+ * primera vez. Filtra lo que se VE y lo que hacen los botones masivos (Aprobar todo lo sin alertas, Día sin
+ * operación, Copiar para Excel), nunca los datos del servidor. */
+let GRUPO = (function(){ let g=''; try{ g=localStorage.getItem('tm2_rev_grupo')||''; }catch(e){} return ['todos','tierras','drenajes'].indexOf(g)>=0 ? g : ((rol==='residente_dren' || usuario==='duvan') ? 'drenajes' : 'todos'); })();
+function codNorm(c){ return String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
+function grupoDe(codigo){
+  const k=codNorm(codigo), q=(LISTAS.equipos||[]).concat(BAND.faltantes||[]).find(x=>codNorm(x.codigo)===k);
+  return q && q.grupo==='drenajes' ? 'drenajes' : 'tierras';
+}
+function enGrupo(codigo){ return GRUPO==='todos' || grupoDe(codigo)===GRUPO; }
+function pintarSegGrupo(){ document.querySelectorAll('#segGrupo button').forEach(b=>b.classList.toggle('on', b.dataset.g===GRUPO)); }
+function setGrupo(g){
+  GRUPO=g; try{ localStorage.setItem('tm2_rev_grupo', g); }catch(e){}
+  pintarSegGrupo(); pintarBandeja(); if(BASE) pintarBase();
+}
 
 function verTab(t){
   document.getElementById('tabPend').classList.toggle('on', t==='pend'); document.getElementById('tabBase').classList.toggle('on', t==='base');
@@ -59,7 +76,7 @@ async function cargarBandeja(){
 function alertasDe(r){ return String(r.alertas||'').split(';').map(s=>s.trim()).filter(Boolean); }
 const ALERTA_TXT={ INICIAL_DISTINTO:'El inicial no coincide con el último final registrado', TOTAL_ALTO:'Total alto (>12 h / >400 km)', DUPLICADO:'Ya había una fila del equipo con la misma fecha y hora de inicio', CC_INUSUAL:'CC que el equipo no usó en los últimos 30 días', SIN_MEDIDOR:'Equipo sin medidor definido en el catálogo', CC_DESCONOCIDO:'CC que no está en PARTE_CC', SIN_CC:'Texto libre sin centro de coste: léelo, elige el CC (se puede editar aquí) y aprueba; sin CC no se deja aprobar', FUERA_DE_FLOTA:'Reportó sin estar vigente ese día en la flota (Maquinaria › Flota): reemplazo de un día, equipo devuelto o de otro frente. Si se queda, dale el alta', PARTE_REPETIDO:'El mismo nº de parte físico ya se subió en OTRO día: posible doble carga del mismo turno (típico del turno noche que cruza medianoche). Revisa antes de aprobar para no facturarlo dos veces' };
 function pintarBandeja(){
-  const p=BAND.pendientes||[], rv=BAND.revisadas||[], falt=BAND.faltantes||[];
+  const p=(BAND.pendientes||[]).filter(r=>enGrupo(r.codigo)), rv=(BAND.revisadas||[]).filter(r=>enGrupo(r.codigo)), falt=faltVisibles();
   const conAl=p.filter(r=>alertasDe(r).length).length;
   pintarFueraDeFlota(p.concat(rv));
   document.getElementById('nPend').textContent=p.length; document.getElementById('kPend').textContent=p.length;
@@ -67,7 +84,7 @@ function pintarBandeja(){
   document.getElementById('kFalt').textContent=falt.length; document.getElementById('cntFalt').textContent=falt.length;
   document.getElementById('btnAprobarTodo').disabled = !(p.length-conAl);
   document.getElementById('btnAprobarTodo').textContent='✓ Aprobar todo lo sin alertas ('+(p.length-conAl)+')';
-  document.getElementById('pendientes').innerHTML = p.length ? p.map(r=>filaHTML(r)).join('') : '<div class="vacio">Sin partes pendientes en esta fecha.</div>';
+  document.getElementById('pendientes').innerHTML = p.length ? p.map(r=>filaHTML(r)).join('') : '<div class="vacio">Sin partes pendientes'+(GRUPO==='todos'?'':' de '+GRUPO)+' en esta fecha.</div>';
   const rb=document.getElementById('revisadasBox'); rb.style.display= rv.length ? 'block' : 'none';
   document.getElementById('nRev').textContent=rv.length;
   document.getElementById('revisadas').innerHTML=rv.map(r=>filaHTML(r,true)).join('');
@@ -114,7 +131,8 @@ function faltantesHTML(falt){
   return falt.map(faltFilaHTML).join('');
 }
 let selFalt={};   // codigo → true/false (incluido en «Día sin operación»)
-function faltSeleccionados(){ return (BAND.faltantes||[]).filter(q=>selFalt[q.codigo]); }
+function faltVisibles(){ return (BAND.faltantes||[]).filter(q=>GRUPO==='todos' || (q.grupo==='drenajes'?'drenajes':'tierras')===GRUPO); }   // D193
+function faltSeleccionados(){ return faltVisibles().filter(q=>selFalt[q.codigo]); }
 function pintarSel(){
   const n=faltSeleccionados().length, tot=(BAND.faltantes||[]).length;
   document.getElementById('nSel').textContent=n;
@@ -122,7 +140,7 @@ function pintarSel(){
   document.querySelectorAll('#sinopBar .motivos .btn').forEach(b=>b.disabled=!n);
 }
 function toggleFalt(codigo, on){ selFalt[codigo]=!!on; const el=[...document.querySelectorAll('#faltantes .falt')].find(f=>f.querySelector('.cod').textContent===codigo); if(el) el.classList.toggle('sel',!!on); pintarSel(); }
-function selFaltantes(on){ (BAND.faltantes||[]).forEach(q=>selFalt[q.codigo]=!!on); document.querySelectorAll('#faltantes .falt').forEach(f=>{ f.querySelector('input[type=checkbox]').checked=!!on; f.classList.toggle('sel',!!on); }); pintarSel(); }
+function selFaltantes(on){ faltVisibles().forEach(q=>selFalt[q.codigo]=!!on); document.querySelectorAll('#faltantes .falt').forEach(f=>{ f.querySelector('input[type=checkbox]').checked=!!on; f.classList.toggle('sel',!!on); }); pintarSel(); }
 function irAFaltantes(){ verTab('pend'); const c=document.getElementById('cardFalt'); if(c) c.scrollIntoView({behavior:'smooth',block:'start'}); }
 function opSelect(v, lista, extra){
   const vistos={}; let html='';
@@ -225,7 +243,7 @@ function aplicarCambios(filas){
   pintarBandeja();
 }
 async function aprobarSinAlertas(){
-  const lista=(BAND.pendientes||[]).filter(r=>!alertasDe(r).length);
+  const lista=(BAND.pendientes||[]).filter(r=>!alertasDe(r).length && enGrupo(r.codigo));   // D193: solo lo que se ve
   if(!lista.length) return;
   if(!confirm('¿Aprobar '+lista.length+' parte(s) sin alertas de la fecha '+document.getElementById('fecha').value+'?')) return;
   const cambios=lista.map(r=>{ const c={ id_registro:r.id_registro, estado:'aprobado' }; if(dirty[r.id_registro]) c.campos=dirty[r.id_registro]; return c; });
@@ -418,7 +436,7 @@ function filasFiltradas(){
   if(!BASE) return [];
   const eq=norm(document.getElementById('fEq').value), cc=norm(document.getElementById('fCC').value), tx=norm(document.getElementById('fTxt').value);
   return BASE.filas.map((r,i)=>({r:r,i:i})).filter(x=>{ const r=x.r;
-    return (!eq || norm(r.codigo).indexOf(eq)>=0) && (!cc || norm(r.centro_coste).indexOf(cc)>=0)
+    return enGrupo(r.codigo) && (!eq || norm(r.codigo).indexOf(eq)>=0) && (!cc || norm(r.centro_coste).indexOf(cc)>=0)
       && (!tx || norm(r.operador+' '+r.descripcion_trabajo+' '+r.observaciones+' '+r.reporte_num).indexOf(tx)>=0); });
 }
 function pintarBase(){
@@ -498,6 +516,7 @@ function fallbackCopiar(text, ok){
   const d=new Date(h+'T12:00:00'); d.setDate(d.getDate()-7);
   document.getElementById('desde').value=d.toISOString().slice(0,10); document.getElementById('hasta').value=h;
   document.getElementById('fecha').addEventListener('change', cargarBandeja);
+  pintarSegGrupo();   // D193
   cargarBandeja();
 })();
 

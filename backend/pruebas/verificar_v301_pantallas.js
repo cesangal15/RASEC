@@ -84,12 +84,15 @@ const server=http.createServer((req,res)=>{
   const browser=await chromium.launch();
   const errores=[];
   async function pagina(vp, storage){
-    const c=await browser.newContext({ viewport:vp, permissions:['clipboard-read','clipboard-write'] });
+    // sin service worker (como verificar_d176): con la API en el mismo origen (auth.js, modo sandbox) el SW
+    // pediría /parte por su cuenta y Playwright no intercepta las peticiones de un SW (404 del estático).
+    const c=await browser.newContext({ viewport:vp, permissions:['clipboard-read','clipboard-write'], serviceWorkers:'block' });
     const pg=await c.newPage();
     pg.on('pageerror',e=>errores.push(String(e))); pg.on('console',m=>{ if(m.type()==='error' && !/ERR_FAILED/.test(m.text())) errores.push(m.text()); });   // fuentes abortadas a propósito
     await pg.route(/fonts\.(googleapis|gstatic)\.com/, r=>r.abort());
-    // la API: cada petición se atiende con el backend en banco
-    await pg.route(/api\.galca\.app/, async r=>{
+    // la API: cada petición se atiende con el backend en banco. Servida desde 127.0.0.1, auth.js (modo
+    // sandbox) manda la API al MISMO origen (/obra, /asistencias, /parte): se interceptan las dos formas.
+    await pg.route(u=>/api\.galca\.app/.test(u.href) || /^\/(obra|asistencias|parte)$/.test(u.pathname), async r=>{
       const u=new URL(r.request().url()); let out;
       if(r.request().method()==='POST') out=ctx.doPost({ postData:{ contents:r.request().postData()||'{}' } });
       else { const parameter={}; u.searchParams.forEach((v,k)=>parameter[k]=v); out=ctx.doGet({ parameter }); }
@@ -125,9 +128,13 @@ const server=http.createServer((req,res)=>{
     await $(pg,'.tramo .sug').first().click();
     ok('sugerencia de actividad al textarea', (await $(pg,'.tramo textarea').first().inputValue())!=='');
     await pg.screenshot({ path:path.join(OUT,'parte_390_tramo1.png'), fullPage:true });
-    // fue a otro CC también: aparece el % y la fila nueva
-    await pg.click('.rep button:has-text("otro centro de coste")'); await pg.waitForSelector('.rep-row:nth-of-type(3)');
-    ok('«Fue a otro centro de coste también» abre el reparto a 50/50 conservando el primero', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50' && (await $(pg,'.rep-sel').first().textContent()).includes('3701.02.11'));
+    // V3-18: «＋ Agregar otra actividad» — aparece la tarjeta 2 con su %, la ayuda y la primera se conserva
+    ok('V3-18: con UNA actividad no hay tarjetas, % ni ayuda; sí el botón grande', (await $(pg,'.act-card').count())===0 && (await $(pg,'.rep-ayuda').count())===0 && (await $(pg,'.btn-add-act').count())===1);
+    await pg.click('.btn-add-act'); await pg.waitForSelector('#act-'+(await $(pg,'.tramo').first().getAttribute('id')).slice(6)+'-1');
+    ok('«＋ Agregar otra actividad» abre el reparto a 50/50 conservando el primero', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50' && (await $(pg,'.rep-sel').first().textContent()).includes('3701.02.11'));
+    ok('V3-18: dos tarjetas numeradas «Actividad 1/2» con «Quitar», ayuda visible y la nueva resaltada', (await $(pg,'.act-card').count())===2 && (await $(pg,'.act-cab b').nth(1).textContent())==='Actividad 2' && (await $(pg,'.act-cab .btn-del').count())===2 && /2 actividades/.test(await $(pg,'.rep-ayuda').textContent()) && await $(pg,'.act-card').nth(1).evaluate(e=>e.classList.contains('nueva')));
+    ok('V3-18: cada tarjeta muestra sus horas junto al % (130 km × 50 % = 65 km)', /65 km/.test(await $(pg,'.pct-h').first().textContent()) && /65 km/.test(await $(pg,'.pct-h').nth(1).textContent()));
+    ok('V3-18: la tarjeta 2 sin elegir pide «Falta elegir la actividad 2»', /Falta elegir la actividad 2/.test(await $(pg,'#resumenBody .falta').textContent()));
     await $(pg,'.rep-row').nth(1).locator('.acts .sug').first().click();
     await $(pg,'.rep-row .pr input').nth(1).fill('35.2');   // D178: PR en km
     ok('el PR en km (35.2) manda el proyecto a 3702', (await $(pg,'.rep-sel').nth(1).textContent()).includes('3702.02.11'));
@@ -195,8 +202,8 @@ const server=http.createServer((req,res)=>{
     await $(pg,'#reporteNum').fill('0470'); await $(pg,'#btnOperador').click(); await $(pg,'.picker-item').first().click();
     await $(pg,'.tramo .medidor input').first().fill('2337'); await $(pg,'.tramo .medidor input').nth(1).fill('2345');
     await $(pg,'.tramo input[type=time]').nth(0).fill('07:00'); await $(pg,'.tramo input[type=time]').nth(1).fill('15:00');
-    await pg.click('.rep button:has-text("otro centro de coste")'); await pg.waitForSelector('.rep-quick');
-    ok('«Fue a otro centro de coste también» abre dos renglones a 50/50', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50');
+    await pg.click('.btn-add-act'); await pg.waitForSelector('.rep-quick');
+    ok('«＋ Agregar otra actividad» abre dos tarjetas a 50/50', (await $(pg,'.rep-row').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50');
     await $(pg,'.rep-row').nth(0).locator('.acts .sug').first().click();
     await $(pg,'.rep-row').nth(1).locator('.acts .sug').first().click(); await $(pg,'.rep-row .pr input').nth(1).fill('35200');
     ok('el resumen muestra 4 h + 4 h', /4 h/.test(await $(pg,'.rep-sum').textContent()) && (await $(pg,'.rep-sum b').textContent())==='100 %');
@@ -204,6 +211,13 @@ const server=http.createServer((req,res)=>{
     ok('«70 / 30» ajusta los porcentajes y conserva los CC', await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='70' && (await $(pg,'.rep-sel').nth(1).textContent()).includes('3702.02.11'));
     await $(pg,'.rep-row input[aria-label=porcentaje]').nth(1).fill('40');
     ok('si no suma 100 se avisa en rojo', await $(pg,'.rep-sum').evaluate(e=>e.classList.contains('mal')) && /110/.test(await $(pg,'#resumenBody .falta').textContent()));
+    ok('V3-18: y dice cuánto sobra («sobran 10 %»)', /sobran 10 %/.test(await $(pg,'.rep-sum').textContent()));
+    // V3-18: una 3ª actividad reparte en partes iguales y quita el reparto rápido de a dos (perdería la 3ª); «Quitar» vuelve a dos
+    await pg.click('.btn-add-act'); await pg.waitForSelector('.act-card:nth-child(5)');
+    ok('V3-18: con 3 actividades: 33.33 / 33.33 / 33.34, sin «70 / 30», con «partes iguales»', (await $(pg,'.act-card').count())===3 && await $(pg,'.rep-row input[aria-label=porcentaje]').nth(2).inputValue()==='33.34' && (await $(pg,'.rep-quick button:has-text("70 / 30")').count())===0 && (await $(pg,'.rep-quick button:has-text("partes iguales")').count())===1);
+    await $(pg,'.act-cab .btn-del').nth(2).click(); await pg.waitForSelector('.rep-quick button:has-text("70 / 30")');
+    ok('V3-18: «Quitar» la 3ª vuelve a dos tarjetas a 50/50 conservando sus actividades', (await $(pg,'.act-card').count())===2 && await $(pg,'.rep-row input[aria-label=porcentaje]').first().inputValue()==='50' && (await $(pg,'.rep-sel').nth(1).textContent()).includes('3702.02.11'));
+    await pg.click('.rep-quick button:has-text("70 / 30")'); await pg.waitForSelector('.rep');
     await $(pg,'.rep-row input[aria-label=porcentaje]').nth(1).fill('30');
     await pg.screenshot({ path:path.join(OUT,'parte_390_reparto.png'), fullPage:true });
     const antes=ctx._hojas.PARTE_BANDEJA._f.length;
@@ -354,10 +368,32 @@ const server=http.createServer((req,res)=>{
     await pgJ.goto(BASE+'/seleccion-reporte.html'); await pgJ.waitForSelector('#tiles .tile');
     ok('jeisson ve 5 tiles: asistencia, resumen, flota, revisión de partes y parte digital', (await $(pgJ,'#tiles a.tile').count())===5 && (await $(pgJ,'#tiles a.tile[href="revision-maquinaria.html"]').count())===1 && (await $(pgJ,'#tiles a.tile[href="parte.html"]').count())===1);
     await pgJ.context().close();
+    // D193: duvan (lo usa Stiven) y el residente de drenajes revisan; abren filtrados en Drenajes y pueden cambiar.
     const pgD=await pagina({width:390,height:844}, { usuario:'duvan', rol:'asistencia_plus_dren', tm2_token:tokenDe('duvan','asistencia_plus_dren') });
-    await pgD.goto(BASE+'/revision-maquinaria.html'); await pgD.waitForTimeout(300);
-    ok('duvan (asistencia_plus_dren) es devuelto al login', /index\.html/.test(pgD.url()));
+    await pgD.goto(BASE+'/revision-maquinaria.html'); await pgD.waitForSelector('.fila, .vacio');
+    ok('D193: duvan entra a la revisión, abre en «Drenajes» y su «← Menú» va a seleccion-reporte.html', /revision-maquinaria/.test(pgD.url()) && (await $(pgD,'#segGrupo button.on').textContent())==='Drenajes' && (await $(pgD,'#btnMenu').getAttribute('data-on-click'))==="irA('seleccion-reporte.html')");
+    // el backend de banco (.gs) no manda el grupo de la flota (lo manda el Worker, D190): se marca VOL048 como drenajes
+    const cuenta=async()=>pgD.evaluate(()=>[...document.querySelectorAll('#pendientes .fila, #revisadas .fila')].filter(f=>/VOL048/.test(f.textContent)).length);
+    await pgD.evaluate(()=>{ LISTAS.equipos=(LISTAS.equipos||[]).map(q=>q.codigo==='VOL048'?Object.assign({}, q, {grupo:'drenajes'}):q); if(!LISTAS.equipos.some(q=>q.codigo==='VOL048')) LISTAS.equipos.push({codigo:'VOL048', grupo:'drenajes'}); setGrupo('drenajes'); });
+    const enDren=await cuenta();
+    await pgD.click('#segGrupo button[data-g=tierras]');
+    const enTie=await cuenta();
+    await pgD.click('#segGrupo button[data-g=todos]');
+    ok('D193: el filtro separa: VOL048 (drenajes) sale en Drenajes y en Todos, no en Tierras', enDren>0 && enTie===0 && (await cuenta())===enDren, JSON.stringify({enDren, enTie}));
+    ok('D193: la elección se recuerda en el navegador', await pgD.evaluate(()=>localStorage.getItem('tm2_rev_grupo'))==='todos');
+    await pgD.goto(BASE+'/seleccion-reporte.html'); await pgD.waitForSelector('#tiles .tile');
+    ok('D193: duvan ve el acceso a la revisión de partes', (await $(pgD,'#tiles a.tile[href="revision-maquinaria.html"]').count())===1);
     await pgD.context().close();
+    const pgRD=await pagina({width:390,height:844}, { usuario:'residente_dren', rol:'residente_dren', tm2_token:tokenDe('residente_dren','residente_dren') });
+    await pgRD.goto(BASE+'/seleccion-reporte.html'); await pgRD.waitForSelector('#tiles .tile');
+    ok('D193: residente_dren ve el acceso a la revisión de partes', (await $(pgRD,'#tiles a.tile[href="revision-maquinaria.html"]').count())===1);
+    await pgRD.goto(BASE+'/revision-maquinaria.html'); await pgRD.waitForSelector('.fila, .vacio');
+    ok('D193: residente_dren entra y abre en «Drenajes»', /revision-maquinaria/.test(pgRD.url()) && (await $(pgRD,'#segGrupo button.on').textContent())==='Drenajes');
+    await pgRD.context().close();
+    const pgU=await pagina({width:390,height:844}, { usuario:'residente_uf3', rol:'asistencia_plus_uf3', tm2_token:tokenDe('residente_uf3','asistencia_plus_uf3') });
+    await pgU.goto(BASE+'/revision-maquinaria.html'); await pgU.waitForTimeout(300);
+    ok('residente_uf3 (asistencia_plus_uf3) sigue sin entrar: vuelve al login', /index\.html/.test(pgU.url()));
+    await pgU.context().close();
     const pgR=await pagina({width:390,height:844}, { usuario:'residente', rol:'residente', tm2_token:tokenDe('residente','residente') });
     await pgR.goto(BASE+'/residente.html'); await pgR.waitForSelector('.tile');
     ok('residente.html: grupo «Maquinaria · parte digital» con revisión y formulario', (await $(pgR,'a.tile[href="revision-maquinaria.html"]').count())===1 && (await $(pgR,'a.tile[href="parte.html"]').count())===1);

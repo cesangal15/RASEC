@@ -275,7 +275,7 @@ function tramoHTML(t,i){
    +'</div>'
    +'<div class="bloque"><div class="bloque-t">¿Qué hizo la máquina? <span class="req">*</span></div>'
    +repartoHTML(t)
-   +'<div class="hint">Toca una de las actividades habituales o «Otra» para escribirla. El centro de coste sale solo con la actividad y el PR (hasta 30+000 → 3701; de ahí en adelante → 3702). El PR va en metros (14400) o en km (14.4).</div>'
+   +'<div class="hint">Toca lo que hizo la máquina: son las 5 actividades que más usa este equipo. Si no está, toca «Otra» y escríbela en la descripción. Si hizo más de un trabajo, usa «＋ Agregar otra actividad». El centro de coste sale solo con la actividad y el PR (hasta 30+000 → 3701; de ahí en adelante → 3702). El PR va en metros (14400) o en km (14.4).</div>'
    +'</div>'
    +'<div class="field"><label>Descripción del trabajo</label>'
    +'<textarea rows="2" placeholder="ej. Cargue terraplen PR14+400" data-on-input="setT(\''+t.id+'\',\'desc\',this.value)">'+esc(t.desc)+'</textarea>'
@@ -312,20 +312,33 @@ function elegirLibre(id, j){
   render();
   const ta=document.querySelector('#tramo-'+id+' textarea'); if(ta && !String(t.desc||'').trim()) ta.focus();
 }
-/* ---------- reparto por porcentaje ---------- */
+/* ---------- varias actividades en el mismo tramo: reparto por porcentaje ----------
+ * V3-18 (sep-2026, visto en campo): los operadores no encontraban cómo poner una 2ª o 3ª actividad — era un
+ * enlace pequeño en jerga («Fue a otro centro de coste también») y las filas no se distinguían. Ahora cada
+ * actividad es una TARJETA numerada con sus chips, su PR y su «parte del día» en % (con las horas al lado);
+ * el botón para sumar otra es grande y dice lo que hace, y con dos o más sale una ayuda arriba. El reparto
+ * rápido 50/50 · 70/30 solo aparece con DOS actividades (con tres se perdería la tercera). Mismo payload:
+ * reparto[] con pct (D174/D178), el backend no cambia. */
+function horasDe(tot, pct, tope){ const p=num(pct); return (tot!==null && tope && p!==null) ? '= '+fmt(tot*p/100)+' '+esc(tope.unidad) : ''; }
+function sumaHTML(t){
+  const rep=t.reparto, suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor], dif=Math.round((100-suma)*100)/100;
+  const estado = Math.abs(dif)<=0.5 ? '' : ' <em>'+(dif>0 ? 'faltan '+fmt(dif)+' %' : 'sobran '+fmt(-dif)+' %')+'</em>';
+  return '<span>'+(tot!==null&&tope ? 'Total: '+rep.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + ') : 'Los porcentajes deben sumar 100 %')+estado+'</span><b>'+fmt(suma)+' %</b>';
+}
 function repartoHTML(t){
   const rep=t.reparto, varios=rep.length>1, suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
   return '<div class="rep'+(varios?'':' uno')+'" id="rep-'+t.id+'">'
-    +(varios ? '<div class="rep-quick">'+[[50,50],[70,30],[30,70]].map(p=>'<button type="button" data-on-click="repRapido(\''+t.id+'\','+JSON.stringify(p)+')">'+p.join(' / ')+'</button>').join('')+'<button type="button" data-on-click="repIguales(\''+t.id+'\')">partes iguales</button></div>' : '')
-    +rep.map((r,j)=>'<div class="rep-row">'
-      +'<div class="rep-sel '+((r.cc||r.libre)?'':'vacio')+'" id="ccr-'+t.id+'-'+j+'">'+((r.cc||r.libre)?actLabelHTML(r):'<b>'+(varios?'Actividad / centro de coste '+(j+1):'Elige la actividad')+'</b><small>toca una de abajo</small>')+'</div>'
-      +(varios ? '<input type="number" inputmode="decimal" min="0" max="100" step="1" placeholder="%" value="'+esc(r.pct)+'" data-on-input="setRep(\''+t.id+'\','+j+',\'pct\',this.value)" aria-label="porcentaje">'
-               +'<button type="button" class="btn-del" data-on-click="delRep(\''+t.id+'\','+j+')" title="Quitar">✕</button>' : '')
+    +(varios ? '<div class="rep-ayuda"><b>Esta máquina hizo '+rep.length+' actividades.</b> Elige cada una y reparte el día entre ellas: los porcentajes deben sumar 100 %.</div>'
+      +'<div class="rep-quick"><span>Reparto rápido:</span>'+(rep.length===2 ? [[50,50],[70,30],[30,70]].map(p=>'<button type="button" data-on-click="repRapido(\''+t.id+'\','+JSON.stringify(p)+')">'+p.join(' / ')+'</button>').join('') : '')+'<button type="button" data-on-click="repIguales(\''+t.id+'\')">partes iguales</button></div>' : '')
+    +rep.map((r,j)=>'<div class="rep-row'+(varios?' act-card':'')+'" id="act-'+t.id+'-'+j+'">'
+      +(varios ? '<div class="act-cab"><span class="act-n">'+(j+1)+'</span><b>Actividad '+(j+1)+'</b><button type="button" class="btn-del" data-on-click="delRep(\''+t.id+'\','+j+')" title="Quitar esta actividad">✕ Quitar</button></div>' : '')
+      +'<div class="rep-sel '+((r.cc||r.libre)?'':'vacio')+'" id="ccr-'+t.id+'-'+j+'">'+((r.cc||r.libre)?actLabelHTML(r):'<b>'+(varios?'¿Qué hizo en la actividad '+(j+1)+'?':'Elige la actividad')+'</b><small>toca una de abajo</small>')+'</div>'
       +actsHTML(t, j)
       +'<div class="pr"><label>PR</label><input type="number" inputmode="decimal" step="any" placeholder="ej. 14400 (o 14.4 en km)" value="'+esc(r.pr)+'" data-on-input="setRep(\''+t.id+'\','+j+',\'pr\',this.value)"></div>'
+      +(varios ? '<div class="pct"><label>Parte del día</label><input type="number" inputmode="decimal" min="0" max="100" step="1" placeholder="%" value="'+esc(r.pct)+'" data-on-input="setRep(\''+t.id+'\','+j+',\'pct\',this.value)" aria-label="porcentaje"><span class="pct-u">%</span><span class="pct-h" id="pcth-'+t.id+'-'+j+'">'+horasDe(tot, r.pct, tope)+'</span></div>' : '')
       +'</div>').join('')
-    +(varios ? '<div class="rep-sum'+(Math.abs(suma-100)>0.5?' mal':'')+'"><span>'+(tot!==null&&tope?rep.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b></div>' : '')
-    +'<button type="button" class="btn-add mini" data-on-click="addRep(\''+t.id+'\')">+ '+(varios?'Otro centro de coste':'Fue a otro centro de coste también (se reparte por %)')+'</button>'
+    +(varios ? '<div class="rep-sum'+(Math.abs(suma-100)>0.5?' mal':'')+'">'+sumaHTML(t)+'</div>' : '')
+    +'<button type="button" class="btn-add btn-add-act" data-on-click="addRep(\''+t.id+'\')">＋ Agregar otra actividad<small>si la máquina hizo más de un trabajo en este tramo</small></button>'
     +'</div>';
 }
 function setRep(id,j,k,v){
@@ -340,11 +353,18 @@ function pintarRepSuma(t){
   const box=document.querySelector('#rep-'+t.id+' .rep-sum'); if(!box) return;
   const suma=t.reparto.reduce((a,r)=>a+(num(r.pct)||0),0), tot=totalDe(t), tope=TOPES[EQ.medidor];
   box.classList.toggle('mal', Math.abs(suma-100)>0.5);
-  box.innerHTML='<span>'+(tot!==null&&tope?t.reparto.map(r=>fmt(tot*(num(r.pct)||0)/100)+' '+esc(tope.unidad)).join(' + '):'los porcentajes deben sumar 100 %')+'</span><b>'+fmt(suma)+' %</b>';
+  box.innerHTML=sumaHTML(t);
+  t.reparto.forEach((r,j)=>{ const h=document.getElementById('pcth-'+t.id+'-'+j); if(h) h.innerHTML=horasDe(tot, r.pct, tope); });
 }
-function addRep(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; t.reparto.push({ cc:'', pct:'', pr:'', item:'', libre:false }); repIguales(id); }
+// V3-18: la tarjeta nueva se trae a la vista y se resalta un momento, para que el operador vea dónde quedó.
+function addRep(id){
+  const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return;
+  t.reparto.push({ cc:'', pct:'', pr:'', item:'', libre:false }); repIguales(id);
+  const el=document.getElementById('act-'+id+'-'+(t.reparto.length-1));
+  if(el){ el.classList.add('nueva'); if(el.scrollIntoView) el.scrollIntoView({behavior:'smooth',block:'center'}); }
+}
 function delRep(id,j){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||t.reparto.length<=1) return; t.reparto.splice(j,1); if(t.reparto.length===1) t.reparto[0].pct=100; else repIguales(id); render(); }
-function repRapido(id,p){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; while(t.reparto.length<2) t.reparto.push({cc:'',pct:'',pr:'',item:'',libre:false}); t.reparto=t.reparto.slice(0,2); t.reparto[0].pct=p[0]; t.reparto[1].pct=p[1]; render(); }
+function repRapido(id,p){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||t.reparto.length!==2) return; t.reparto[0].pct=p[0]; t.reparto[1].pct=p[1]; render(); }
 function repIguales(id){ const t=tramos.find(x=>x.id===id); if(!t||!t.reparto) return; const n=t.reparto.length, base=Math.floor(100/n*100)/100; t.reparto.forEach((r,j)=>{ r.pct = j===n-1 ? Math.round((100-base*(n-1))*100)/100 : base; }); render(); }
 
 function setT(id, k, v){
@@ -449,9 +469,9 @@ function validar(){
     // D174: sin CC vale SOLO en texto libre (una fila, actividad escrita): llega con SIN_CC y lo pone revisión.
     // D178: «Otra» vale sin CC si hay descripción (SIN_CC → revisión) o con un CC escrito a mano.
     const filaOk = r => r.cc || (r.libre && String(t.desc||'').trim());
-    if(!rep.length || rep.some(r=>!filaOk(r))) errs.push(rep.some(r=>r.libre&&!r.cc) ? 'Escribe qué hizo la máquina en la descripción (elegiste «Otra», sin centro de coste).' : (rep.length>1 ? 'Falta la actividad de un centro de coste del reparto.' : 'Falta la actividad.'));
+    if(!rep.length || rep.some(r=>!filaOk(r))) errs.push(rep.some(r=>r.libre&&!r.cc) ? 'Escribe qué hizo la máquina en la descripción (elegiste «Otra», sin centro de coste).' : (rep.length>1 ? 'Falta elegir la actividad '+(rep.findIndex(r=>!filaOk(r))+1)+'.' : 'Falta la actividad.'));
     if(rep.length>1){
-      if(rep.some(r=>!(num(r.pct)>0))) errs.push('Cada centro de coste necesita su porcentaje.');
+      if(rep.some(r=>!(num(r.pct)>0))) errs.push('Cada actividad necesita su parte del día (%).');
       const suma=rep.reduce((a,r)=>a+(num(r.pct)||0),0);
       if(Math.abs(suma-100)>0.5) errs.push('Los porcentajes suman '+fmt(suma)+' % y deben sumar 100 %.');
     }
@@ -463,7 +483,8 @@ function marcarFaltantes(){
   document.getElementById('reporteNum').classList.toggle('field-error', !document.getElementById('reporteNum').value.trim());
   document.getElementById('btnOperador').classList.toggle('field-error', !operador);
   tramos.forEach(t=>{
-    if(t.reparto) t.reparto.forEach((r,j)=>{ const rb=document.getElementById('ccr-'+t.id+'-'+j); if(rb) rb.classList.toggle('field-error', !(r.cc || (r.libre && String(t.desc||'').trim()))); });
+    if(t.reparto) t.reparto.forEach((r,j)=>{ const rb=document.getElementById('ccr-'+t.id+'-'+j); if(rb) rb.classList.toggle('field-error', !(r.cc || (r.libre && String(t.desc||'').trim())));
+      const pi=document.querySelector('#act-'+t.id+'-'+j+' .pct input'); if(pi) pi.classList.toggle('field-error', !(num(r.pct)>0)); });
     if(EQ.medidor){ const ins=document.querySelectorAll('#tramo-'+t.id+' .medidor input'); if(ins.length===2){ ins[0].classList.toggle('field-error', num(t.inicial)===null); ins[1].classList.toggle('field-error', num(t.final)===null || (num(t.inicial)!==null && num(t.final)<num(t.inicial))); } }
   });
 }
