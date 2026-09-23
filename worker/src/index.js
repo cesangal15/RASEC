@@ -39,7 +39,7 @@
  * abren el Tablero en ese minuto (los directivos por el enlace público) leen la misma respuesta sin tocar la BD.
  * Se la SALTA una petición con token VÁLIDO de admin o jefe: calcula al momento (el jefe ve su corrección al
  * instante) y deja esa respuesta fresca en la caché para los demás. Un POST de obra que cambia lo que muestra
- * (enviar_data, data_grid_guardar, proyeccion_guardar, tablero_horas_guardar) borra la clave de su entorno en ese
+ * (enviar_data, data_grid_guardar, proyeccion_guardar, tablero_horas_guardar, cat_guardar) borra la clave de su entorno en ese
  * centro de datos (los demás la renuevan en ≤ 60 s). Solo se cachea una respuesta ok (status 200, '{"ok":true').
  * Al cliente siempre va con Cache-Control: no-store y la cabecera X-Tablero-Cache: HIT | MISS | BYPASS | SIN (sin
  * Cache API: el banco en Node). En el banco, `env.__cachePrueba` (un objeto con match/put/delete) sustituye a
@@ -292,7 +292,7 @@ async function servirDb(ruta, env, ctx, url, method, bodyText) {
 const VIVO_TTL_S = 60;
 const VIVO_ROLES_FRESCO = ['admin', 'jefe'];     // su token salta la caché (y la refresca)
 // POST de obra que cambian lo que muestra el Tablero en vivo: borran la clave de su entorno.
-const VIVO_INVALIDAN = new Set(['enviar_data', 'data_grid_guardar', 'proyeccion_guardar', 'tablero_horas_guardar']);
+const VIVO_INVALIDAN = new Set(['enviar_data', 'data_grid_guardar', 'proyeccion_guardar', 'tablero_horas_guardar', 'cat_guardar']);
 
 function cacheVivo(env) {
   if (env && env.__cachePrueba) return env.__cachePrueba;               // banco: Node no tiene Cache API
