@@ -55,6 +55,13 @@
   thead th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-family:'Syne',sans-serif;font-size:10px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:8px 9px;border-bottom:2px solid var(--border);border-right:1px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:none;z-index:3;}
   thead th.num{text-align:right;}
   thead th.th-deriv{font-style:italic;}
+  /* V3-22/D210: fila de GRUPO encima de #cab (p. ej. «Meta horas-hombre (personal directo)», plan mensual),
+     más fina; #cab queda pegajosa DEBAJO de ella (misma técnica sticky, top desplazado por su alto). */
+  #cabGrupo th{top:0;padding:3px 9px;font-size:9px;border-bottom:1px solid var(--border);}
+  #cabGrupo th.rownum{background:var(--surface2);}
+  #cabGrupo.vacia th{border-bottom-color:transparent;}
+  #cabGrupo th.th-grupo{text-align:center;color:var(--text);font-weight:700;}
+  #cab th{top:21px;}
   thead th .rz{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;z-index:5;}
   thead th .rz:hover{background:linear-gradient(90deg,transparent,var(--accent));opacity:.6;}
   body.rz-activo{cursor:col-resize;user-select:none;}

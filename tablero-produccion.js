@@ -285,7 +285,24 @@ function proyDeGalca(j){
   }
   const base_corte = String(j.base_corte || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(base_corte)) throw new Error('Galca trae un corte de línea base no válido (' + base_corte + ')');
-  return { fc, plan, proyectado, contrato, base_acum, base_corte,
+  /* V3-22/D210: meta MENSUAL de horas-hombre de personal directo por partida (proy_plan.hh_*, aparte del
+     plan de m³). OPCIONAL (un Worker anterior a V3-22, o la Proyección de respaldo, no la traen): sin ella
+     `plan_hh` queda {} y el Tablero muestra «—», nada se rompe. NULL = sin meta (a diferencia de `plan`,
+     que convierte lo que falta en 0): un número inválido si llega, pero null/vacío se conserva tal cual. */
+  const planHh = {};
+  if (j.plan_hh && typeof j.plan_hh === 'object'){
+    for (const k of Object.keys(j.plan_hh)){
+      if (!/^\d{4}-\d{2}$/.test(k)) throw new Error('Galca trae un periodo de meta de horas-hombre no válido (' + k + ')');
+      const o = {};
+      for (const act of Object.keys(CAL_COL)){
+        if (act === 'noaprov') continue;   // la meta es solo de las 4 partidas con rendimiento (CAL_COL sin noaprov)
+        const v = (j.plan_hh[k] || {})[act];
+        o[act] = (v == null || v === '') ? null : numero(v, 'la meta de horas-hombre de ' + k + ' · ' + act);
+      }
+      planHh[k] = o;
+    }
+  }
+  return { fc, plan, plan_hh: planHh, proyectado, contrato, base_acum, base_corte,
            acta_base: String(j.acta_base == null ? '' : j.acta_base),
            actualizado: String(j.actualizado || ''), usuario: String(j.usuario || '') };
 }
@@ -450,6 +467,9 @@ function construir(wbProd, wbMaq, proy){
   const FC = proy ? proy.fc : FC_DEFECTO;
   const dias = vivo ? diasDeGalca(wbProd.dias, FC, Number(wbProd.fc)) : leerProduccion(wbProd);
   const PLAN = proy ? proy.plan : leerPlan(wbProd);
+  /* V3-22/D210: meta MENSUAL de horas-hombre de personal directo, SOLO por partida (Proyección; ausente en el
+     camino de archivos, que no la trae). null = sin meta. */
+  const PLAN_HH = proy ? (proy.plan_hh || {}) : {};
   /* Redondeo de las cifras de producción: el de siempre en el camino de archivos
      (la foto y el comparador no cambian) y ninguno en vivo (ver arriba). */
   const r1 = vivo ? (x => x) : (x => +x.toFixed(1));
@@ -648,7 +668,8 @@ function construir(wbProd, wbMaq, proy){
     const split = { apr:r1(dd.reduce((s,d)=>s+d.apr,0)/FC),
                     pre:r1(dd.reduce((s,d)=>s+d.pre,0)/FC),
                     nap:r1(dd.reduce((s,d)=>s+d.nap,0)/FC) };
-    return { p, d:dd.map(({p:_,...q})=>q), a, split, m, uf:ufb };
+    const hh = PLAN_HH[p] || { excavacion:null, terraplen:null, subbase:null, base:null };
+    return { p, d:dd.map(({p:_,...q})=>q), a, split, m, uf:ufb, hh };
   });
 
   /* AVANCE contra el contrato — D185 · V3-11, decisión final del dueño (19-sep-2026),
@@ -1512,17 +1533,42 @@ function resumenDia(p){
  *
  * `c`: [{k,n,h}] desglose por cargo (k ya normalizado por el Worker; "Sin cargo
  * registrado" cuando falta en la ficha de personal). Una foto vieja sin `c` en
- * NINGUNA entrada -> ninguna fila se despliega (sin flecha, D316). */
+ * NINGUNA entrada -> ninguna fila se despliega (sin flecha, D316).
+ *
+ * V3-22/D210: columnas «Meta» y «% cumplido» (horas-hombre) para las CUATRO partidas con meta
+ * (`conMeta`, abajo); Transporte/Otras van con «—» (sin meta, no es lo que pidió el dueño). La meta es
+ * la del PERÍODO completo (p.hh, de la Proyección); con días elegidos en la escala de tiempo (D206) se
+ * prorratea por CALENDARIO (días seleccionados ÷ días del período 16→15) — el tooltip lo dice. Sin meta
+ * cargada (p.hh[k] es null): «—», nada se rompe. */
 const ACT_PERS=[
-  {k:'excavacion',n:'Excavación',   c:'var(--s1)'},
-  {k:'terraplen', n:'Terraplén',    c:'var(--s2)'},
-  {k:'subbase',   n:'Subbase',      c:'var(--s3)'},
-  {k:'base',      n:'BTC / Base',   c:'var(--s4)'},
-  {k:'transporte',n:'Transporte',   c:'var(--s5)'},
-  {k:'otras',     n:'Otras actividades', c:'var(--neutro)'}
+  {k:'excavacion',n:'Excavación',   c:'var(--s1)', conMeta:true},
+  {k:'terraplen', n:'Terraplén',    c:'var(--s2)', conMeta:true},
+  {k:'subbase',   n:'Subbase',      c:'var(--s3)', conMeta:true},
+  {k:'base',      n:'BTC / Base',   c:'var(--s4)', conMeta:true},
+  {k:'transporte',n:'Transporte',   c:'var(--s5)', conMeta:false},
+  {k:'otras',     n:'Otras actividades', c:'var(--neutro)', conMeta:false}
 ];
 function ambitoTxt(p){
   return (selDias?etiquetaSel(selDias.a,selDias.b):rango(p.p))+(uf==='Todo'?'':' · '+uf);
+}
+/* Días CALENDARIO del período 16→15 nombrado `p` ('YYYY-MM'), y de una selección [a,b] (ISO, ambas
+   incluidas) — para prorratear la meta mensual cuando la escala de tiempo (D206) recorta el período. */
+function diasEnPeriodo(p){
+  const[y,m]=p.split('-').map(Number), pm=m===1?12:m-1, py=m===1?y-1:y;
+  return Math.round((Date.UTC(y,m-1,15)-Date.UTC(py,pm-1,16))/86400000)+1;
+}
+function diasEnRango(a,b){
+  const d=s=>{const[y,m,dd]=s.split('-').map(Number);return Date.UTC(y,m-1,dd);};
+  return Math.round((d(b)-d(a))/86400000)+1;
+}
+/* Meta de horas-hombre de la partida `k` en el período `p`: null si no hay meta cargada; si hay selección
+   de días, se prorratea por calendario (no por días CON datos). */
+function metaHH(p,k){
+  const m=p.hh&&p.hh[k];
+  if(m==null||!isFinite(m)) return null;
+  if(!selDias) return m;
+  const tot=diasEnPeriodo(p.p); if(!(tot>0)) return null;
+  return m*diasEnRango(selDias.a,selDias.b)/tot;
 }
 function personal(p){
   const sub=document.getElementById('perSub'), c=document.getElementById('perTabla');
@@ -1571,7 +1617,8 @@ function personal(p){
     /* «Sin cargo registrado» siempre al final; el resto por horas desc. */
     const sinCargo=x=>x.k==='Sin cargo registrado'?1:0;
     cargoFilas.sort((x,y)=>sinCargo(x)-sinCargo(y) || (y.h-x.h));
-    filas.push({a, prom:nd?sn/nd:0, sh, sn, nd, cargos:cargoFilas});
+    const meta=a.conMeta?metaHH(p,a.k):null;
+    filas.push({a, prom:nd?sn/nd:0, sh, sn, nd, cargos:cargoFilas, meta});
   });
   const clavesT=Object.keys(totPorDia);
   const snT=clavesT.reduce((s,f)=>s+totPorDia[f].n,0);
@@ -1588,9 +1635,9 @@ function personal(p){
   }
   const head=el('div','phH');
   head.append(el('div',null,'Actividad'),el('div',null,'Personas/día'),
-              el('div',null,'Horas-hombre'),el('div'));
+              el('div',null,'Horas-hombre'),el('div',null,'Meta'),el('div',null,'% cumplido'),el('div'));
   c.appendChild(head);
-  filas.forEach(({a,prom,sh,sn,nd,cargos})=>{
+  filas.forEach(({a,prom,sh,sn,nd,cargos,meta})=>{
     /* V3-16: fila desplegable como en la cadena «Por qué vamos así» (misma
        idea de `abierto`/`.chainR`): solo se abre si hay desglose por cargo. */
     const puedeAbrir=hayCargo && cargos.length>0;
@@ -1604,6 +1651,12 @@ function personal(p){
     r.append(nm);
     r.append(el('div','num',nd?f1(prom):'—'));
     r.append(el('div','num',f1(sh)));
+    /* V3-22/D210: meta de horas-hombre del período (prorrateada si hay días elegidos, D206) y % cumplido
+       (real ÷ meta). Sin meta cargada, o partida sin meta (Transporte/Otras): «—», nada se rompe. */
+    const metaEl=el('div','num meta', meta==null?'—':f1(meta));
+    if(meta!=null && selDias) metaEl.title='Meta prorrateada por los '+diasEnRango(selDias.a,selDias.b)+' días elegidos de '+diasEnPeriodo(p.p)+' del período (16→15).';
+    r.append(metaEl);
+    r.append(el('div','num pct', (meta>0)?pct(sh/meta):'—'));
     const bar=el('div','phBar'); const i=el('i');
     i.style.width=(maxH>0?sh/maxH*100:0)+'%'; i.style.background=a.c;
     bar.appendChild(i); r.appendChild(bar);
@@ -1633,14 +1686,20 @@ function personal(p){
       });
       c.appendChild(drop);
     }
-    /* Punto de extensión (backlog, aún sin definir): una futura columna «Meta
-       del mes» por cargo iría aquí, junto a Personas/día y Horas-hombre. */
   });
+  /* Total: SOLO suma las metas de las 4 partidas con meta si las CUATRO la tienen cargada (si falta una, no
+     se inventa un parcial); el % es real ÷ meta de esas mismas cuatro, no del total de las 6 (Transporte/
+     Otras no tienen con qué compararse). */
+  const conMeta=filas.filter(f=>f.a.conMeta);
+  const metaTotal=conMeta.length && conMeta.every(f=>f.meta!=null) ? conMeta.reduce((s,f)=>s+f.meta,0) : null;
+  const shMetaTotal=conMeta.reduce((s,f)=>s+f.sh,0);
   const rt=el('div','ph phTot');
   rt.title=snT?'persona-días: '+f0(snT):'';
   rt.append(el('div','nm','Total'));
   rt.append(el('div','num',clavesT.length?f1(snT/clavesT.length):'—'));
   rt.append(el('div','num',f1(shT)));
+  rt.append(el('div','num meta', metaTotal==null?'—':f1(metaTotal)));
+  rt.append(el('div','num pct', (metaTotal>0)?pct(shMetaTotal/metaTotal):'—'));
   rt.append(el('div'));
   c.appendChild(rt);
 }
