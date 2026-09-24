@@ -1,5 +1,5 @@
 -- =====================================================================================================
--- TM2 Sur · 013_catalogos_auditoria.sql — auditoría de la pantalla «Catálogos» (SOLO admin), sep-2026
+-- TM2 Sur · 014_catalogos_auditoria.sql — auditoría de la pantalla «Catálogos» (SOLO admin), sep-2026
 --
 -- La pantalla Catálogos (worker/src/api/obra/catalogos_admin.js) deja una fila aquí por CADA cambio que
 -- guarda `cat_guardar` (alta | update | baja), dentro de la MISMA transacción que escribe la tabla de
@@ -48,7 +48,7 @@ BEGIN
 END $$;
 
 INSERT INTO esquema_version (version, nota)
-  VALUES (13, '013_catalogos_auditoria.sql · tabla catalogo_auditoria (una fila por cambio de la pantalla Catálogos, solo admin); RLS y REVOKE a anon/authenticated')
+  VALUES (14, '014_catalogos_auditoria.sql · tabla catalogo_auditoria (una fila por cambio de la pantalla Catálogos, solo admin); RLS y REVOKE a anon/authenticated')
   ON CONFLICT (version) DO NOTHING;
 
 COMMIT;

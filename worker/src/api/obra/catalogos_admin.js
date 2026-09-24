@@ -53,7 +53,7 @@
  * (mismo algoritmo que auth.js/comun.js, SHA-256 hex de `usuario_minusculas:clave`). El admin no puede
  * quitarse a sí mismo el rol admin ni desactivarse (evita quedarse fuera, ver validación en catGuardar).
  *
- * Auditoría: cada escritura exitosa deja una fila en `catalogo_auditoria` (013_catalogos_auditoria.sql,
+ * Auditoría: cada escritura exitosa deja una fila en `catalogo_auditoria` (014_catalogos_auditoria.sql,
  * dentro de la MISMA transacción) con antes/después en jsonb; en `usuarios` la clave/hash se enmascara con
  * '***' (nunca se guarda en claro ni en hash en la auditoría).
  *

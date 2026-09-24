@@ -58,10 +58,19 @@ const PR_REND_MAX = 1e5;       // m³ compactos por equipo-día
 const PR_FC_MIN = 0.5, PR_FC_MAX = 3;   // FC suelto→compacto razonable (hoy 1,3)
 
 const PLAN_COLS = ['excavacion','terraplen','subbase','base','noaprov'];
+// V3-22/D210: meta MENSUAL de horas-hombre de personal DIRECTO, SOLO por partida (worker/sql/013). Vive en la
+// MISMA fila del plan (mismo periodo 16→15); se edita y se guarda con el mismo mecanismo que PLAN_COLS
+// (número ≥ 0 o vacío = sin meta; admite fórmula). PLAN_COLS_TODOS es la lista combinada para lo genérico
+// (prevalidación, fórmulas); la LECTURA se degrada sola si 013 no está aplicada (ver esSinColumnaHH_,
+// planFilasCrudo_, planTableroCrudo_); la ESCRITURA (alta/update del plan) necesita 013 aplicada siempre,
+// aunque el cambio no toque la meta (mismo criterio que `grupo` en flota.js, D190).
+const HH_COLS = ['hh_excavacion','hh_terraplen','hh_subbase','hh_base'];
+const PLAN_COLS_TODOS = PLAN_COLS.concat(HH_COLS);
 const PARTIDAS_CONTRATO = ['excavacion','terraplen','subbase','base','prestamo'];
 const PARTIDAS_REND = ['excavacion','terraplen','subbase','base'];
 const UFS = ['UF1','UF2',''];
-const ETQ_PLAN = { excavacion:'Excavación', terraplen:'Terraplén', subbase:'Subbase', base:'Base', noaprov:'No aprov.' };
+const ETQ_PLAN = { excavacion:'Excavación', terraplen:'Terraplén', subbase:'Subbase', base:'Base', noaprov:'No aprov.',
+  hh_excavacion:'Meta HH · Excavación', hh_terraplen:'Meta HH · Terraplén', hh_subbase:'Meta HH · Subbase', hh_base:'Meta HH · Base' };
 const ETQ_CONTRATO = { excavacion:'Excavación común', terraplen:'Terraplén', subbase:'Subbase', base:'BTC / Base', prestamo:'Excavación préstamos' };
 const ETQ_REND = { excavacion:'Excavación', terraplen:'Terraplén', subbase:'Subbase', base:'BTC / Base' };
 const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -75,7 +84,12 @@ const COLUMNAS = {
     { k:'terraplen',  etiqueta:ETQ_PLAN.terraplen,  tipo:'num', edita:true },
     { k:'subbase',    etiqueta:ETQ_PLAN.subbase,    tipo:'num', edita:true },
     { k:'base',       etiqueta:ETQ_PLAN.base,       tipo:'num', edita:true },
-    { k:'noaprov',    etiqueta:ETQ_PLAN.noaprov,    tipo:'num', edita:true }
+    { k:'noaprov',    etiqueta:ETQ_PLAN.noaprov,    tipo:'num', edita:true },
+    // V3-22/D210: meta de horas-hombre de personal directo, agrupadas bajo «Meta horas-hombre (personal directo)».
+    { k:'hh_excavacion', etiqueta:ETQ_PLAN.excavacion,    tipo:'num', edita:true, grupo:'Meta horas-hombre (personal directo)' },
+    { k:'hh_terraplen',  etiqueta:ETQ_PLAN.terraplen,     tipo:'num', edita:true, grupo:'Meta horas-hombre (personal directo)' },
+    { k:'hh_subbase',    etiqueta:ETQ_PLAN.subbase,       tipo:'num', edita:true, grupo:'Meta horas-hombre (personal directo)' },
+    { k:'hh_base',       etiqueta:ETQ_PLAN.base,          tipo:'num', edita:true, grupo:'Meta horas-hombre (personal directo)' }
   ],
   contrato: [
     { k:'partida',         etiqueta:'Partida',         tipo:'texto', edita:false },
@@ -95,7 +109,7 @@ const COLUMNAS = {
 // (derivados y auditoría). Cualquier otra clave → rechazo legible. Las que empiezan por '_' (marcas del cliente) se ignoran.
 const META = ['tabla','op','if_version'];
 const TABLAS = {
-  plan:        { nombre:'el Plan mensual',       clave:['periodo'],         campos:PLAN_COLS.concat(['formulas']),
+  plan:        { nombre:'el Plan mensual',       clave:['periodo'],         campos:PLAN_COLS_TODOS.concat(['formulas']),
                  ignorar:['acta','version','editado_por','editado_ts'] },
   contrato:    { nombre:'Contrato y línea base', clave:['partida','uf'],    campos:['programado','produccion_base'],
                  ignorar:['etiqueta','orden','version','editado_por','editado_ts'] },
@@ -159,12 +173,44 @@ function baseCorte_(actas, acta){
   return '';
 }
 
+// V3-22/D210: 42703 = la columna hh_* todavía no existe (013 sin aplicar). Mismo criterio que flotaFilas_
+// (catalogos.js, D190) y el alta de flota.js: SOLO ese código de error cae al SELECT sin las metas; cualquier
+// OTRO error se relanza (un fallo pasajero no puede esconderse detrás de "sin metas").
+function esSinColumnaHH_(err){
+  const m=String((err && err.message) || err);
+  return !!(err && err.code==='42703') && /hh_(excavacion|terraplen|subbase|base)/i.test(m);
+}
+// SELECT crudo del plan CON las 4 metas de horas-hombre; degrada (sin ellas) si 013 no está aplicada.
+async function planFilasCrudo_(c){
+  try{
+    return await c.sql`SELECT to_char(periodo,'YYYY-MM-DD') AS periodo, excavacion, terraplen, subbase, base, noaprov,
+        hh_excavacion, hh_terraplen, hh_subbase, hh_base,
+        formulas::text AS formulas, version, editado_por, to_char(editado_ts AT TIME ZONE ${ZONA_HORARIA},'YYYY-MM-DD HH24:MI') AS editado_ts
+      FROM proy_plan WHERE obra_id=${OBRA_ID} ORDER BY periodo`;
+  }catch(err){
+    if(!esSinColumnaHH_(err)) throw err;
+    return await c.sql`SELECT to_char(periodo,'YYYY-MM-DD') AS periodo, excavacion, terraplen, subbase, base, noaprov,
+        formulas::text AS formulas, version, editado_por, to_char(editado_ts AT TIME ZONE ${ZONA_HORARIA},'YYYY-MM-DD HH24:MI') AS editado_ts
+      FROM proy_plan WHERE obra_id=${OBRA_ID} ORDER BY periodo`;
+  }
+}
+// Mismo SELECT, forma 'YYYY-MM' (la que consume proyeccionTableroDatos_/leerPlan del motor). Degrada igual.
+async function planTableroCrudo_(c){
+  try{
+    return await c.sql`SELECT to_char(periodo,'YYYY-MM') AS k, excavacion, terraplen, subbase, base, noaprov,
+        hh_excavacion, hh_terraplen, hh_subbase, hh_base
+      FROM proy_plan WHERE obra_id=${OBRA_ID} ORDER BY periodo`;
+  }catch(err){
+    if(!esSinColumnaHH_(err)) throw err;
+    return await c.sql`SELECT to_char(periodo,'YYYY-MM') AS k, excavacion, terraplen, subbase, base, noaprov
+      FROM proy_plan WHERE obra_id=${OBRA_ID} ORDER BY periodo`;
+  }
+}
+
 /* ---------- lectura de las 4 tablas ---------- */
 async function payload_(c, ses){
   const actas = await actas_(c);
-  const plan = await c.sql`SELECT to_char(periodo,'YYYY-MM-DD') AS periodo, excavacion, terraplen, subbase, base, noaprov,
-      formulas::text AS formulas, version, editado_por, to_char(editado_ts AT TIME ZONE ${ZONA_HORARIA},'YYYY-MM-DD HH24:MI') AS editado_ts
-    FROM proy_plan WHERE obra_id=${OBRA_ID} ORDER BY periodo`;
+  const plan = await planFilasCrudo_(c);
   const contrato = await c.sql`SELECT partida, uf, programado, produccion_base, orden, version, editado_por,
       to_char(editado_ts AT TIME ZONE ${ZONA_HORARIA},'YYYY-MM-DD HH24:MI') AS editado_ts
     FROM proy_contrato WHERE obra_id=${OBRA_ID} ORDER BY orden, partida, uf`;
@@ -182,7 +228,7 @@ async function payload_(c, ses){
     let formulas={};
     try{ const o=JSON.parse(r.formulas||'{}'); if(o && typeof o==='object' && !Array.isArray(o)) formulas=o; }catch(e){ formulas={}; }
     const f={ periodo:r.periodo };
-    PLAN_COLS.forEach(function(k){ f[k]=numOVacio_(r[k]); });
+    PLAN_COLS_TODOS.forEach(function(k){ f[k]=numOVacio_(r[k]); });
     f.formulas=formulas; f.acta=actaDePeriodo_(actas, r.periodo);
     f.version=Number(r.version||0); f.editado_por=txt_(r.editado_por); f.editado_ts=txt_(r.editado_ts);
     return f;
@@ -236,6 +282,10 @@ export async function proyeccionLeer(c, params, ses){
  *   proyectado  ← leerProyectado (CALCULOS P1:T1): suelto por equipo = rend × fc, en numeric (1105/585/455/611).
  *   contrato    ← CONTRATO; base_acum ← BASE_ACUM (UF1 + UF2 sumado en numeric; el préstamo aparte).
  *   base_corte  ← BASE_CORTE; fc ← FC_DEFECTO.
+ *   plan_hh     ← V3-22/D210: {'YYYY-MM': {excavacion, terraplen, subbase, base}} — meta MENSUAL de horas-hombre
+ *                 de personal DIRECTO por partida (worker/sql/013_meta_horas_hombre.sql); NULL = sin meta (nunca
+ *                 0 por defecto). Aparte de `plan` (que sigue igual): lo compara el Tablero contra `personal`
+ *                 (tablero_vivo.js). Sin 013 aplicada, sale con las 4 claves en null (degrada, no tumba nada).
  * `actualizado`/`usuario` = la última edición de cualquiera de las 4 tablas (hora de Bogotá; '' si nunca). */
 export async function proyeccionTablero(c, params, ses){
   try{ return json(c, await proyeccionTableroDatos_(c)); }
@@ -250,10 +300,15 @@ export async function proyeccionTableroDatos_(c){
   const baseCorte = baseCorte_(actas, par[0].acta_base);
   if(!baseCorte) return { ok:false, error:'No se pudo derivar el corte de la línea base (acta «'+txt_(par[0].acta_base)+'»).' };
 
-  const planF = await c.sql`SELECT to_char(periodo,'YYYY-MM') AS k, excavacion, terraplen, subbase, base, noaprov
-    FROM proy_plan WHERE obra_id=${OBRA_ID} ORDER BY periodo`;
+  const planF = await planTableroCrudo_(c);
   const plan = {};
-  planF.forEach(function(r){ const o={}; PLAN_COLS.forEach(function(k){ o[k]= r[k]==null ? 0 : Number(r[k]); }); plan[r.k]=o; });
+  // V3-22/D210: meta de horas-hombre por periodo, aparte del plan de m³ (`plan`, que no cambia de forma: sigue
+  // con NULL → 0 como siempre). NULL = sin meta (nunca 0 por defecto: 0 sería «meta cero», otra cosa).
+  const planHh = {};
+  planF.forEach(function(r){
+    const o={}; PLAN_COLS.forEach(function(k){ o[k]= r[k]==null ? 0 : Number(r[k]); }); plan[r.k]=o;
+    const h={}; HH_COLS.forEach(function(k){ h[k.slice(3)]= r[k]==null ? null : Number(r[k]); }); planHh[r.k]=h;
+  });
 
   const rend = await c.sql`SELECT r.partida, (r.rend_compacto_equipo * pa.fc) AS suelto
     FROM proy_rendimiento r JOIN proy_parametros pa ON pa.obra_id = r.obra_id
@@ -279,7 +334,7 @@ export async function proyeccionTableroDatos_(c){
     actualizado: ult.length ? txt_(ult[0].act) : '',
     usuario:     ult.length ? txt_(ult[0].por) : '',
     fc: Number(par[0].fc), acta_base: txt_(par[0].acta_base), base_corte: baseCorte,
-    plan: plan, proyectado: proyectado, contrato: contrato, base_acum: baseAcum
+    plan: plan, plan_hh: planHh, proyectado: proyectado, contrato: contrato, base_acum: baseAcum
   };
 }
 
@@ -337,8 +392,8 @@ function prevalidarPlan_(ch, op){
   const et = mesEtiqueta_(periodo);
   const e = { clave:periodo, periodo:periodo, etiqueta:'el periodo '+et, set:{}, vals:{}, poner:{}, quitar:[], hayAlgo:false };
   if(op==='baja') return e;
-  for(let j=0;j<PLAN_COLS.length;j++){
-    const k=PLAN_COLS[j];
+  for(let j=0;j<PLAN_COLS_TODOS.length;j++){
+    const k=PLAN_COLS_TODOS[j];
     if(ch[k]===undefined) continue;
     const r = numeroCelda_(ch[k], ETQ_PLAN[k]+' de '+et, true, PR_NUM_MAX);
     if(r.error) return r;
@@ -351,7 +406,7 @@ function prevalidarPlan_(ch, op){
     const ks = Object.keys(fo);
     for(let j=0;j<ks.length;j++){
       const k=ks[j];
-      if(PLAN_COLS.indexOf(k)<0) return { error:'Hay una fórmula en una columna que no existe («'+k+'») en '+et+'.' };
+      if(PLAN_COLS_TODOS.indexOf(k)<0) return { error:'Hay una fórmula en una columna que no existe («'+k+'») en '+et+'.' };
       const f=fo[k];
       if(f===null || f===undefined || f===''){ if(e.quitar.indexOf(k)<0) e.quitar.push(k); continue; }
       if(typeof f!=='string') return { error:'La fórmula de '+ETQ_PLAN[k]+' en '+et+' no es texto.' };
@@ -478,9 +533,12 @@ export async function proyeccionGuardar(c, body, ses){
         const e=escrituras[i];
         let r;
         if(e.tabla==='plan' && e.op==='alta'){
-          r = await sql`INSERT INTO proy_plan (obra_id, periodo, excavacion, terraplen, subbase, base, noaprov, formulas, version, editado_por, editado_ts)
+          r = await sql`INSERT INTO proy_plan (obra_id, periodo, excavacion, terraplen, subbase, base, noaprov,
+                    hh_excavacion, hh_terraplen, hh_subbase, hh_base, formulas, version, editado_por, editado_ts)
             VALUES (${OBRA_ID}, ${e.periodo}::date, ${v_(e,'excavacion')}::numeric, ${v_(e,'terraplen')}::numeric, ${v_(e,'subbase')}::numeric,
-                    ${v_(e,'base')}::numeric, ${v_(e,'noaprov')}::numeric, ${JSON.stringify(e.poner)}::text::jsonb,
+                    ${v_(e,'base')}::numeric, ${v_(e,'noaprov')}::numeric,
+                    ${v_(e,'hh_excavacion')}::numeric, ${v_(e,'hh_terraplen')}::numeric, ${v_(e,'hh_subbase')}::numeric, ${v_(e,'hh_base')}::numeric,
+                    ${JSON.stringify(e.poner)}::text::jsonb,
                     nextval('proy_plan_version_seq')::integer, ${usuario}, now())
             ON CONFLICT (obra_id, periodo) DO NOTHING RETURNING periodo`;
           if(!r.length) conflictos.push(conflicto_(e, 'duplicado'));   // D183: un periodo que ya existe NO cuenta como guardado
@@ -494,6 +552,10 @@ export async function proyeccionGuardar(c, body, ses){
               subbase    = CASE WHEN ${!!e.set.subbase}::boolean    THEN ${v_(e,'subbase')}::numeric    ELSE subbase    END,
               base       = CASE WHEN ${!!e.set.base}::boolean       THEN ${v_(e,'base')}::numeric       ELSE base       END,
               noaprov    = CASE WHEN ${!!e.set.noaprov}::boolean    THEN ${v_(e,'noaprov')}::numeric    ELSE noaprov    END,
+              hh_excavacion = CASE WHEN ${!!e.set.hh_excavacion}::boolean THEN ${v_(e,'hh_excavacion')}::numeric ELSE hh_excavacion END,
+              hh_terraplen  = CASE WHEN ${!!e.set.hh_terraplen}::boolean  THEN ${v_(e,'hh_terraplen')}::numeric  ELSE hh_terraplen  END,
+              hh_subbase    = CASE WHEN ${!!e.set.hh_subbase}::boolean    THEN ${v_(e,'hh_subbase')}::numeric    ELSE hh_subbase    END,
+              hh_base       = CASE WHEN ${!!e.set.hh_base}::boolean       THEN ${v_(e,'hh_base')}::numeric       ELSE hh_base       END,
               formulas   = (formulas - ${textoArrayPg_(e.quitar)}::text[]) || ${JSON.stringify(e.poner)}::text::jsonb,
               version = nextval('proy_plan_version_seq')::integer, editado_por=${usuario}, editado_ts=now()
             WHERE obra_id=${OBRA_ID} AND periodo=${e.periodo}::date AND version=${e.if_version} RETURNING periodo`;
@@ -523,7 +585,10 @@ export async function proyeccionGuardar(c, body, ses){
     });
   }catch(err){
     if(err instanceof _Rollback_){ /* conflictos: se responde abajo */ }
-    else if(esErrorDeDatos_(err) || esSinTablas_(err)) errBd = err;   // un CHECK que la prevalidación no vio (o sin 006): legible, nunca 500
+    // V3-22/D210: si 013 no está aplicada, INSERT/UPDATE del plan con hh_* falla en 42703 (aunque el cambio no
+    // tocara la meta: las 4 columnas van siempre en la sentencia). Mensaje legible, como el 42703 de `grupo` en
+    // flota.js (D190); nunca un 500. Cualquier otro dato inválido o BD sin 006: el camino de siempre.
+    else if(esSinColumnaHH_(err) || esErrorDeDatos_(err) || esSinTablas_(err)) errBd = err;
     else throw err;
   }
 
@@ -531,6 +596,7 @@ export async function proyeccionGuardar(c, body, ses){
   if(errBd){
     logMarcar_(c, 'rechazado', 'proyeccion: BD '+String(errBd.code||'')+' '+String(errBd.message||''));
     if(esSinTablas_(errBd)) return json(c, { ok:false, error:PR_SIN_TABLAS+' No se guardó nada.' });
+    if(esSinColumnaHH_(errBd)) return json(c, { ok:false, error:'Falta aplicar la migración 013_meta_horas_hombre.sql en la base de datos (meta de horas-hombre del Plan). No se guardó nada.' });
     return json(c, { ok:false, error:'La base de datos rechazó el guardado ('+String(errBd.message||errBd.code||'dato no válido')+'). No se guardó nada.' });
   }
   if(conflictos.length){
@@ -562,5 +628,6 @@ export const VAL_PROYECCION_CAMBIO = {
   if_version:['e',0,100000000],
   periodo:['t',10], partida:['t',20], uf:['t',5], acta_base:['t',10],
   excavacion:['n',-1e15,1e15], terraplen:['n',-1e15,1e15], subbase:['n',-1e15,1e15], base:['n',-1e15,1e15], noaprov:['n',-1e15,1e15],
+  hh_excavacion:['n',-1e15,1e15], hh_terraplen:['n',-1e15,1e15], hh_subbase:['n',-1e15,1e15], hh_base:['n',-1e15,1e15],
   programado:['n',-1e15,1e15], produccion_base:['n',-1e15,1e15], rend_compacto_equipo:['n',-1e15,1e15], fc:['n',-1e15,1e15]
 };

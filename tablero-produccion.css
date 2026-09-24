@@ -404,10 +404,11 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .franjaSel .tbtn{align-self:flex-start;}
 
 /* ---------- V3-16: horas del personal por actividad ---------- */
-.phH,.ph,.phC{display:grid;grid-template-columns:150px 92px 118px 1fr;gap:0 13px;align-items:center;}
+.phH,.ph{display:grid;grid-template-columns:150px 92px 118px 84px 84px 1fr;gap:0 13px;align-items:center;}
+.phC{display:grid;grid-template-columns:150px 92px 118px 1fr;gap:0 13px;align-items:center;}
 .phH{padding-bottom:6px;border-bottom:1px solid var(--border);
   font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
-.phH>div:nth-child(2),.phH>div:nth-child(3){text-align:right;}
+.phH>div:nth-child(2),.phH>div:nth-child(3),.phH>div:nth-child(4),.phH>div:nth-child(5){text-align:right;}
 .ph{margin-top:9px;}
 .ph .nm{font-size:13px;}
 .ph .num{font-size:13px;text-align:right;font-variant-numeric:tabular-nums;}
@@ -436,6 +437,9 @@ body{background:var(--bg);color:var(--text);font-size:14px;
   .ph .phBar,.phC .phBar{grid-column:1/4;}
   .ph.phTot{border-bottom:0;}
   .phC{padding-bottom:8px;}
+  /* V3-22/D210: meta/% cumplido se ocultan en móvil (mismo criterio que siempre: menos columnas, no una
+     tabla más chica); personas/día y horas-hombre siguen viéndose igual que antes de V3-22. */
+  .ph .meta,.ph .pct{display:none;}
 }
 
 /* Marca Galca (D170): logotipo horizontal (img/galca-logotipo.svg, texto en

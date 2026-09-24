@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Verificación — pantalla «Catálogos» (SOLO admin): catTablas/catLeer/catGuardar REALES del Worker sobre
- * Postgres en memoria (PGlite) con el esquema 001–013 (incluye 013_catalogos_auditoria.sql):
+ * Postgres en memoria (PGlite) con el esquema 001–014 (incluye 014_catalogos_auditoria.sql):
  *
  *   1 · Guard de rol: jefe y residente rechazados en las 3 acciones; admin lee cat_tablas.
  *   2 · cat_leer bandeja: filtro de fechas obligatorio + filtro de rango de PK (cruce de intervalos).

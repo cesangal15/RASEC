@@ -243,6 +243,13 @@ const COLS_DEF = {
     { k:'subbase',    etiqueta:'Subbase',    tipo:'num', edita:true, formula:true, max:1e9, ayuda:'m³ compactos' },
     { k:'base',       etiqueta:'Base',       tipo:'num', edita:true, formula:true, max:1e9, ayuda:'m³ compactos' },
     { k:'noaprov',    etiqueta:'No aprov.',  tipo:'num', edita:true, formula:true, max:1e9, ayuda:'m³ compactos de excavación NO aprovechable (ya va incluida en Excavación)' },
+    // V3-22/D210: meta MENSUAL de horas-hombre de personal DIRECTO, SOLO por partida (Excavación/Terraplén/
+    // Subbase/Base; agrupadas bajo un encabezado propio, pintarCab). El Tablero (bloque «Horas del personal»)
+    // la compara contra las horas-hombre reales de asistencia.
+    { k:'hh_excavacion', etiqueta:'Excavación', grupo:'Meta horas-hombre (personal directo)', tipo:'num', edita:true, formula:true, max:1e9, ayuda:'meta de horas-hombre de personal directo del mes (Excavación)' },
+    { k:'hh_terraplen',  etiqueta:'Terraplén',  grupo:'Meta horas-hombre (personal directo)', tipo:'num', edita:true, formula:true, max:1e9, ayuda:'meta de horas-hombre de personal directo del mes (Terraplén)' },
+    { k:'hh_subbase',    etiqueta:'Subbase',    grupo:'Meta horas-hombre (personal directo)', tipo:'num', edita:true, formula:true, max:1e9, ayuda:'meta de horas-hombre de personal directo del mes (Subbase)' },
+    { k:'hh_base',       etiqueta:'Base',       grupo:'Meta horas-hombre (personal directo)', tipo:'num', edita:true, formula:true, max:1e9, ayuda:'meta de horas-hombre de personal directo del mes (Base)' },
   ],
   contrato: [
     { k:'etiqueta',        etiqueta:'Partida',         tipo:'texto', edita:false, clave:true },
@@ -265,12 +272,12 @@ const COLS_DEF = {
   ],
 };
 // Campos que viajan al guardar (la lista blanca del servidor) — la clave va aparte.
-const CAMPOS = { plan:['excavacion','terraplen','subbase','base','noaprov'], contrato:['programado','produccion_base'],
-  rendimiento:['rend_compacto_equipo'], parametros:['fc','acta_base'] };
+const CAMPOS = { plan:['excavacion','terraplen','subbase','base','noaprov','hh_excavacion','hh_terraplen','hh_subbase','hh_base'],
+  contrato:['programado','produccion_base'], rendimiento:['rend_compacto_equipo'], parametros:['fc','acta_base'] };
 const ETQ_CONTRATO = { excavacion:'Excavación común', terraplen:'Terraplén', subbase:'Subbase', base:'Base (BTC)', prestamo:'Excavación préstamos' };
 const ETQ_REND = { excavacion:'Excavación', terraplen:'Terraplén', subbase:'Subbase', base:'Base' };
 const NOTAS = {
-  plan: 'm³ <b>compactos</b> por periodo 16→15; el periodo es el mes en que cierra (= el acta). <b>Excavación</b> es el total (aprovechable + préstamo + no aprovechable) y <b>No aprov.</b> ya va incluida en ella. El Tablero toma de aquí la meta de cada mes.',
+  plan: 'm³ <b>compactos</b> por periodo 16→15; el periodo es el mes en que cierra (= el acta). <b>Excavación</b> es el total (aprovechable + préstamo + no aprovechable) y <b>No aprov.</b> ya va incluida en ella. El Tablero toma de aquí la meta de cada mes. <b>Meta horas-hombre (personal directo)</b>: la meta mensual de horas-hombre de personal directo por partida (V3-22), sin cargo ni Transporte/Otras; el Tablero la compara contra las horas-hombre reales de asistencia.',
   contrato: '<b>Programado</b> = contrato y <b>Producción base</b> = lo certificado hasta el cierre del acta base, en m³ compactos por UF (el préstamo no tiene UF). El Tablero suma UF1 + UF2 (resumen abajo).',
   rendimiento: 'Rendimiento <b>compacto por equipo y día</b>. El Tablero usa el <b>proyectado suelto</b> = rend × FC como vara diaria; la vara por hora es rend ÷ 8.',
   parametros: '<b>FC</b> único de la obra (el que usa el Tablero para pasar de suelto a compacto). <b>Acta base</b>: la línea base es la producción certificada hasta el cierre de ese acta; el corte es el día siguiente.',
@@ -431,7 +438,8 @@ function pintarTodo(){
 
 /* ---------- ancho de columnas (arrastrable, se guarda en el navegador por pestaña) ---------- */
 const ANCHO_DEF = {
-  plan:        { periodo:110, acta:62, excavacion:130, terraplen:130, subbase:120, base:120, noaprov:120 },
+  plan:        { periodo:110, acta:62, excavacion:130, terraplen:130, subbase:120, base:120, noaprov:120,
+                 hh_excavacion:110, hh_terraplen:110, hh_subbase:100, hh_base:100 },
   contrato:    { etiqueta:210, uf:70, programado:160, produccion_base:170 },
   rendimiento: { etiqueta:170, rend_compacto_equipo:270, fc:80, suelto_equipo:270, vara_hora:140 },
   parametros:  { fc:230, acta_base:300, base_corte:210 },
@@ -453,6 +461,21 @@ function pintarCols(){
   const acc=cg.querySelector('col[data-acc]'); if(acc) acc.style.width='40px';
   const t=document.getElementById('tabla'); if(t) t.style.width=total+'px';
 }
+// Fila de grupo (V3-22/D210): encabezado tipo «Meta horas-hombre (personal directo)» encima de sus columnas
+// (c.grupo), con colspan; las columnas sin grupo van en blanco (misma cuenta de celdas que #cab, para que el
+// <colgroup> las alinee). Sin ninguna columna con `grupo` en la pestaña, la fila queda vacía (oculta por CSS).
+function pintarCabGrupo(){
+  const cg=document.getElementById('cabGrupo'); if(!cg) return;
+  let h='<th class="rownum"></th>', i=0, hayGrupo=false;
+  while(i<COLS.length){
+    const g=COLS[i].grupo;
+    if(!g){ h+='<th></th>'; i++; continue; }
+    let n=0; while(i+n<COLS.length && COLS[i+n].grupo===g) n++;
+    h+='<th colspan="'+n+'" class="th-grupo">'+esc(g)+'</th>'; i+=n; hayGrupo=true;
+  }
+  if(conBaja()) h+='<th class="rownum"></th>';
+  cg.innerHTML=h; cg.classList.toggle('vacia', !hayGrupo);   // fila fina y sin texto cuando ninguna columna tiene grupo
+}
 function pintarCab(){
   let h='<th class="rownum">#</th>';
   COLS.forEach(function(c){
@@ -461,6 +484,7 @@ function pintarCab(){
   });
   if(conBaja()) h+='<th class="rownum"></th>';
   document.getElementById('cab').innerHTML=h;
+  pintarCabGrupo();
   pintarCols();
 }
 
@@ -575,7 +599,8 @@ function pintarPie(){
     if(ci===0){ h+='<td class="pie-lbl" colspan="2">Total ('+VIS.length+' periodo'+(VIS.length===1?'':'s')+')</td>'; return; }
     if(ci===1) return;
     if(c.tipo!=='num'){ h+='<td></td>'; return; }
-    let s=0; VIS.forEach(function(r){ const n=numDe(r[c.k]); if(n!=null) s+=n; });
+    let s=0, hay=false; VIS.forEach(function(r){ const n=numDe(r[c.k]); if(n!=null){ s+=n; hay=true; } });
+    if(!hay){ h+='<td class="num"></td>'; return; }   // columna sin ningún valor (p. ej. metas HH sin cargar): pie vacío, no «0»
     h+='<td class="num"><div class="cv" title="Suma de la columna (no se guarda)">'+esc(C.fmtNum(C.limpio(s)))+'</div></td>';
   });
   if(conBaja()) h+='<td class="rownum acc"></td>';
