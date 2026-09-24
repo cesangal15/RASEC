@@ -50,7 +50,8 @@
 // de la API y se carga el PRIMERO; `entorno.js` deja de tener URLs y depende de él. Un teléfono sin
 // señal con el auth.js/entorno.js viejos y un HTML nuevo (orden de scripts cambiado, CSP sin
 // script.google.com) no arrancaría, o saldría a Google y la CSP lo frenaría. Por eso se sube.
-const CACHE_V = 'tm2-v14';  // v14: entra la pantalla de Catálogos (catalogos.html/.js/.css, solo admin)
+const CACHE_V = 'tm2-v15';  // v15: catalogos.html pasa a enlazar data.css (misma hoja que Revisión de DATA) → entra al precache.
+                            // v14: entra la pantalla de Catálogos (catalogos.html/.js/.css, solo admin)
                             //   al precache — su selector/columnas dependen de tema.js/esc() ya en caché.
                             // v13 (D176): entra el Parte Digital (parte.html/.js/.css) al precache y offline.js gana
                             //   `pendientes()` + tipo 'parte', de los que parte.js depende (cola sin señal por QR)
@@ -65,7 +66,7 @@ const PRECACHE = [
   './index.html', './index.js', './index.css',
   './seleccion-reporte.html', './seleccion-reporte.js', './seleccion-reporte.css',
   './menu.html', './menu.js', './menu.css',
-  './catalogos.html', './catalogos.js', './catalogos.css',
+  './catalogos.html', './catalogos.js', './catalogos.css', './data.css',   // data.css: la hoja de Catálogos la reutiliza
   './reporte-capataz.html', './reporte-capataz.js', './reporte-capataz.css',
   './reporte-chequeadora.html', './reporte-chequeadora.js', './reporte-chequeadora.css',
   './reporte-drenajes.html', './reporte-drenajes.js', './reporte-drenajes.css',
