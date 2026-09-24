@@ -1,0 +1,34 @@
+[
+ {
+  "query": "Llegó una excavadora nueva de EQUINORTE, la EXC031, entra el lunes al frente UF1-UF2. ¿Qué hay que hacer para que aparezca en el parte y en la chequeadora?",
+  "should_trigger": true
+ },
+ {
+  "query": "Necesito que angie también pueda ver y reportar la asistencia de UF3, ¿cómo le cambio las áreas?",
+  "should_trigger": true
+ },
+ {
+  "query": "Agrega la actividad 'Mejoramiento de subrasante' al formulario del capataz de tierras, va con el ítem 02.09 de la BASE",
+  "should_trigger": true
+ },
+ {
+  "query": "Hay un origen de material nuevo, Masivo 3 en el PK 23+100; la chequeadora tiene que poder elegirlo y la digitadora ver su PK",
+  "should_trigger": true
+ },
+ {
+  "query": "¿Cuántas volquetas hay hoy en la flota según el catálogo? solo dime el número",
+  "should_trigger": false
+ },
+ {
+  "query": "la placa TTX123 salió con 14 m³ por viaje en la bitácora del 20-sep y debería ser 16, ¿por qué pasó eso?",
+  "should_trigger": false
+ },
+ {
+  "query": "Revisa el código de flota.js y explícame cómo cae a la caché del teléfono cuando no hay señal",
+  "should_trigger": false
+ },
+ {
+  "query": "El Tablero muestra mal los colores de la partida Transporte en modo claro, se ve casi blanco",
+  "should_trigger": false
+ }
+]

@@ -1,0 +1,34 @@
+[
+ {
+  "query": "Quiero una pantalla nueva para que duvan vea el resumen semanal de horas de las cuadrillas de drenajes",
+  "should_trigger": true
+ },
+ {
+  "query": "En encargado.html agrega un botón para exportar la bandeja del día a CSV",
+  "should_trigger": true
+ },
+ {
+  "query": "Haz que residente-drenajes.html se vea en dos columnas en el PC como el panel del encargado, pero en el celular igual que ahora",
+  "should_trigger": true
+ },
+ {
+  "query": "El jefe también debe poder entrar a revision-maquinaria.html pero solo en modo lectura; ajusta la pantalla",
+  "should_trigger": true
+ },
+ {
+  "query": "El endpoint tablero_vivo tarda 3 segundos, optimiza la consulta SQL del pliegue en el Worker",
+  "should_trigger": false
+ },
+ {
+  "query": "¿Qué pantallas usa el residente de drenajes? solo lístalas",
+  "should_trigger": false
+ },
+ {
+  "query": "Cambia en el Worker la validación del payload de flota para aceptar el grupo 'uf3'",
+  "should_trigger": false
+ },
+ {
+  "query": "Ejecuta la conciliación de Asotranspa de la primera quincena de septiembre con las bases que te pasé",
+  "should_trigger": false
+ }
+]

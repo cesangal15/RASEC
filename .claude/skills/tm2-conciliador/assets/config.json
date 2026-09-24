@@ -1,0 +1,3 @@
+{
+  "_leeme": "PENDIENTE — la configuración vigente del conciliador vive en el navegador del dueño (localStorage 'conciliador_config_v1'): contratistas con sus alias y reglas de hojas, actaLayout, alias de columnas, áreas observadas, kmPorOrigen, ccPorMaterial, excluirUF3Manual, empresas vetadas. Se obtiene COMPLETA con el botón de la herramienta: ⚙ Configuración → Exportar (conciliador_config_<fecha>.json). Pasa ESE archivo con --config. Con este archivo (sin 'contratistas') la herramienta cae a su configSeed() de fábrica y conciliar.js lo avisa. No se copia aquí la semilla para no tener dos fuentes: se consulta con  node scripts/conciliar.js --lista-contratistas"
+}
