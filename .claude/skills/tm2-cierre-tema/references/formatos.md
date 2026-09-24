@@ -18,7 +18,7 @@ no números nuevos. Una D cerrada no se reescribe: una decisión posterior la **
 
 ## 03_BACKLOG.md: una fila por ítem, en su sección
 Tabla `| # | Ítem | Origen |`. Series vivas: `V3-xx` (V3 · Largo plazo) y `4.xx`. El siguiente número lo da `siguiente.js`.
-- Ítem nuevo: `| V3-25 | **<Título>.** Pedido del dueño (<fecha>): <qué y para qué>. | <origen: conversación / Dxx> |`
+- Ítem nuevo: `| V3-xx | **<Título>.** Pedido del dueño (<fecha>): <qué y para qué>. | <origen: conversación / Dxx> |`
 - Cierre de un ítem existente: se edita SU fila (no se crea otra) añadiendo `**Hecho (Dxxx).**` y en la última
   columna `✅ Hecho (Dxxx, <mes-año>) — pendiente <desplegar/publicar/validar>`.
 - Ejemplo real: `| V3-20 | **Revisión del Parte Digital para drenajes.** Pedido del dueño (22-sep): … **Hecho (D193).** |

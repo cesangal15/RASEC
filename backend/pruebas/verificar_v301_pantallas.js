@@ -424,7 +424,7 @@ const server=http.createServer((req,res)=>{
     const pg3=await pagina({width:1440,height:900}, { usuario:'admin', rol:'admin', tm2_token:tokenDe('admin','admin') });
     await pg3.goto(BASE+'/menu.html'); await pg3.waitForSelector('.tile');
     ok('menu.html: accesos a revision-maquinaria.html y parte.html en el grupo Maquinaria', await $(pg3,'a.tile[href="revision-maquinaria.html"]').count()===1 && await $(pg3,'a.tile[href="parte.html"]').count()===1 && await $(pg3,'.pc-g5 .group-label').count()===1);
-    ok('menú admin: 17 accesos (D194: Resumen/DATA/BASE/Proyección van por el Hub; sin modo prueba ni estado obsoleto)', await $(pg3,'a.tile').count()===17);
+    ok('menú admin: 18 accesos (D194: Resumen/DATA/BASE/Proyección van por el Hub; sin modo prueba ni estado obsoleto; entra Catálogos)', await $(pg3,'a.tile').count()===18);
     await pg3.screenshot({ path:path.join(OUT,'menu_1440.png'), fullPage:true });
     await pg3.context().close();
   }

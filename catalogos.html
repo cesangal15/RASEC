@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.galca.app; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogos</title>
+<meta name="theme-color" content="#f5a623">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="entorno.js"></script>
+<link rel="stylesheet" href="tema.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="catalogos.css">
+</head>
+<body>
+<div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
+  <div class="header-left">
+    <div class="label">Administración · solo admin</div>
+    <h1>🗄️ Catálogos</h1>
+  </div>
+  <div class="header-user">
+    <span id="userDisplay">—</span>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="irA('menu.html')">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="bloqueo" id="bloqueado" data-estilo="display:none;">
+  <p>Esta pantalla es solo para el rol <b>admin</b>. Tu sesión no tiene permiso para entrar aquí.</p>
+  <button class="btn primario" data-on-click="irA('menu.html')">← Volver al menú</button>
+</div>
+
+<div class="container" id="app">
+  <div class="intro" id="intro">
+    Edita y consulta las tablas de catálogo <b>directamente contra la base</b> (solo admin): elige la
+    tabla, filtra si aplica y pulsa <b>Buscar</b>. Se maneja tipo Excel: edición en la celda, selección
+    de rango (clic + <kbd>Shift</kbd>+clic), <b>copia/pega</b> desde y hacia Excel, <b>rellenar hacia
+    abajo</b> (<kbd>Ctrl</kbd>+<kbd>D</kbd>) y <b>deshacer</b> (<kbd>Ctrl</kbd>+<kbd>Z</kbd>) lo que no
+    hayas guardado. Cada guardado se valida en el servidor y es todo o nada.
+  </div>
+
+  <div class="toolbar sel-tabla">
+    <div class="f grow"><label>Tabla</label><select id="selTabla" data-on-change="verTabla(this.value)"></select></div>
+  </div>
+
+  <div class="toolbar" id="filtros"></div>
+
+  <div class="toolbar acciones">
+    <div class="f grow"><label>Buscar en lo cargado</label><input type="text" id="q" placeholder="filtra lo que ya se trajo…" data-on-input="pintar()"></div>
+    <button class="btn" id="btnAlta" data-on-click="altaFila()" data-estilo="display:none;">＋ Fila</button>
+    <button class="btn" data-on-click="rellenarAbajo()" title="Ctrl+D">Rellenar ↓</button>
+    <button class="btn" data-on-click="copiarSel(this)" title="Copia la selección (o todo lo visible)">📋 Copiar</button>
+    <button class="btn" data-on-click="copiarExcel(this)" title="Copia todo lo visible con cabeceras">📄 Copiar a Excel</button>
+    <button class="btn" data-on-click="recargar()">↻ Recargar</button>
+    <button class="btn primario" id="btnGuardar" data-on-click="guardar(this)" disabled>💾 Guardar <span class="n" id="nDirty">0</span></button>
+  </div>
+
+  <div id="avisos" class="avisos" data-estilo="display:none;"></div>
+
+  <div class="tabla-wrap">
+    <table id="tabla">
+      <thead><tr id="cab"></tr></thead>
+      <tbody id="cuerpo"><tr><td class="vacio">Elige una tabla.</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="leyenda">
+    <span class="lg dirty">■ sin guardar</span>
+    <span class="lg sel">■ selección</span>
+    <span class="lg error">■ error del servidor</span>
+    <span class="lg aviso">■ aviso (bandeja ya enviada a DATA)</span>
+  </div>
+</div>
+
+<script src="catalogos.js"></script>
+</body>
+</html>

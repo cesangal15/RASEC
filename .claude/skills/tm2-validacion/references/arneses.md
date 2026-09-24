@@ -30,6 +30,7 @@ todos quedaron así tras D170, cuando el JS pasó a `<pantalla>.js`, o tras D112
 | `verificar_v316_personal.mjs` | Horas del personal del tablero (directos, partidas) | OK |
 | `verificar_v319_depurar_items.mjs` · `verificar_v319b_tipos.mjs` | Depuración de `parte_items` (010) · tipos de equipo (011) | OK |
 | `verificar_v322_meta_hh.mjs` | Meta de horas-hombre (013) | OK |
+| `verificar_catalogos_admin.mjs` | Pantalla Catálogos: lista blanca de tablas, solo admin, concurrencia y auditoría (D211, 014) | (llegó después de la foto) |
 
 ## Backend Apps Script en `vm` y lógica de pantallas (`backend/pruebas/*.js`)
 | Arnés | Cubre | Estado 24-sep |
@@ -62,5 +63,6 @@ todos quedaron así tras D170, cuando el JS pasó a `<pantalla>.js`, o tras D112
 | `verificar_v301_pantallas.js` | `parte.html` + `revision-maquinaria.html` (y casos de otras) contra el backend en `vm` | OK (103) |
 | `verificar_d176_parte_offline.js` | Parte sin señal: cola, subida al volver, sin duplicar | OK |
 | `verificar_v315_v316_tablero.js` | Tablero: orden, escala de tiempo, horas del personal | OK |
+| `verificar_catalogos_pantalla.js` | `catalogos.html` en Chromium (D211) | (llegó después de la foto) |
 
 Sandbox manual: `node tools/sandbox/servidor.mjs` (guía en `tools/sandbox/README.md`).

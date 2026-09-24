@@ -4,7 +4,10 @@ Contenido: [A. Actividad de tierras](#a) · [B. Ítem de drenajes](#b) · [C. M�
 · [E. CC](#e) · [F. Usuario, rol y áreas](#f) · [G. Cubicaje](#g) · [Bloques para 05](#bloques)
 
 Leyenda de despliegue: **[datos]** = fila en Supabase, sin código y sin despliegue (con autorización del
-dueño, CLAUDE.md) · **[Pages]** = publicar el frontend · **[Worker]** = `wrangler deploy` · **[SQL]** =
+dueño, CLAUDE.md). Se edita en la pantalla **Catálogos** (`catalogos.html`, solo admin, D211): grilla tipo Excel
+con auditoría en `catalogo_auditoria`, que cubre `usuarios`, `base_items`, `cubicaje`, `fc_actividad`,
+`tablero_mapeo`, `parte_*`, `cuadrillas`, `cat_cc`, `config`… La flota (`maquinas`) sigue en Maquinaria › Flota y
+la BASE de subtramos en `grilla.html`. El Table Editor de Supabase queda como último recurso · **[Pages]** = publicar el frontend · **[Worker]** = `wrangler deploy` · **[SQL]** =
 migración idempotente con respaldo. Los `.gs` de `backend/` están **congelados** (el backend vivo es el
 Worker sobre Supabase). Las rutas son las de sep-2026: confírmalas con `scripts/donde_aparece.js`.
 
@@ -84,8 +87,8 @@ Reglas: D63 (CC = proyecto + ítem, por PK), D68, D181 (se edita en la fuente y 
 Reglas: D108 (hoja/tabla `usuarios`), D109 (token con usuario·rol·áreas), D84 (`areas`), D116/D119
 (`areasEfectivas`), D145 (reactivar), D178 (revisión del parte por usuario).
 - **Usuario nuevo con rol existente** = fila en `usuarios`: `usuario · clave · rol · areas · redirige · estado`
-  **[datos]**. La `clave` va como SHA-256 hex de `usuario:clave`; nunca en claro en producción y nunca en
-  el repo ni en el chat. `areas`: lista separada por comas (`tierras,odt,odl,uf3`) que viaja en el token y
+  **[datos]**, desde Catálogos › Usuarios (D211). La clave se escribe en `clave_nueva` y el servidor guarda el
+  hash SHA-256 de `usuario:clave`; la clave no sale nunca al cliente. Nunca va en el repo ni en el chat. `areas`: lista separada por comas (`tierras,odt,odl,uf3`) que viaja en el token y
   que usan las pantallas de obra (p. ej. `reporte-drenajes.js`). `redirige`: la pantalla de entrada.
   - **Baja** = `estado` ≠ `activo`. No se borra la fila, porque el histórico queda con su nombre en `reporta`.
   - Capataz de tierras: `CAPATACES_ESPERADOS` en `encargado.js`. Drenajes: `CAPATACES_ESPERADOS_POR_AREA`

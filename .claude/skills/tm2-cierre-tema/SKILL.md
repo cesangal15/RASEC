@@ -50,4 +50,4 @@ de cada documento y comprueba que no quede nada desincronizado.
 ## Nota sobre 04/05
 CLAUDE.md limita el cierre a 02/03/PROJECT_CONTEXT. Este skill añade 04 y 05 **solo cuando hay deriva**
 (pantalla, endpoint, tabla o catálogo que esos documentos listan), tal como lo pidió el dueño al crearlo
-(D211). Todo lo demás de `docs/` no se toca.
+(D212). Todo lo demás de `docs/` no se toca.

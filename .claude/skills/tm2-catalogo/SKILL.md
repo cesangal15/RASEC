@@ -6,7 +6,7 @@ description: "[A · automático] Procedimiento para dar de alta, cambiar o dar d
 # Cambios de catálogo
 
 El catálogo tiene **dos naturalezas**, y confundirlas es el error típico:
-- **Dato vivo** (Supabase, editado desde pantallas o el Table Editor): BASE/`base_items`, `maquinas`,
+- **Dato vivo** (Supabase, editado desde pantallas: **Catálogos**, solo admin, D211; Maquinaria › Flota; `grilla.html`): BASE/`base_items`, `maquinas`,
   `parte_equipos`, `parte_items`, `usuarios`, `cubicaje`, `fc_actividad`, `tablero_mapeo`… Un alta es una fila:
   **sin código ni despliegue** (D113b, D138/D139, D108, D181). Escribir en producción pide autorización
   del dueño (CLAUDE.md, «Límites de autonomía»).
