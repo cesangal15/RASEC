@@ -175,7 +175,7 @@ const server=http.createServer((req,res)=>{
   {
     const { pg, llamadas } = CTX;
     await abrir(pg);
-    ok('enlaza data.css (misma hoja que Revisión de DATA) y el contenedor usa su ancho', (await $(pg,'link[href="data.css"]').count())===1 && await pg.evaluate(()=>getComputedStyle(document.querySelector('.container')).maxWidth==='1480px'));
+    ok('enlaza data.css (misma hoja que Revisión de DATA) y ocupa TODO el ancho, sin recuadro de texto (como DATA en el Panel de Obra)', (await $(pg,'link[href="data.css"]').count())===1 && await pg.evaluate(()=>getComputedStyle(document.querySelector('.container')).maxWidth==='none' && getComputedStyle(document.getElementById('intro')).display==='none'));
     ok('el panel de admin se ve (sin bloqueo)', await $(pg,'#app').isVisible() && !(await $(pg,'#bloqueado').isVisible()));
     ok('los 5 grupos entran como <optgroup> con la etiqueta del servidor', (await $(pg,'#selTabla optgroup').count())===5 && (await $(pg,'#selTabla optgroup[label="Registros"] option[value="bandeja"]').count())===1);
     ok('bandeja se carga sola con 2 filas y el contador «2 filas»', (await $(pg,'#cuerpo tr[data-fila]').count())===2 && (await $(pg,'#kFilas').textContent())==='2');
@@ -185,7 +185,9 @@ const server=http.createServer((req,res)=>{
     const leer=llamadas.filter(l=>l.accion==='cat_leer').pop(); const f=JSON.parse(leer.filtros||'{}');
     ok('cat_leer manda filtros planos con desde = hoy−6 y hasta = hoy (chip «7 días» encendido)', leer.tabla==='bandeja' && f.hasta===hoy && f.desde<hoy && (await $(pg,'#rapidos .chip.on').textContent())==='7 días', f);
     ok('chips Hoy/Ayer/Esta semana/7 días y Consultar visibles', (await $(pg,'#rapidos .chip').count())===4 && await $(pg,'#btnConsultar').isVisible());
-    ok('filtros de servidor propios (Reporta, Área, Estado, PK desde) en su fila', await $(pg,'#srvExtra').isVisible() && (await $(pg,'#srvExtra [data-filtro]').count())===4);
+    ok('filtros ocultos al entrar (la hoja aprovecha el alto): «Mostrar filtros»', !(await $(pg,'#srvExtra').isVisible()) && /^Mostrar filtros/.test(await $(pg,'#btnFiltrosToggle').textContent()));
+    await $(pg,'#btnFiltrosToggle').click();
+    ok('«Mostrar filtros» abre los filtros de servidor propios (Reporta, Área, Estado, PK desde)', await $(pg,'#srvExtra').isVisible() && (await $(pg,'#srvExtra [data-filtro]').count())===4);
     ok('bandeja no admite altas: «＋ Fila» oculto', !(await $(pg,'#btnAlta').isVisible()));
   }
 

@@ -106,6 +106,7 @@ function verTabla(id){
   FILAS=[]; VIS=[]; ERRORES={}; AVISOS={}; TRUNCADO=false; act=anc=editando=null; undoStack=[]; redoStack=[]; actualizarUndoBtns();
   ordCol=-1; quitarFiltros(); FILTROS=[];
   document.getElementById('descTabla').textContent=(META && META.descripcion) ? ((META.titulo||id)+': '+META.descripcion) : '';
+  document.getElementById('selTabla').title=(META && META.descripcion) ? ((META.titulo||id)+': '+META.descripcion) : '';
   document.getElementById('btnAlta').style.display=(PUEDE_EDITAR && META && META.alta)?'inline-flex':'none';
   pintarSrv(); montarFiltrosCols(); pintarCab(); pintarAvisos();
   document.getElementById('cuerpo').innerHTML='<tr><td class="vacio" colspan="'+(COLS.length+2)+'">Cargando…</td></tr>';
@@ -854,9 +855,14 @@ function montarRapidos(){
 }
 
 /* ---------- ocultar filtros (como DATA V3-17; se recuerda aparte) ---------- */
-function filtrosOcultosGuardado(){ try{ return localStorage.getItem('tm2_cat_filtros_ocultos')==='1'; }catch(e){ return false; } }
+// Por defecto OCULTOS (pedido del dueño: que la hoja aproveche el alto); se recuerda lo que elija con el botón.
+function filtrosOcultosGuardado(){ try{ return localStorage.getItem('tm2_cat_filtros_ocultos')!=='0'; }catch(e){ return true; } }
 function guardarFiltrosOcultos(v){ try{ localStorage.setItem('tm2_cat_filtros_ocultos', v?'1':'0'); }catch(e){} }
-function filtrosAplicadosN(){ const q=document.getElementById('q'); return FILTROS.filter(function(f){ return FSEL[f.id] && FSEL[f.id].size>0; }).length + ((q && q.value.trim())?1:0); }
+function filtrosAplicadosN(){
+  const q=document.getElementById('q');
+  const srv=FILTROS_DEF.filter(function(f){ return f.tipo!=='fecha' && String(FILTROS_VAL[f.id]||'').trim()!==''; }).length;   // bandeja: PK, reporta… (van con Consultar)
+  return FILTROS.filter(function(f){ return FSEL[f.id] && FSEL[f.id].size>0; }).length + ((q && q.value.trim())?1:0) + srv;
+}
 function estaFiltrosOculto(){ const f=document.getElementById('filtros'); return !!(f && f.classList.contains('oculto')); }
 function actualizarBtnFiltros(){
   const b=document.getElementById('btnFiltrosToggle'); if(!b) return;
