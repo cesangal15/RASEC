@@ -1,0 +1,11 @@
+{
+  "_comentario": "PLANTILLA (el repo es público: aquí NO van nombres ni teléfonos reales). El archivo real vive fuera del repo, en C:\\GALCA\\conciliacion\\privado\\participantes.json, y se pasa a chats.py con --participantes. Mapa autor (tal como aparece en el chat exportado) -> rol. La clave se busca por CONTIENE (sin mayúsculas ni tildes) contra el autor de cada mensaje. Rol DESCONOCIDO si no hay coincidencia: el skill pregunta al dueño en vez de adivinar. NOSOTROS/UF3/PUENTES/TM1/ASFALTOS piden volquetas (pedidos); PROVEEDOR responde con placas.",
+  "participantes": [
+    {"clave": "Tú", "rol": "NOSOTROS", "nombre": "El dueño (su propio número)"},
+    {"clave": "Residente Uf1-2", "rol": "NOSOTROS", "nombre": "Residente UF1-2"},
+    {"clave": "Jefe UF3", "rol": "UF3", "nombre": "Jefe de UF3"},
+    {"clave": "+57 300 0000000", "rol": "PUENTES", "nombre": "Quien pide para puentes"},
+    {"clave": "Asfaltos", "rol": "ASFALTOS", "nombre": "Área de asfaltos"},
+    {"clave": "+57 300 0000001", "rol": "PROVEEDOR", "nombre": "Coordinador(a) del contratista", "empresa": "Contratista X"}
+  ]
+}
