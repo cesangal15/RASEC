@@ -45,3 +45,10 @@
   .lg.aviso::before{background:var(--warn);}
 
   @media(max-width:640px){ .toolbar .f.alto select{max-width:200px;} .filtros.srv .sf input{width:100px;} }
+
+  /* Espacio (24-sep, pedido del dueño): la hoja ocupa todo el ancho, como DATA dentro del Panel de Obra (html.embed de data.css),
+     y el texto de ayuda sale del recuadro (vive en el panel de atajos ⌨ y en el title del selector de tabla). */
+  .container{max-width:none;padding:8px 12px;}
+  .intro{display:none;}
+  .atajos .ayuda{margin:0 0 10px;color:var(--muted);line-height:1.5;}
+  .atajos .ayuda b{color:var(--text);}
