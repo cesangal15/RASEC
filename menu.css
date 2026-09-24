@@ -64,6 +64,7 @@
     .pc-g3{grid-column:span 6;}
     .pc-g4{grid-column:span 12;}
     .pc-g5{grid-column:span 12;}   /* D165: parte digital de maquinaria */
+    .pc-g6{grid-column:span 12;}   /* Administración: catálogos (admin) */
 
     /* etiqueta de área como cabecera de panel */
     .pc-group .group-label{
@@ -79,6 +80,7 @@
     .pc-g2 .pc-tiles,.pc-g3 .pc-tiles{grid-template-columns:1fr;}
     .pc-g4 .pc-tiles{grid-template-columns:1fr 1fr;}
     .pc-g5 .pc-tiles{grid-template-columns:1fr 1fr;}
+    .pc-g6 .pc-tiles{grid-template-columns:1fr;}
 
     /* accesos dentro del panel: fondo propio, riel de acento y chip de ícono */
     .pc-group .tile{margin:0;background:var(--surface2);position:relative;overflow:hidden;padding-left:22px;}
