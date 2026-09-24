@@ -30,7 +30,7 @@ const PERIODO_PISO = '2025-06';                // MAPEO!B19: piso de DATOS!C (pe
 /* D209: primer período que MUESTRA el Tablero. jun y jul-2025 solo traían horas de máquina, sin producción
    (restos de antes de que se llevara orden): el dueño los quitó. No toca el avance contra el contrato, que
    suma desde su propio corte (base_corte de la Proyección), ni borra nada de la DATA ni de los partes.
-   D212: tampoco ago-2025 — sus valores de origen no tienen sentido; el Tablero arranca en sep-2025. */
+   D214: tampoco ago-2025 — sus valores de origen no tienen sentido; el Tablero arranca en sep-2025. */
 const PERIODO_DESDE = '2025-09';
 const DESDE = '2025-08';                        // arranque histórico (ya no se usa en el avance)
 /* CONTRATO TOTAL de la obra, en m³ compactos (cuadro «Programado» del jefe, UF1+UF2).
@@ -499,7 +499,7 @@ function construir(wbProd, wbMaq, proy){
   const H = horasDe(wbMaq);
   const pers = [...new Set(dias.map(d=>d.p).concat(vivo
     ? H.partes.map(x=>x.p).filter(p=>p >= PERIODO_PISO) : []))]
-    .filter(p=>p >= PERIODO_DESDE).sort();                  // D209/D212: ni jun, ni jul, ni ago-2025
+    .filter(p=>p >= PERIODO_DESDE).sort();                  // D209/D214: ni jun, ni jul, ni ago-2025
   const porPer = {}; for (const p of pers) porPer[p] = [];
   for (const d of dias) if (porPer[d.p]) porPer[d.p].push(d);
   for (const p of pers) porPer[p].sort((a,b)=> a.f < b.f ? -1 : 1);

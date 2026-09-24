@@ -1,0 +1,34 @@
+[
+ {
+  "query": "Listo, así queda: el tablero arranca en ago-2025 y no se borra nada de la DATA. Cierra el tema y déjame los bloques para los docs.",
+  "should_trigger": true
+ },
+ {
+  "query": "ya validé en banco lo de la meta de horas-hombre, 24/24 en verde. Prepara el commit final de la rama con la documentación que toque",
+  "should_trigger": true
+ },
+ {
+  "query": "Decidido con el jefe: la revisión de partes muestra todos los CC de la BASE ordenados por UF, no solo los usados. Regístralo como corresponde.",
+  "should_trigger": true
+ },
+ {
+  "query": "El dueño aprobó que el residente de drenajes administre solo la flota de su grupo; el cambio ya está hecho y probado. Queda cerrado, ¿qué hay que actualizar en los docs?",
+  "should_trigger": true
+ },
+ {
+  "query": "¿Qué dice la D185 sobre el avance del contrato? no me acuerdo si suma la DATA desde el corte o desde el inicio",
+  "should_trigger": false
+ },
+ {
+  "query": "Estoy pensando si conviene que el tablero muestre también UF3, ¿qué opinas? todavía no decido nada, solo quiero ideas",
+  "should_trigger": false
+ },
+ {
+  "query": "Busca en el registro de decisiones todas las que mencionan el cubicaje y resúmemelas en una tabla",
+  "should_trigger": false
+ },
+ {
+  "query": "arregla el typo en el título de la pantalla de proyección, dice 'Proyecion'",
+  "should_trigger": false
+ }
+]

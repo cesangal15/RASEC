@@ -12,10 +12,12 @@
  *   GET  ?action=data_csv | proyeccion_csv   NO llegan aquí: index.js (servirCsv, D187) los atiende ANTES de la puerta con
  *                                        la CLAVE DE LECTURA del Excel maestro (CLAVE_LECTURA_EXCEL) → obra/data_csv.js
  *   GET  (resto)                         TOKEN (puerta_ action||'ping') → lectura / flota / data / maquinaria
- *                                        (proyeccion y proyeccion_tablero reciben además la sesión: V3-11 / D183)
+ *                                        (proyeccion y proyeccion_tablero reciben además la sesión: V3-11 / D183;
+ *                                        cat_tablas/cat_leer también — pantalla Catálogos, SOLO admin)
  *   POST {action:'login'}                PÚBLICO (aún no hay token, D108) → auth.js login_
  *   POST {action:'enviar_data'|…}        TOKEN (puerta_ action||'reporte') → validarPayloadObra_ + handler
- *                                        (D185: tablero_horas_guardar = las horas del libro de partes, admin/jefe)
+ *                                        (D185: tablero_horas_guardar = las horas del libro de partes, admin/jefe;
+ *                                        cat_guardar = pantalla Catálogos, SOLO admin)
  *   POST (sin action reconocida)         TOKEN → guardarReporte (reporte de capataz/chequeadora, L1132)
  *
  * Los handlers de escritura reciben la sesión de puerta_ como 3er argumento (ses={ok,usuario,rol,tolerado});
@@ -45,6 +47,7 @@ import { gridLeer, gridGuardar, VAL_OBRA_GRID, VAL_OBRA_GRID_CAMBIO } from './ob
 import { dataGridLeer, dataGridGuardar, VAL_DATA_GRID, VAL_DATA_GRID_CAMBIO } from './obra/datagrid.js';  // V3-08b / D181
 import { proyeccionLeer, proyeccionTablero, proyeccionGuardar, VAL_PROYECCION, VAL_PROYECCION_CAMBIO } from './obra/proyeccion.js';  // V3-11 / D183
 import { tableroVivoLeer, tableroHorasGuardar, VAL_MAX_HORAS_CHARS } from './obra/tablero_vivo.js';  // V3-11 Fases B+C / D185
+import { catTablas, catLeer, catGuardar, VAL_OBRA_CAT, VAL_OBRA_CAT_CAMBIO } from './obra/catalogos_admin.js';  // pantalla Catálogos (solo admin)
 
 /* ---------- esquemas D166 que solo usa el router (Codigo.gs L2953–L2964) ---------- */
 const VAL_OBRA_FLOTA = {
@@ -68,6 +71,8 @@ function validarPayloadObra_(c, body){
      || valListaDe_(body.nuevas, VAL_OBRA_NUEVA, 'nuevas', 300);
   } else if(a==='flota_guardar'){
     f = valEsquema_(body, VAL_OBRA_FLOTA, '') || valEsquema_(body.clave, VAL_OBRA_FLOTA_CLAVE, 'clave');
+  } else if(a==='cat_guardar'){
+    f = valEsquema_(body, VAL_OBRA_CAT, '') || valListaDe_(body.cambios, VAL_OBRA_CAT_CAMBIO, 'cambios', 1000);   // pantalla Catálogos
   } else if(a==='grid_guardar'){
     f = valEsquema_(body, VAL_OBRA_GRID, '') || valListaDe_(body.cambios, VAL_OBRA_GRID_CAMBIO, 'cambios', 500);   // V3-08 / D181
   } else if(a==='data_grid_guardar'){
@@ -119,6 +124,8 @@ export async function obraDoGet_(c, params){
   if(a==='volquetas')            return volquetasDelDia(c, params);
   if(a==='drenajes')             return drenajesCatalogo(c);
   if(a==='tramos')               return tramosCatalogo(c);       // D104: subtramos del eje para el selector
+  if(a==='cat_tablas')           return catTablas(c, params, ses);  // pantalla Catálogos (solo admin)
+  if(a==='cat_leer')             return catLeer(c, params, ses);    // pantalla Catálogos (solo admin)
   if(a==='grid')                 return gridLeer(c, params);     // V3-08 / D181: grilla editable de catálogos
   if(a==='data_grid')            return dataGridLeer(c, params); // V3-08b / D181: revisión editable de DATA
   if(a==='proyeccion')           return proyeccionLeer(c, params, ses);    // V3-11 / D183: las 4 tablas + puede_editar (servidor)
@@ -147,6 +154,7 @@ export async function obraDoPost_(c, body){
   if(body.action==='enviar_data')            return enviarData(c, body, ses);
   if(body.action==='maquinaria_produccion')  return maquinariaProduccionGuardar(c, body, ses);
   if(body.action==='flota_guardar')          return flotaGuardar(c, body, ses);   // D139: alta/baja de máquinas
+  if(body.action==='cat_guardar')            return catGuardar(c, body, ses);     // pantalla Catálogos (solo admin)
   if(body.action==='grid_guardar')           return gridGuardar(c, body, ses);    // V3-08 / D181: guarda la grilla
   if(body.action==='data_grid_guardar')      return dataGridGuardar(c, body, ses); // V3-08b / D181: guarda DATA
   if(body.action==='proyeccion_guardar')     return proyeccionGuardar(c, body, ses); // V3-11 / D183: guarda la Proyección (admin/jefe)
