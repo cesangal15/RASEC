@@ -1,0 +1,5 @@
+{
+  "_leeme": "Configuración del reparto con la MISMA forma que la herramienta guarda en el navegador (localStorage 'tm2_reparto_cfg_v1', D148). Solo van aquí los valores que NO se pueden conocer desde el código; lo que falte lo pone la propia herramienta con sus valores de fábrica (inputs de Reparto_Produccion_Maquinaria.html + MAQUINAS_PROPIAS/MAPA_ACTIVIDAD de su .js). Un valor con la palabra PENDIENTE se ignora y se usa el de fábrica, con aviso. Para reemplazar este archivo por el tuyo: abre la herramienta en tu navegador, F12 → Consola → copy(localStorage.getItem('tm2_reparto_cfg_v1')) y pega el resultado aquí. Ver lo que se usaría: node scripts/reparto.js --volcar-config --config=assets/config.json",
+  "propias": "PENDIENTE — lista de máquinas que entran al reparto, una línea por ESTANCIA («COD:AAAA-MM-DD..AAAA-MM-DD // nota», D143). La de fábrica (MAQUINAS_PROPIAS) es de ago-2026 y no trae la flota posterior (D173): exporta la de tu navegador.",
+  "soloHorasMaq": "PENDIENTE — máquinas que solo aportan horas y no reciben producción (vacío = todas reparten). Confirmar si tu navegador tiene alguna."
+}

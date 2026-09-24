@@ -48,7 +48,7 @@
   --c-par:oklch(0.62 0.055 240); --c-par-b:oklch(0.44 0.06 240);
   --c-llu:oklch(0.30 0.06 250); --c-llu-b:oklch(0.30 0.06 250);
   /* alto de las dos zonas de gráfico; el JS usa los mismos números */
-  --altoEvo:132px; --altoDia:214px;
+  --altoEvo:200px; --altoDia:290px;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-tema="claro"]){
@@ -121,8 +121,8 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 
 /* ---------- zonas de gráfico ---------- */
 .plot,.plot3{display:grid;gap:0 12px;align-items:end;}
-.plot{grid-template-columns:58px 1fr;}
-.plot3{grid-template-columns:58px 1fr 46px;}
+.plot{grid-template-columns:70px 1fr;}
+.plot3{grid-template-columns:70px 1fr 56px;}
 /* Sin esto la columna 1fr no encoge por debajo del ancho «natural» de la tira
    de barras, y en el móvil la página se salía por la derecha. */
 .plot>*,.plot3>*{min-width:0;}
@@ -132,9 +132,9 @@ body{background:var(--bg);color:var(--text);font-size:14px;
   .plot{grid-template-columns:44px 1fr;}
   .plot3{grid-template-columns:44px 1fr 34px;}
 }
-.ymax{font-size:10.5px;color:var(--muted);text-align:right;padding-bottom:3px;line-height:1.25;
+.ymax{font-size:13px;font-weight:600;color:var(--muted);text-align:right;padding-bottom:3px;line-height:1.25;
   font-variant-numeric:tabular-nums;}
-.ymax span{display:block;font-size:9.5px;}
+.ymax span{display:block;font-size:11px;font-weight:400;}
 .bars{display:flex;align-items:flex-end;gap:6px;}
 /* Solo la tira de evolución, que cuelga DIRECTAMENTE de .plot. La diaria vive
    dentro de .zona y toma de ella su altura: sin el `>` esta regla se la comía
@@ -145,13 +145,13 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .col{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;gap:1.5px;}
 .col i{flex:1;min-width:0;display:block;position:relative;transition:height .9s cubic-bezier(.2,.85,.25,1);}
 .xlab{display:flex;gap:6px;padding-top:4px;}
-.xlab>span{flex:1;min-width:0;text-align:center;font-size:10.5px;color:var(--muted);cursor:pointer;
+.xlab>span{flex:1;min-width:0;text-align:center;font-size:13px;color:var(--text);cursor:pointer;
   border-top:2px solid transparent;padding-top:4px;overflow:hidden;white-space:nowrap;
   font-variant-numeric:tabular-nums;}
 .xlab>span.sel{color:var(--text);font-weight:700;border-top-color:var(--text);}
 .leyenda{display:flex;gap:18px;flex-wrap:wrap;}
-.leyenda .it{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
-.leyenda .sw{width:11px;height:11px;flex:none;}
+.leyenda .it{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--text);}
+.leyenda .sw{width:14px;height:14px;flex:none;}
 
 /* El valor de CADA barra, escrito en vertical DENTRO de ella: así se ve de un
    vistazo a qué partida pertenece cada cifra, que era el problema de la tabla
@@ -159,9 +159,9 @@ body{background:var(--bg);color:var(--text);font-size:14px;
    Si la barra es demasiado corta para el número, la etiqueta sale JUSTO ENCIMA
    en color apagado, en vez de desbordarse por dentro y quedar ilegible. */
 .col i>b{position:absolute;left:50%;transform:translateX(-50%) rotate(180deg);
-  writing-mode:vertical-rl;font-weight:500;font-size:8px;line-height:1;
+  writing-mode:vertical-rl;font-weight:700;font-size:var(--fsBar,11.5px);line-height:1;
   font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none;
-  letter-spacing:-.2px;}
+  letter-spacing:-.1px;}
 .col i>b.dentro{bottom:3px;}
 .col i>b.fuera{bottom:100%;margin-bottom:2px;color:var(--mut);}
 /* En pantalla estrecha las cifras dentro de las barras se retiran. Con 16 meses
@@ -185,20 +185,20 @@ body{background:var(--bg);color:var(--text);font-size:14px;
    diferencia — por eso el eje va rotulado con sus marcas y declarado en la
    leyenda. Una segunda escala sin rótulo es una trampa; rotulada es una lupa. */
 .eje{position:relative;height:var(--altoDia);}
-.eje>b{position:absolute;right:0;font-size:9.5px;font-weight:400;color:var(--muted);
+.eje>b{position:absolute;right:0;font-size:12px;font-weight:400;color:var(--muted);
   font-variant-numeric:tabular-nums;transform:translateY(-50%);white-space:nowrap;}
 .bajo{display:flex;flex-direction:column;gap:6px;padding-top:5px;}
-.climaT{font-size:11px;color:var(--muted);padding-top:6px;}
+.climaT{font-size:13px;color:var(--muted);padding-top:6px;}
 .clima{display:flex;gap:6px;}
 .clima>span{flex:1;min-width:0;height:12px;border:1px solid var(--border);}
 .c-sol{background:var(--c-sol);border-color:var(--c-sol-b);}
 .c-par{background:var(--c-par);border-color:var(--c-par-b);}
 .c-llu{background:var(--c-llu);border-color:var(--c-llu-b);}
 .c-nd{background:repeating-linear-gradient(135deg,var(--rule) 0 3px,transparent 3px 6px);}
-.leg{display:flex;gap:20px;align-items:center;font-size:11.5px;color:var(--muted);
+.leg{display:flex;gap:20px;align-items:center;font-size:13.5px;color:var(--muted);
   padding-top:6px;flex-wrap:wrap;}
 .leg .it{display:flex;align-items:center;gap:7px;}
-.leg .sw{width:18px;height:12px;border:1px solid var(--border);flex:none;}
+.leg .sw{width:20px;height:14px;border:1px solid var(--border);flex:none;}
 
 /* ---------- cadena «Por qué vamos así» ----------
    Cinco columnas: actividad · horas · utilización · eficiencia · velocidad. Los
@@ -364,12 +364,12 @@ body{background:var(--bg);color:var(--text);font-size:14px;
    día por celda, con su color de clima y el número del día. Único selector de
    la diaria/personal (las barras grandes ya no clican, solo tooltip). */
 .escalaWrap{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
-.escalaT{font-size:11px;color:var(--muted);}
+.escalaT{font-size:13px;color:var(--muted);}
 .escala{display:flex;gap:2px;touch-action:pan-y;}
-.ecell{flex:1;min-width:0;height:30px;display:flex;align-items:center;justify-content:center;
+.ecell{flex:1;min-width:0;height:36px;display:flex;align-items:center;justify-content:center;
   cursor:pointer;border:1px solid var(--border);box-sizing:border-box;user-select:none;
   -webkit-user-select:none;}
-.ecell .num{font-size:10px;font-variant-numeric:tabular-nums;pointer-events:none;}
+.ecell .num{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;pointer-events:none;}
 .ecell.c-sol{background:var(--c-sol-b);}
 .ecell.c-sol .num{color:#241a08;}
 .ecell.c-par{background:var(--c-par-b);}
@@ -396,11 +396,11 @@ body{background:var(--bg);color:var(--text);font-size:14px;
    colores/orden que la leyenda) · clima de los días · botón para quitar el filtro. */
 .franjaSel{display:flex;flex-direction:column;gap:8px;}
 .franjaSel:empty{display:none;}
-.selTit{font-size:13px;font-weight:700;}
+.selTit{font-size:16px;font-weight:700;}
 .selTots{display:flex;gap:18px;flex-wrap:wrap;}
-.selTots .it{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);}
-.selTots .sw{width:11px;height:11px;flex:none;}
-.selClima{font-size:11.5px;color:var(--muted);}
+.selTots .it{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--text);}
+.selTots .sw{width:14px;height:14px;flex:none;}
+.selClima{font-size:13.5px;color:var(--muted);}
 .franjaSel .tbtn{align-self:flex-start;}
 
 /* ---------- V3-16: horas del personal por actividad ---------- */

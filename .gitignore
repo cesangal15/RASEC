@@ -13,3 +13,6 @@ respaldo_data_*.csv
 # MCP local: lleva el project_ref de Supabase, que el repo público no expone.
 # Se copia a cada worktree vía .worktreeinclude
 .mcp.json
+
+# Paquetes .zip de los skills (.claude/skills) para subir a claude.ai: se regeneran, nunca al repo
+skills_zip/

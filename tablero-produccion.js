@@ -29,8 +29,9 @@ const FC_DEFECTO = 1.3;                         // suelto -> compacto (CALCULOS)
 const PERIODO_PISO = '2025-06';                // MAPEO!B19: piso de DATOS!C (períodos en vivo, D185)
 /* D209: primer período que MUESTRA el Tablero. jun y jul-2025 solo traían horas de máquina, sin producción
    (restos de antes de que se llevara orden): el dueño los quitó. No toca el avance contra el contrato, que
-   suma desde su propio corte (base_corte de la Proyección), ni borra nada de la DATA ni de los partes. */
-const PERIODO_DESDE = '2025-08';
+   suma desde su propio corte (base_corte de la Proyección), ni borra nada de la DATA ni de los partes.
+   D214: tampoco ago-2025 — sus valores de origen no tienen sentido; el Tablero arranca en sep-2025. */
+const PERIODO_DESDE = '2025-09';
 const DESDE = '2025-08';                        // arranque histórico (ya no se usa en el avance)
 /* CONTRATO TOTAL de la obra, en m³ compactos (cuadro «Programado» del jefe, UF1+UF2).
    La excavación es la COMÚN; el préstamo va como partida aparte. Reemplaza a los
@@ -498,7 +499,7 @@ function construir(wbProd, wbMaq, proy){
   const H = horasDe(wbMaq);
   const pers = [...new Set(dias.map(d=>d.p).concat(vivo
     ? H.partes.map(x=>x.p).filter(p=>p >= PERIODO_PISO) : []))]
-    .filter(p=>p >= PERIODO_DESDE).sort();                  // D209: ni jun ni jul-2025
+    .filter(p=>p >= PERIODO_DESDE).sort();                  // D209/D214: ni jun, ni jul, ni ago-2025
   const porPer = {}; for (const p of pers) porPer[p] = [];
   for (const d of dias) if (porPer[d.p]) porPer[d.p].push(d);
   for (const p of pers) porPer[p].sort((a,b)=> a.f < b.f ? -1 : 1);
@@ -761,18 +762,31 @@ function marca100(barra, texto){
 }
 
 /* Etiqueta el segmento con SU valor, en vertical dentro de la barra. Si la
-   barra no da de alto para el número —a 8 px, cada dígito pide ~5,2 px más
-   holgura— la etiqueta sale justo encima, en tinta apagada, en vez de
-   desbordarse por dentro y quedar pisada. Los ceros no se escriben: la barra
-   ausente ya lo dice y llenarlo de ceros es ruido. */
-function etiquetaBarra(bar, valor, altoPx, colorLbl){
+   barra no da de alto para el número —cada dígito pide ~0,64 veces el cuerpo
+   de letra, más holgura— la etiqueta sale justo encima, en tinta apagada, en
+   vez de desbordarse por dentro y quedar pisada. Los ceros no se escriben: la
+   barra ausente ya lo dice y llenarlo de ceros es ruido. */
+function etiquetaBarra(bar, valor, altoPx, colorLbl, fs){
   if (!(valor >= 0.5)) return;
   const txt = f0(valor);
   const b = el('b', null, txt);
-  const necesita = txt.length * 5.2 + 7;
+  const necesita = txt.length * (fs||11.5) * 0.64 + 8;
   if (necesita <= altoPx){ b.className = 'dentro'; b.style.color = colorLbl; }
   else { b.className = 'fuera'; }
   bar.appendChild(b);
+}
+/* Cuerpo de letra de las cifras de barra (el jefe comparte captura del tablero y
+   a 8 px no se leían). Lo más grande que cabe en el ANCHO de cada barra, entre
+   8 y 12 px: con 16 meses hay sitio de sobra; con 30 días × 4 partidas la barra
+   baja de 9 px y una cifra más ancha se montaría sobre la vecina. Se fija en el
+   contenedor como `--fsBar` (lo lee el CSS) y se devuelve para `etiquetaBarra`. */
+function cuerpoCifras(cont, cols, porCol){
+  const ancho = cont.clientWidth || 1200, hueco = 6;
+  const barra = (ancho - hueco*Math.max(0,cols-1)) / Math.max(1,cols) / Math.max(1,porCol) - 1.5;
+  /* La cifra va girada: a lo ancho ocupa la ALTURA del dígito, ~0,72 del cuerpo. */
+  const fs = Math.max(8, Math.min(12, Math.floor(barra/0.72*2)/2));
+  cont.style.setProperty('--fsBar', fs+'px');
+  return fs;
 }
 
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
@@ -877,7 +891,7 @@ function controles(){
 }
 
 /* -------------------------------------------------------------- evolución */
-const ALTO_EVO=132, ALTO_DIA=214;
+const ALTO_EVO=200, ALTO_DIA=290;
 function evolucion(){
   const vis=visibles(), per=TM2.per;
   const vals=per.map(p=>vis.map(a=>valPer(p,a)));
@@ -895,6 +909,7 @@ function evolucion(){
   });
   const g=document.getElementById('evo'), x=document.getElementById('evoX');
   g.innerHTML='';x.innerHTML='';
+  const fs=cuerpoCifras(g, per.length, vis.length);
   per.forEach((p,i)=>{
     const col=el('div','col');
     /* El mes elegido se marca con fondo, no apagando los demás: proyectado, un
@@ -904,7 +919,7 @@ function evolucion(){
     vis.forEach((a,j)=>{
       const b=el('i'), fr=vals[i][j]/max;
       b.style.height=(fr*100)+'%'; b.style.background=a.c;
-      etiquetaBarra(b, vals[i][j], fr*ALTO_EVO, a.l);
+      etiquetaBarra(b, vals[i][j], fr*ALTO_EVO, a.l, fs);
       col.appendChild(b);});
     const ir=()=>{sel=i;abierto=null;pinta();};
     col.onclick=ir;g.appendChild(col);
@@ -1279,6 +1294,7 @@ function diaria(p){
   const bg=document.getElementById('diaBg'), g=document.getElementById('dia'),
         x=document.getElementById('diaX');
   bg.innerHTML='';g.innerHTML='';x.innerHTML='';
+  const fs=cuerpoCifras(g, dd.length, vis.length);
   dd.forEach((d,i)=>{
     const b=el('span');
     if(d.t==='LLUVIAS')b.style.background='var(--lluvia)';
@@ -1291,7 +1307,7 @@ function diaria(p){
     vis.forEach((a,j)=>{
       const s=el('i'), fr=vals[i][j]/max;
       s.style.height=(fr*100)+'%'; s.style.background=a.c;
-      etiquetaBarra(s, vals[i][j], fr*ALTO_DIA, a.l);
+      etiquetaBarra(s, vals[i][j], fr*ALTO_DIA, a.l, fs);
       col.appendChild(s);});
     g.appendChild(col);
     x.appendChild(el('span',null,d.f.slice(8)));

@@ -1,0 +1,34 @@
+[
+ {
+  "query": "Te paso el reporte diario de septiembre y el parte de maquinaria del jefe (están en /tmp/sep), sácame el fact_jefe del corte 16-ago al 15-sep",
+  "should_trigger": true
+ },
+ {
+  "query": "Corre el reparto de producción por CC de agosto con los archivos que subí a /tmp/agosto",
+  "should_trigger": true
+ },
+ {
+  "query": "Genera el reparto mensual sin abrir la página y compáralo con el fact_jefe que descargué de la herramienta, a ver si da igual",
+  "should_trigger": true
+ },
+ {
+  "query": "necesito el fact_jefe de este mes para pegarlo en el informe, ahí te dejé los dos excel en /tmp/informe",
+  "should_trigger": true
+ },
+ {
+  "query": "En Reparto_Produccion_Maquinaria.js el bulldozer se lleva el 80% aunque tenga 0,1 h en el día; corrige esa lógica",
+  "should_trigger": false
+ },
+ {
+  "query": "¿Cómo reparte la herramienta la producción del terraplén entre bulldozer y motoniveladora? explícamelo",
+  "should_trigger": false
+ },
+ {
+  "query": "Agrega un aviso en la pantalla del reparto cuando al reporte diario le falte la hoja DATOS",
+  "should_trigger": false
+ },
+ {
+  "query": "Los arneses verificar_reparto_*.js están rotos desde D170; arréglalos para que carguen el .js",
+  "should_trigger": false
+ }
+]

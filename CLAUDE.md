@@ -15,6 +15,16 @@ Política de orquestación. El conocimiento del proyecto vive en `docs/` (fuente
 - Preferir estos cuatro agentes a los genéricos cuando exista uno equivalente; los genéricos baratos (p. ej. `Explore`) siguen disponibles si no hay solapamiento.
 - Priorizar calidad por unidad de coste y evitar trabajo redundante (no releer lo ya leído, no re-derivar lo ya decidido).
 
+## Skills del proyecto (`.claude/skills/`, D212)
+**Los [A] se aplican sin que te los pidan, en cuanto aparece la situación; los [B] solo si se pide EJECUTAR la herramienta** (mencionar el tema o editar su código no es ejecutarla).
+- [A] `tm2-cierre-tema`: cierre documental de una decisión o un cambio (02/03/PROJECT_CONTEXT y, con deriva, 04/05; CLAUDE.md; despliegue).
+- [A] `tm2-catalogo`: alta, cambio o baja de actividades, máquinas, orígenes, CC, usuarios, roles y áreas, y cubicaje.
+- [A] `tm2-validacion`: error o dato raro reportado (primero el dato observable) y prueba de cambios con los arneses.
+- [A] `tm2-pantalla-nueva`: crear o modificar una pantalla HTML (esqueleto, CSP, tema, sesión, sw.js, fila en 04).
+- [B] `tm2-reparto-produccion`: ejecutar el reparto mensual por CC (`Reparto_Produccion_Maquinaria`) sin abrir la herramienta.
+- [B] `tm2-conciliador`: ejecutar la conciliación de actas de transporte (`conciliador/`) sin abrir la herramienta.
+Los skills apuntan a `docs/` y a las D; no copian reglas. `tm2-invariantes` no existe en el repo: las invariantes están en `docs/PROJECT_CONTEXT.md`.
+
 ## Documentación antes de decidir
 - `docs/PROJECT_CONTEXT.md` siempre (reglas críticas y estado). `docs/02_REGISTRO_DECISIONES.md` antes de cualquier cambio funcional: las D-xx cerradas no se replantean.
 - Según la tarea: `04_ARQUITECTURA` (backend, endpoints, hojas, flujo), `05_CATALOGO` (actividades, máquinas, CC, usuarios), `03_BACKLOG` (alcance), `OPERACIONES` (entornos, despliegues, pasos manuales), `01_DOCUMENTO_MAESTRO` (referencia completa).
@@ -35,4 +45,4 @@ El dueño valida con datos reales antes de dar nada por cerrado.
 - Antes de escribir en producción: respaldo o vuelta atrás definida (migraciones idempotentes con tabla `*_respaldo_*`).
 
 ## Documentación al cerrar un cambio
-`docs/` no se toca durante el trabajo. Al cerrar, y en el mismo commit, es obligatorio: decisión nueva → `02_REGISTRO_DECISIONES.md` (append-only, siguiente número D); ítem o estado → `03_BACKLOG.md`; regla nueva → `PROJECT_CONTEXT.md`. Nada más de `docs/` se modifica ni reorganiza.
+`docs/` no se toca durante el trabajo. Al cerrar, y en el mismo commit, es obligatorio: decisión nueva → `02_REGISTRO_DECISIONES.md` (append-only, siguiente número D); ítem o estado → `03_BACKLOG.md`; regla nueva → `PROJECT_CONTEXT.md`; y solo si hay deriva (pantalla, endpoint, tabla o catálogo que listan), `04_ARQUITECTURA.md` / `05_CATALOGO.md` (D212, `tm2-cierre-tema`). Nada más de `docs/` se modifica ni reorganiza.
