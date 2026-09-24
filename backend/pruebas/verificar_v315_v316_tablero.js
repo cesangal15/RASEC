@@ -635,13 +635,14 @@ const server=http.createServer((req,res)=>{
   {
     const viejos=[
       {p:'2025-06',f:'2025-06-20',act:'excavacion',cod:'EXC001',tipo:'EXCAVADORA',uf:'UF1',h:6,mtto:0,varada:0,lluvia:0,averia:0},
-      {p:'2025-07',f:'2025-07-10',act:'terraplen',cod:'MO03',tipo:'MOTONIVELADORA',uf:'UF1',h:5,mtto:0,varada:0,lluvia:0,averia:0}];
+      {p:'2025-07',f:'2025-07-10',act:'terraplen',cod:'MO03',tipo:'MOTONIVELADORA',uf:'UF1',h:5,mtto:0,varada:0,lluvia:0,averia:0},
+      {p:'2025-08',f:'2025-08-05',act:'excavacion',cod:'EXC001',tipo:'EXCAVADORA',uf:'UF1',h:7,mtto:0,varada:0,lluvia:0,averia:0}];   // D212
     const horas=Object.assign({},HORAS_V315B,{ partes:HORAS_V315B.partes.concat(viejos) });
     const { pg, errores }=await pagina({width:1440,height:1000}, PERSONAL, { horasCustom:horas });
     await pg.goto(BASE+'/tablero-produccion.html');
     await pg.waitForFunction(()=>document.getElementById('perT').textContent!=='—');
     const meses=await pg.$$eval('#evoX span', els=>els.map(e=>e.textContent.trim()));
-    ok('Evolución solo muestra desde ago-2026 del fixture: ni «jun 25» ni «jul 25» aunque haya partes de esos meses',
+    ok('Evolución solo muestra desde ago-2026 del fixture: ni «jun 25», ni «jul 25», ni «ago 25» (D212) aunque haya partes de esos meses',
        meses.length===2 && !meses.some(m=>/25$/.test(m)), meses.join(','));
     erroresGlobal.push(...errores.map(e=>'[d209] '+e));
     await pg.context().close();
