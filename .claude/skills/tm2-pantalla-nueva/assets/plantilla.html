@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- CSP D167/D170: la MISMA de las demás pantallas (crear_pantalla.js la copia de una pantalla real). -->
+<meta http-equiv="Content-Security-Policy" content="__CSP__">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__TITULO__ — TM2 Sur</title>
+<meta name="theme-color" content="#f5a623">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="auth.js"></script>
+<script src="entorno.js"></script>
+<link rel="stylesheet" href="tema.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="__NOMBRE__.css">
+</head>
+<body>
+<div class="header">
+  <span class="galca-simbolo" role="img" aria-label="Galca"></span>
+  <div class="header-left">
+    <div class="label">__ETIQUETA__</div>
+    <h1>__TITULO__</h1>
+  </div>
+  <div class="header-user">
+    <span id="userDisplay">—</span>
+    <button class="logout-btn btn-volver" id="btnMenu" data-on-click="volver()" data-estilo="display:none;">← Menú</button>
+    <button class="logout-btn" data-on-click="logout()">Salir</button>
+  </div>
+</div>
+
+<div class="container" id="container">
+  <!-- Versión PC (D151), solo si la pantalla se usa en computador: envoltorios que en el móvil
+       desaparecen (display:contents) y desde 1100px son celdas de rejilla. Si no, bórralos. -->
+  <div class="pc-zona">
+    <div class="pc-a" id="zonaPrincipal"><div class="loading">⏳ Cargando…</div></div>
+    <div class="pc-b" id="zonaLateral"></div>
+  </div>
+</div>
+
+<script src="__NOMBRE__.js"></script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+[
+ {
+  "query": "Concilia la proforma de Asotranspa del 1 al 15 de septiembre contra GRANULARES y TERRAPLEN; los archivos están en /tmp/actas",
+  "should_trigger": true
+ },
+ {
+  "query": "Ejecuta el conciliador con la proforma de D&S de la segunda quincena de agosto y dime cuántas remisiones quedan no encontradas",
+  "should_trigger": true
+ },
+ {
+  "query": "Saca el bloque del acta de Veleros sin abrir la herramienta, en modo sin proforma, del 16 al 31 de agosto",
+  "should_trigger": true
+ },
+ {
+  "query": "Corre la conciliación de Cotrasabana de la quincena y compárala con la sesión que exporté del navegador después del paso 4",
+  "should_trigger": true
+ },
+ {
+  "query": "En conciliador.js el OCR no lee el recibo en rojo de PUTANA, mejora el umbral de tinta roja",
+  "should_trigger": false
+ },
+ {
+  "query": "¿Qué significa el estado EXCLUIDA_OTRA_AREA en el conciliador y cuándo se usa?",
+  "should_trigger": false
+ },
+ {
+  "query": "Agrega un botón 'Es TM1' al conciliador junto a 'Es UF3' para excluir remisiones de TM1",
+  "should_trigger": false
+ },
+ {
+  "query": "Revisa los arneses verificar_conciliador_*.js y dime si alguno cubre los exportes del Paso 7",
+  "should_trigger": false
+ }
+]

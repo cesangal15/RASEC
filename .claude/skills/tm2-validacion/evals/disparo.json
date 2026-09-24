@@ -1,0 +1,34 @@
+[
+ {
+  "query": "El capataz Robinson dice que mandó el reporte ayer a las 5 pm pero en el panel del encargado no aparece nada del 23-sep",
+  "should_trigger": true
+ },
+ {
+  "query": "En DATA me salió la excavación del Masivo 2 duplicada el 18 de septiembre: 2 filas con el mismo volumen y el mismo PK",
+  "should_trigger": true
+ },
+ {
+  "query": "Terminé los cambios del parte digital en la rama, ¿qué arneses corro y cómo sé si rompí algo antes de darlo por terminado?",
+  "should_trigger": true
+ },
+ {
+  "query": "el tablero dice avance 0% en terraplén desde anoche, antes daba 41%, nadie tocó nada que yo sepa",
+  "should_trigger": true
+ },
+ {
+  "query": "Explícame cómo funciona la cola offline del parte digital, en general, para contárselo a Jeisson",
+  "should_trigger": false
+ },
+ {
+  "query": "Crea una pantalla para que el jefe vea los partes aprobados por semana",
+  "should_trigger": false
+ },
+ {
+  "query": "Corre el reparto de agosto con estos dos archivos: /tmp/ago/reporte.xlsx y /tmp/ago/parte.xlsx",
+  "should_trigger": false
+ },
+ {
+  "query": "Dame de alta al usuario nuevo 'wilmer' como capataz de tierras",
+  "should_trigger": false
+ }
+]
