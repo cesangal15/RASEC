@@ -13,7 +13,7 @@
 --
 -- Vuelta atrás:
 --   DROP TABLE catalogo_auditoria;
---   DELETE FROM esquema_version WHERE version=13;
+--   DELETE FROM esquema_version WHERE version=14;
 -- =====================================================================================================
 
 BEGIN;
