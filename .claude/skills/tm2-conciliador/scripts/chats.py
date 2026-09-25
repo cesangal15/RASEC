@@ -348,7 +348,7 @@ def cmd_desde_db(args: argparse.Namespace) -> int:
         nombres[user(jid)] = ((full or "").strip(), (push or "").strip())
 
     def telefono(n):
-        return f"+{n[:2]} {n[2:5]} {n[5:8]} {n[8:]}" if n.startswith("57") and len(n) == 12 else "+" + n
+        return f"+{n[:2]} {n[2:5]} {n[5:]}" if n.startswith("57") and len(n) == 12 else "+" + n   # como el export: +57 317 4400436
 
     def autor(sender, propio):
         if propio:
