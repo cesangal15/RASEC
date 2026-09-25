@@ -36,9 +36,11 @@ Dónde está cada cosa (verificado sep-2026; lo manda `rutas.json`):
   `2026\3. MATERIALES\GRANULARES.xlsx` y un libro de actas por contratista en `2026\` (`ASOTRASAT.xlsx`…).
 - **Proformas**: `OneDrive - Grupo Ortiz\Documentos\PROFORMAS\<NN.MES Nª Q>\<CONTRATISTA> PROFORMA Q ….xlsx`
   (el dueño ya las guarda ahí; `contratistas.*.proforma_contiene` dice cómo reconocer cada una).
-- **Soportes PDF** (pesan mucho y no se guardan en OneDrive): `C:\GALCA\conciliacion\soportes\<quincena>\<CONTRATISTA>\`,
-  con cualquier nombre. Al cerrar el corte, con el sí del dueño, se borran y solo queda el PDF de
-  pendientes de la digitadora.
+- **Soportes PDF**: en la **misma carpeta de la quincena**, junto a las proformas, con el nombre que traigan y
+  **sin subcarpetas**. El skill asigna cada PDF a su contratista por el nombre del archivo o, si no lo dice,
+  por el «Nombre del proveedor» de los recibos y por los números que casan con cada proforma (si un PDF no
+  casa con ninguna, pregunta). Al cerrar el corte, con el sí del dueño, se borran: pesan mucho y no se
+  guardan; solo queda el PDF de pendientes de la digitadora en la ENTREGA.
 - **Trabajo del corte**: `C:\GALCA\conciliacion\cortes\<CONTRATISTA>_<desde>_<hasta>\` con `bases\` (COPIA de
   las bases y del libro de actas tomada al empezar: foto fechada para saber con qué versión se concilió y
   detectar si la digitación cambió algo después), `01_cruce\`, `02_decision\` (con `preguntas.md`),
@@ -46,9 +48,10 @@ Dónde está cada cosa (verificado sep-2026; lo manda `rutas.json`):
 
 ## Entradas del corte
 
-El dueño solo dice contratista y quincena (p. ej. «Asotrasaat, 1ª de septiembre») y deja los PDF en
-`soportes\<quincena>\<CONTRATISTA>\`. La proforma sale de su carpeta de la quincena, las bases y el acta de
-SharePoint, WhatsApp de la base del puente (paso 2; si no está corriendo, sirven chats exportados).
+El dueño solo dice contratista y quincena (p. ej. «Asotrasaat, 2.ª de septiembre»). En la carpeta de la
+quincena de PROFORMAS están su proforma y los PDF de soportes (de uno o varios contratistas, mezclados). Las
+bases y el acta salen de SharePoint y WhatsApp de la base del puente (paso 2; si no está corriendo, sirven
+chats exportados).
 
 Dependencias fuera del repo (una vez por sesión; `$T` = carpeta temporal del trabajo):
 `npm i --prefix "$T/tm2deps" xlsx@0.18.5` → `NODE_PATH=$T/tm2deps/node_modules`;
@@ -117,7 +120,7 @@ borraría sus cambios. Se añaden **las mismas filas** al libro real en ese mome
 la foto de `bases\` (filas o fórmulas), se avisa antes. El libro debe estar CERRADO en Excel de todos
 (si no, el guardado falla o crea conflicto en SharePoint). Tras el sí, se escribe el real y se verifica
 que la tabla creció exactamente N filas y que los totales m³ y m³·km coinciden con la copia.
-Luego, con otro sí, se borran los PDF de `soportes\<quincena>\<CONTRATISTA>\`.
+Luego, con otro sí, se borran de la carpeta de la quincena los PDF de soportes de ese contratista.
 
 ## Validación (sep-2026, Asotrasaat 03/08–14/09)
 
