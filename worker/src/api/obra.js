@@ -48,6 +48,7 @@ import { dataGridLeer, dataGridGuardar, VAL_DATA_GRID, VAL_DATA_GRID_CAMBIO } fr
 import { proyeccionLeer, proyeccionTablero, proyeccionGuardar, VAL_PROYECCION, VAL_PROYECCION_CAMBIO } from './obra/proyeccion.js';  // V3-11 / D183
 import { tableroVivoLeer, tableroHorasGuardar, VAL_MAX_HORAS_CHARS } from './obra/tablero_vivo.js';  // V3-11 Fases B+C / D185
 import { catTablas, catLeer, catGuardar, VAL_OBRA_CAT, VAL_OBRA_CAT_CAMBIO } from './obra/catalogos_admin.js';  // pantalla Catálogos (solo admin)
+import { resumenEjecutivoLeer, resumenEjecutivoIA, VAL_RESUMEN_EJECUTIVO_IA } from './obra/resumen_ejecutivo.js';  // Resumen ejecutivo (jefe)
 
 /* ---------- esquemas D166 que solo usa el router (Codigo.gs L2953–L2964) ---------- */
 const VAL_OBRA_FLOTA = {
@@ -79,6 +80,8 @@ function validarPayloadObra_(c, body){
     f = valEsquema_(body, VAL_DATA_GRID, '') || valListaDe_(body.cambios, VAL_DATA_GRID_CAMBIO, 'cambios', 1000);  // V3-08b / D181
   } else if(a==='proyeccion_guardar'){
     f = valEsquema_(body, VAL_PROYECCION, '') || valListaDe_(body.cambios, VAL_PROYECCION_CAMBIO, 'cambios', 500);  // V3-11 / D183
+  } else if(a==='resumen_ejecutivo_ia'){
+    f = valEsquema_(body, VAL_RESUMEN_EJECUTIVO_IA, '');
   } else if(a==='tablero_horas_guardar'){
     // D185: `horas` = la salida de leerHoras (objeto); su FORMA la valida el handler con un texto legible (lista blanca).
     const h=body.horas;
@@ -130,6 +133,7 @@ export async function obraDoGet_(c, params){
   if(a==='data_grid')            return dataGridLeer(c, params); // V3-08b / D181: revisión editable de DATA
   if(a==='proyeccion')           return proyeccionLeer(c, params, ses);    // V3-11 / D183: las 4 tablas + puede_editar (servidor)
   if(a==='proyeccion_tablero')   return proyeccionTablero(c, params, ses); // V3-11 / D183: plan/proyectado/contrato/base del Tablero (token, no público)
+  if(a==='resumen_ejecutivo')    return resumenEjecutivoLeer(c, params, ses); // Resumen ejecutivo (jefe): rango → indicadores + texto por reglas
   if(a==='maquinas')             return maquinasCatalogo(c, params); // D138: flota vigente en una fecha
   if(a==='flota')                return flotaLeer(c, params);        // D139: estancias + avisos de la pestaña Flota
   if(a==='acumulado_drenajes')   return acumuladoDrenajes(c, params);
@@ -160,5 +164,6 @@ export async function obraDoPost_(c, body){
   if(body.action==='proyeccion_guardar')     return proyeccionGuardar(c, body, ses); // V3-11 / D183: guarda la Proyección (admin/jefe)
   if(body.action==='tablero_guardar')        return tableroGuardar(c, body, ses); // D158: publica la foto del tablero
   if(body.action==='tablero_horas_guardar')  return tableroHorasGuardar(c, body, ses); // D185: guarda las horas del libro de partes
+  if(body.action==='resumen_ejecutivo_ia')   return resumenEjecutivoIA(c, body, ses); // Resumen ejecutivo: redacción con Workers AI (cae a reglas si falla)
   return guardarReporte(c, body, ses);
 }

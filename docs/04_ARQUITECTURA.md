@@ -143,6 +143,7 @@ Complementa el diagrama de arriba. Todas hablan con la API en **`https://api.gal
 | `residente-drenajes.html` | residente_dren, admin | Bandeja combinada ODT+ODL, envío por área. |
 | `residente.html` | residente, admin | Panel de selección del residente. |
 | `jefe.html` | jefe, residente, admin | Consulta post-DATA por rango, filtro de área, copiado A:S (D65). |
+| `resumen-ejecutivo.html` | jefe, residente, admin, residentes de drenajes | Resumen ejecutivo por rango (pestaña del Hub del Jefe y acceso en `jefe.html`): texto por reglas + «Redactar con IA» opcional (D216). |
 | `tablero-produccion.html` (+`tablero/`) | admin, jefe, residentes | Tablero de producción; foto compartida (D158). |
 | `produccion-maquinaria.html` («Maquinaria») | admin, residente; jeisson (Flota); jefe (lectura) | Producción del día + Flota sobre `MAQUINAS` (D59–D62/D139). |
 | `parte.html?eq=<código>` | **público por QR** | Parte digital del equipo; identidad = equipo (D165). |
@@ -632,3 +633,11 @@ Un solo HTML (SheetJS embebido + motor + foto de datos embebida) que reemplaza l
 - Al abrir, la página pinta con lo que trae embebido y sincroniza en segundo plano: nunca hay pantalla en blanco delante de una sala.
 - **Standby / utilización por máquina** = días con parte × horas programadas − mantenimiento − paradas de taller (la lluvia no se resta). Definiciones finales de las métricas en D162; avance en D163.
 - Requiere redesplegar el Apps Script (endpoints `tablero` / `tablero_guardar`). Verificación `backend/pruebas/verificar_d158_tablero_foto.js`.
+
+## D216 — Resumen ejecutivo por rango (`resumen-ejecutivo.html`)
+
+- `GET ?action=resumen_ejecutivo&desde=&hasta=` (token; admin, jefe, residente, residentes de drenajes; rango ≤ 366 días) → `{ok, desde, hasta, anterior, datos_hasta, indicadores, texto}`. Módulo `worker/src/api/obra/resumen_ejecutivo.js`; solo con `BACKEND_OBRA=db`.
+- Indicadores: partidas principales con `sumaPorDia_` (`pliegue.js`, igual que el Tablero; excavación = `exc`), plan de `proy_plan` prorrateado por días calendario del periodo 16→15, avance D163, clima (D182), horas de lluvia/varada de `tablero_horas` si existen, drenajes ODT/ODL y otras actividades de DATA, periodo anterior de igual duración.
+- Texto: `worker/src/api/obra/resumen_texto.js` (puro): `redactarResumen` con los umbrales en constantes únicas (1,00 · 0,75 · lluvia 0,25) y `validarNumerosTexto`.
+- `POST {action:'resumen_ejecutivo_ia', desde, hasta}`: recalcula en el servidor y llama `env.AI.run` (binding `[ai]` de `wrangler.toml`, Workers AI, modelo en la constante `IA_MODELO`). Sin binding, con error, sin cupo o con una cifra no verificable → `{ok:true, ia:false, texto:<reglas>, aviso}`.
+- Verificación: `backend/pruebas/verificar_resumen_ejecutivo.js`; casos `obra.resumen_ejecutivo*` en `backend/pruebas/contrato/casos_obra.js` (corren con `worker/pruebas/contrato_local.js`).

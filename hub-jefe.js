@@ -25,6 +25,8 @@ function logout(){ localStorage.removeItem('usuario'); localStorage.removeItem('
 
 const TABS = [
   { id:'resumen', label:'Resumen',           page:'jefe.html',   fecha:true,  ver:true },
+  { id:'resumen_ejec', label:'Resumen ejecutivo', page:'resumen-ejecutivo.html', fecha:true,
+    ver:['admin','jefe','residente','residente_dren','residente_odt','residente_odl'].indexOf(rol)>=0 || USUARIOS_OK.indexOf(usuario)>=0 },
   { id:'data',    label:'Revisión de DATA',  page:'data.html',   fecha:true,  ver:PUEDE_EDITAR },
   { id:'base',    label:'Catálogos BASE',    page:'grilla.html', fecha:false, ver:PUEDE_EDITAR },
   // V3-11 / D183: la ven admin, jefe y residente (el mismo portero que proyeccion.html); quién edita lo decide el servidor.

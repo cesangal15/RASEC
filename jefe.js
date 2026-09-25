@@ -64,6 +64,9 @@ window.onload = function(){
      `menu.html` la siguen llevando, y el portero de la pantalla no se toca. */
   const _tt=document.getElementById('tileTablero');
   if(_tt) _tt.style.display='flex';
+  // Resumen ejecutivo: mismos roles que entran a esta pantalla (D131 incluido).
+  const _tre=document.getElementById('tileResumenEjec');
+  if(_tre) _tre.style.display='flex';
   // Fuente única de edición (D181): panel unificado (Hub) + revisión de DATA + grilla de catálogos BASE.
   const _th=document.getElementById('tileHub');
   if(_th && (rol==='jefe' || rol==='admin' || rol==='residente')) _th.style.display='flex';
