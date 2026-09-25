@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import re
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -322,6 +323,75 @@ def cmd_contexto(args: argparse.Namespace) -> int:
 
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# desde-db: lee la base local del puente de WhatsApp (C:\GALCA\herramientas\whatsapp-mcp), sin exportar
+# ---------------------------------------------------------------------------
+
+STORE_POR_DEFECTO = "C:/GALCA/herramientas/whatsapp-mcp/whatsapp-bridge/store"
+
+
+def cmd_desde_db(args: argparse.Namespace) -> int:
+    """Mismo mensajes.json que `parsear`, pero leído (SOLO LECTURA) de la base del puente. El autor se
+    resuelve como en el export: nombre guardado en los contactos del dueño; si no lo tiene, el teléfono
+    «+57 317 4400436»; los identificadores internos de WhatsApp (LID) se traducen a teléfono con
+    whatsmeow_lid_map. Los mensajes propios salen como «Tú»."""
+    import sqlite3
+    from datetime import datetime, timedelta
+
+    store = Path(args.store)
+    m = sqlite3.connect(f"file:{(store / 'messages.db').as_posix()}?mode=ro", uri=True)
+    w = sqlite3.connect(f"file:{(store / 'whatsapp.db').as_posix()}?mode=ro", uri=True)
+    user = lambda j: (j or "").split("@")[0].split(":")[0]
+    lid = {user(a): user(b) for a, b in w.execute("select lid, pn from whatsmeow_lid_map")}
+    nombres = {}
+    for jid, full, push in w.execute("select their_jid, full_name, push_name from whatsmeow_contacts"):
+        nombres[user(jid)] = ((full or "").strip(), (push or "").strip())
+
+    def telefono(n):
+        return f"+{n[:2]} {n[2:5]} {n[5:8]} {n[8:]}" if n.startswith("57") and len(n) == 12 else "+" + n
+
+    def autor(sender, propio):
+        if propio:
+            return "Tú"
+        s = user(sender)
+        pn = lid.get(s, s)
+        full = nombres.get(pn, ("", ""))[0] or nombres.get(s, ("", ""))[0]
+        if full:
+            return full
+        if pn.isdigit() and len(pn) <= 13:
+            return telefono(pn)
+        push = nombres.get(pn, ("", ""))[1] or nombres.get(s, ("", ""))[1]
+        return f"~{push or s}"          # sin teléfono conocido: el skill preguntará
+
+    desde = (datetime.fromisoformat(args.desde) - timedelta(days=1)).date().isoformat()   # la programación va el día anterior
+    hasta = (datetime.fromisoformat(args.hasta) + timedelta(days=1)).date().isoformat()
+    grupos = [g.strip() for g in args.grupo]
+    chats = [(jid, nombre) for jid, nombre in m.execute("select jid, name from chats")
+             if nombre and any(g.lower() in nombre.lower() for g in grupos)]
+    if not chats:
+        print("No encontré esos grupos en la base del puente. ¿Está corriendo y sincronizado?", file=sys.stderr)
+        return 1
+    todos, sin_autor = [], 0
+    for jid, nombre in chats:
+        q = ("select timestamp, sender, is_from_me, content from messages where chat_jid=? "
+             "and substr(timestamp,1,10) between ? and ? order by timestamp")
+        for ts, sender, propio, content in m.execute(q, (jid, desde, hasta)):
+            if not content:
+                continue
+            if not propio and user(sender) == user(jid):
+                sin_autor += 1        # historial viejo del puente sin autor (se corrige re-vinculando)
+            todos.append({"fecha_iso": ts[:10], "hora": ts[11:19], "ts_raw": ts, "autor": autor(sender, propio),
+                          "texto": content, "chat_origen": nombre})
+    todos.sort(key=lambda x: (x["fecha_iso"], x["hora"]))
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(todos, f, ensure_ascii=False, indent=2)
+    print(f"{len(todos)} mensajes de {len(chats)} grupo(s) ({desde} → {hasta}) -> {args.out}")
+    if sin_autor:
+        print(f"⚠ {sin_autor} mensajes sin autor (historial viejo del puente): re-vincula con "
+              f"GALCA_5_revincular_con_historial.cmd o usa el export del chat para esas fechas.", file=sys.stderr)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="comando", required=True)
@@ -330,6 +400,14 @@ def main() -> int:
     p_parsear.add_argument("--chat", action="append", required=True, dest="chat")
     p_parsear.add_argument("--out", required=True)
     p_parsear.set_defaults(func=cmd_parsear)
+
+    p_db = sub.add_parser("desde-db", help="base local del puente de WhatsApp -> mensajes.json (sin exportar)")
+    p_db.add_argument("--grupo", action="append", required=True, help="fragmento del nombre del grupo (repetible)")
+    p_db.add_argument("--desde", required=True, help="AAAA-MM-DD (se toma desde el día anterior)")
+    p_db.add_argument("--hasta", required=True, help="AAAA-MM-DD")
+    p_db.add_argument("--store", default=STORE_POR_DEFECTO)
+    p_db.add_argument("--out", required=True)
+    p_db.set_defaults(func=cmd_desde_db)
 
     p_contexto = sub.add_parser("contexto", help="mensajes.json + viajes.json -> contexto.json")
     p_contexto.add_argument("--mensajes", required=True)
