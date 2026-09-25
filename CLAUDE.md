@@ -22,7 +22,7 @@ Política de orquestación. El conocimiento del proyecto vive en `docs/` (fuente
 - [A] `tm2-validacion`: error o dato raro reportado (primero el dato observable) y prueba de cambios con los arneses.
 - [A] `tm2-pantalla-nueva`: crear o modificar una pantalla HTML (esqueleto, CSP, tema, sesión, sw.js, fila en 04).
 - [B] `tm2-reparto-produccion`: ejecutar el reparto mensual por CC (`Reparto_Produccion_Maquinaria`) sin abrir la herramienta.
-- [B] `tm2-conciliador`: ejecutar la conciliación de actas de transporte (`conciliador/`) sin abrir la herramienta.
+- [B] `tm2-conciliador`: ejecutar el corte de actas de transporte de punta a punta (cruce con el código de `conciliador/`, soportes PDF, programación de WhatsApp, acta en copia del Excel del contratista, Excel y PDF de la digitadora), preguntando solo lo dudoso (D215).
 Los skills apuntan a `docs/` y a las D; no copian reglas. `tm2-invariantes` no existe en el repo: las invariantes están en `docs/PROJECT_CONTEXT.md`.
 
 ## Documentación antes de decidir
