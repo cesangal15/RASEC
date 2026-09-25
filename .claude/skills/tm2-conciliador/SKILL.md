@@ -99,10 +99,25 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
 
 ## Entregar al dueño
 
-Resumen: conteo por estado, viajes al acta (encontrados + pendientes), fuera (UF3/asfaltos con su cita),
-totales m³ y m³·km de las filas nuevas, `preguntas.md`, y las rutas de: copia del acta, Excel y PDF de la
-digitadora, sesión importable. Si la config fue la de fábrica, dilo. Si al conciliar un corte ya cerrado
-la base cambió después del acta (CC/fecha distintos), avísalo: el acta quedó desalineada.
+Lo que el dueño usa va a **su carpeta de la quincena** en OneDrive, junto a la proforma:
+`PROFORMAS\<quincena>\<CONTRATISTA> - ENTREGA SKILL\` con la copia del acta
+(«<libro> (skill <fecha>).xlsx»), el Excel y el PDF de la digitadora y `preguntas.md` / `resumen.txt`.
+Lo intermedio queda en `C:\GALCA\conciliacion\cortes\…`.
+
+En el chat: conteo por estado, viajes al acta (encontrados + pendientes), fuera (UF3/asfaltos con su
+cita), totales m³ y m³·km de las filas nuevas y las preguntas. Si la config fue la de fábrica, dilo. Si
+la base cambió después de un acta ya cerrada (CC/fecha distintos), avísalo: el acta quedó desalineada.
+
+## Pasar al acta real (solo con el sí del dueño)
+
+Cuando el dueño revisa la copia y dice que está bien, **no se reemplaza el archivo**: el libro de actas
+está en SharePoint y el compañero lo edita (nombres de memoria, encabezados), así que reemplazarlo
+borraría sus cambios. Se añaden **las mismas filas** al libro real en ese momento con
+`escribir_acta.ps1 -Libro <copia local recién bajada del real> …` y se compara: si el real cambió desde
+la foto de `bases\` (filas o fórmulas), se avisa antes. El libro debe estar CERRADO en Excel de todos
+(si no, el guardado falla o crea conflicto en SharePoint). Tras el sí, se escribe el real y se verifica
+que la tabla creció exactamente N filas y que los totales m³ y m³·km coinciden con la copia.
+Luego, con otro sí, se borran los PDF de `soportes\<quincena>\<CONTRATISTA>\`.
 
 ## Validación (sep-2026, Asotrasaat 03/08–14/09)
 
