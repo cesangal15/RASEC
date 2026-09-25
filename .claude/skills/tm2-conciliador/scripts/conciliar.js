@@ -9,6 +9,7 @@
  *                     --proforma=<a.xlsx>[,<b.xlsx>…]  |  --sin-proforma=AAAA-MM-DD..AAAA-MM-DD
  *                     [--hoja="<nombre de hoja>=GRANULARES|TERRAPLEN|TERRAPLEN_INTERNO|IGNORAR"]…
  *                     [--config=<conciliador_config_….json exportado de ⚙>] [--salida=<carpeta>] [--repo=<raíz>] [--json]
+ *                     [--materiales-asfalto=<regex>]   (por defecto MDC|MSC|MGC|ASFALT|FRESAD|EMULSI|IMPRIMA)
  *   node conciliar.js --lista-contratistas [--config=…]
  *
  * NO hace el Paso 5 (PDF/OCR) ni el 6 (decisiones manuales): eso sigue en la herramienta. Deja una SESIÓN
@@ -82,6 +83,18 @@ if (args['sin-proforma']) {
   });
 }
 
+// Materiales que solo pide asfaltos (MDC, mezcla, fresado, emulsión…): si la proforma los nombra y el viaje
+// NO está en nuestras bases, sale como asfaltos sin gastar WhatsApp ni PDF. Si SÍ está en la base, no se
+// toca: se avisa (la digitación lo tiene como nuestro y eso lo decide el dueño).
+const reAsf = new RegExp(args['materiales-asfalto'] || '\\bMDC\\b|\\bMSC\\b|\\bMGC\\b|ASFALT|FRESAD|EMULSI|IMPRIMA', 'i');
+T.set('__reAsf', reAsf);
+const asf = J(`(()=>{const o={excluidas:[],enBase:[]};
+  for(const rc of S.corte.reclamos){
+    const m=normTexto((rc.secundarios||{}).material); if(!m||!__reAsf.test(m)) continue;
+    if(rc.estado==='NO_ENCONTRADA'){ setEstado(rc,'EXCLUIDA_ASFALTO','skill: material de la proforma «'+rc.secundarios.material+'» (solo lo pide asfaltos)',false); o.excluidas.push(rc.remision+' '+rc.secundarios.material); }
+    else if(rc.estado==='ENCONTRADA') o.enBase.push(rc.remision+' '+rc.secundarios.material);
+  } return o;})()`);
+
 // Paso 7 — exportes reales + resumen + sesión importable
 ['xlsxActa', 'xlsxActaPend', 'xlsxDigitadora', 'xlsxResumen'].forEach(fn => {
   try { J('Exportes.' + fn + '()'); } catch (e) { console.warn('⚠ Exportes.' + fn + ': ' + e.message); }
@@ -95,6 +108,7 @@ const r = J(`({ conteo:conteoEstados(), reclamadas:S.corte.reclamos.length, alAc
   pendientesDigitacion:pendientesOrdenadas().length,
   hojas:S.corte.proformas.flatMap(pf=>pf.hojas.map(h=>({archivo:pf.archivo,hoja:h.nombre,estado:h.estado,ambito:h.ambito,modo:h.modo,n:h.n}))),
   configFabrica:${config && config.contratistas ? 'false' : 'true'} })`);
+r.asfaltoPorMaterial = asf;
 r.archivos = T.escrituras.concat([fRes, fSes]);
 r.porResolver = r.hojas.filter(h => h.estado === 'sin_ambito' || h.estado === 'sin_columna');
 
@@ -102,6 +116,8 @@ if (args.json) console.log(JSON.stringify(r, null, 2));
 else {
   console.log(resumen);
   console.log('\nAl acta: ' + r.alActa + ' filas · pendientes de digitación/investigación: ' + r.pendientesDigitacion);
+  if (asf.excluidas.length) console.log('Fuera por material de asfaltos (sin base): ' + asf.excluidas.length + ' · ' + asf.excluidas.join(' · '));
+  if (asf.enBase.length) console.log('⚠ Material de asfaltos pero SÍ en nuestra base (pregúntale al dueño): ' + asf.enBase.join(' · '));
   if (r.porResolver.length) console.log('⚠ Hojas por resolver (usa --hoja="NOMBRE=ÁMBITO"): ' + r.porResolver.map(h => h.archivo + ' › ' + h.hoja + ' (' + h.estado + ')').join(' · '));
   if (r.configFabrica) console.log('⚠ Config de FÁBRICA (configSeed): exporta la tuya desde ⚙ Configuración → Exportar y pásala con --config.');
   console.log('\nArchivos:\n  ' + r.archivos.join('\n  '));
