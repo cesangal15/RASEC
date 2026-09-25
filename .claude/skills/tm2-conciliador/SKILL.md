@@ -31,19 +31,24 @@ repo): rutas reales de `GRANULARES.xlsx` y `TERRAPLEN.xlsx`, el libro de actas d
 config de la herramienta, los grupos de WhatsApp y la base del puente. **Léelo primero**; si una ruta dice
 `POR_DEFINIR`, pídesela al dueño y guárdala ahí.
 
-Cada corte vive en `C:\GALCA\conciliacion\cortes\<CONTRATISTA>_<desde>_<hasta>\`:
-- `entrada\` — lo que deja el dueño: proforma(s) y PDF de soportes (y, si la tiene, la sesión de la
-  herramienta con su OCR). **Es lo único que trae en cada corte.**
-- `bases\` — COPIA de las bases y del libro de actas tomada al empezar (foto fechada: así se sabe con qué
-  versión se concilió y se detecta si la digitación cambió algo después).
-- `01_cruce\`, `02_decision\` (con `preguntas.md`), `03_exportes\` (Excel y PDF de la digitadora),
-  `04_acta\` (la copia del libro de actas con las filas nuevas).
+Dónde está cada cosa (verificado sep-2026; lo manda `rutas.json`):
+- **Bases y actas** (SharePoint sincronizado, solo lectura): «BASES DE DATOS DIGITACION» `2026\2. VOLQUETAS\TERRAPLEN.xlsx`,
+  `2026\3. MATERIALES\GRANULARES.xlsx` y un libro de actas por contratista en `2026\` (`ASOTRASAT.xlsx`…).
+- **Proformas**: `OneDrive - Grupo Ortiz\Documentos\PROFORMAS\<NN.MES Nª Q>\<CONTRATISTA> PROFORMA Q ….xlsx`
+  (el dueño ya las guarda ahí; `contratistas.*.proforma_contiene` dice cómo reconocer cada una).
+- **Soportes PDF** (pesan mucho y no se guardan en OneDrive): `C:\GALCA\conciliacion\soportes\<quincena>\<CONTRATISTA>\`,
+  con cualquier nombre. Al cerrar el corte, con el sí del dueño, se borran y solo queda el PDF de
+  pendientes de la digitadora.
+- **Trabajo del corte**: `C:\GALCA\conciliacion\cortes\<CONTRATISTA>_<desde>_<hasta>\` con `bases\` (COPIA de
+  las bases y del libro de actas tomada al empezar: foto fechada para saber con qué versión se concilió y
+  detectar si la digitación cambió algo después), `01_cruce\`, `02_decision\` (con `preguntas.md`),
+  `03_exportes\` (Excel y PDF de la digitadora) y `04_acta\` (copia del libro con las filas nuevas).
 
 ## Entradas del corte
 
-En `entrada\` del corte: proforma(s) y PDF de soportes. Contratista y fechas (del nombre de la carpeta o
-los pregunta). WhatsApp: se lee de la base del puente (ver paso 2); si no está corriendo, sirven los chats
-exportados. El resto sale de `rutas.json`.
+El dueño solo dice contratista y quincena (p. ej. «Asotrasaat, 1ª de septiembre») y deja los PDF en
+`soportes\<quincena>\<CONTRATISTA>\`. La proforma sale de su carpeta de la quincena, las bases y el acta de
+SharePoint, WhatsApp de la base del puente (paso 2; si no está corriendo, sirven chats exportados).
 
 Dependencias fuera del repo (una vez por sesión; `$T` = carpeta temporal del trabajo):
 `npm i --prefix "$T/tm2deps" xlsx@0.18.5` → `NODE_PATH=$T/tm2deps/node_modules`;
