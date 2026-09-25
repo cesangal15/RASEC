@@ -63,6 +63,10 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
 1. **Cruce (pasos 1–4 de la herramienta)**
    `node $S/conciliar.js --contratista=<id> --desde=… --hasta=… --granulares=… --terraplen=… --proforma=… --config=… --salida=<corte>/01_cruce`
    (`--lista-contratistas` da los id). Hojas sin clasificar: pregunta el ámbito y re-corre con `--hoja="<nombre>=…"`.
+   **Material de asfaltos**: si la proforma dice MDC, mezcla, fresado, emulsión o imprimación y el viaje NO
+   está en nuestras bases, `conciliar.js` lo saca solo como EXCLUIDA_ASFALTO (esos materiales solo los pide
+   asfaltos): no pasan por WhatsApp ni por los PDF. Si alguno SÍ está en la base, lo avisa: pregúntale al
+   dueño. Lista ajustable con `--materiales-asfalto=<regex>`. (Prueba sep-2026: 19 de 19 = las del dueño.)
 2. **WhatsApp primero** (los UF3/asfaltos no necesitan soporte):
    `python $S/chats.py desde-db --grupo "<grupo 1>" --grupo "<grupo 2>" --desde … --hasta … --out mensajes.json`
    (lee en SOLO LECTURA la base del puente local de `rutas.json`; si avisa de mensajes sin autor o el
