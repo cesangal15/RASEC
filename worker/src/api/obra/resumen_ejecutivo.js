@@ -31,7 +31,7 @@ import { sumaPorDia_ } from './pliegue.js';
 import { proyeccionTableroDatos_ } from './proyeccion.js';
 import { periodoDia_ } from './tablero_vivo.js';
 import { gunzipB64_ } from './tablero.js';
-import { redactarResumen, validarNumerosTexto, clasificarPartida_, CUMPL_BUENA, CUMPL_DENTRO } from './resumen_texto.js';
+import { redactarResumen, validarNumerosTexto, textoDeRespuestaIA, clasificarPartida_, CUMPL_BUENA, CUMPL_DENTRO } from './resumen_texto.js';
 
 const RE_ROLES = ['admin', 'jefe', 'residente', 'residente_dren', 'residente_odt', 'residente_odl'];
 const RE_MAX_DIAS = 366;
@@ -357,12 +357,12 @@ export async function resumenEjecutivoIA(c, body, ses) {
   ];
 
   let respuesta;
-  try { respuesta = await c.env.AI.run(IA_MODELO, { messages: mensajes, max_tokens: IA_MAX_TOKENS }); }
+  try { respuesta = await c.env.AI.run(IA_MODELO, { messages: mensajes, max_tokens: IA_MAX_TOKENS, chat_template_kwargs: { enable_thinking: false } }); }
   catch (err) {
     logMarcar_(c, 'ok', 'resumen_ejecutivo_ia: IA falló (' + String((err && err.message) || err).slice(0, 120) + '), cae a reglas');
     return json(c, { ok: true, ia: false, texto: borrador, aviso: 'No se pudo generar el texto con IA (cupo o error del servicio); se muestra el resumen por reglas.' });
   }
-  const textoIA = txt_(respuesta && (respuesta.response || respuesta.result || respuesta));
+  const textoIA = textoDeRespuestaIA(respuesta);   // '' si no llegó un texto de verdad → cae a reglas
   if (!textoIA) {
     logMarcar_(c, 'ok', 'resumen_ejecutivo_ia: IA sin texto, cae a reglas');
     return json(c, { ok: true, ia: false, texto: borrador, aviso: 'La IA no devolvió texto; se muestra el resumen por reglas.' });
