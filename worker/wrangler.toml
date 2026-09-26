@@ -87,3 +87,9 @@ simple = { limit = 120, period = 60 }
 
 [observability]
 enabled = true
+
+# Workers AI (plan Free, con cupo diario): redacción opcional del Resumen ejecutivo con IA
+# (worker/src/api/obra/resumen_ejecutivo.js, action=resumen_ejecutivo_ia). Sin este binding, o si se agota
+# el cupo, el endpoint cae automáticamente al texto redactado por reglas (gratis, determinista).
+[ai]
+binding = "AI"

@@ -913,7 +913,50 @@ module.exports = [
           && JSON.stringify(x.filas[0]) === JSON.stringify(CSV_PROY_D187[tabla]) && x.filas.length > 1 && x.filas.every(f => f.length === CSV_PROY_D187[tabla].length), [p.st, x.err, x.filas[0]]);
       }
       const pm = await pedir({ action: 'proyeccion_csv', tabla: 'otra', clave });
-      t.ok('proyeccion_csv con tabla inválida → 400 texto', pm.st === 400 && /^text\/plain/.test(pm.ct), [pm.st, pm.tx.slice(0, 120)]); } }
+      t.ok('proyeccion_csv con tabla inválida → 400 texto', pm.st === 400 && /^text\/plain/.test(pm.ct), [pm.st, pm.tx.slice(0, 120)]); } },
+
+  /* ---------- Resumen ejecutivo: rango → indicadores + texto por reglas (redacción opcional con IA) ---------- */
+  { id: 'obra.resumen_ejecutivo.auth', modulo: 'obra', nombre: 'GET resumen_ejecutivo sin token → auth:false genérico (D109)',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('resumen_ejecutivo es DB-only del Worker (BACKEND_OBRA=db); no está en el .gs vm');
+      const r = await api.obra.get({ action: 'resumen_ejecutivo', desde: RANGO_D182.desde, hasta: RANGO_D182.hasta });
+      t.ok('auth:false genérico', r.ok === false && r.auth === false && r.error === api.MENSAJE_AUTH, r); } },
+
+  { id: 'obra.resumen_ejecutivo.rol', modulo: 'obra', nombre: 'GET resumen_ejecutivo: rol no permitido (capataz) → rechazo legible, sin indicadores',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('resumen_ejecutivo es DB-only del Worker (BACKEND_OBRA=db); no está en el .gs vm');
+      const r = await api.obra.get({ action: 'resumen_ejecutivo', desde: RANGO_D182.desde, hasta: RANGO_D182.hasta, token: await api.sesion('capataz') });
+      t.ok('ok:false con «no puede», sin indicadores', r.ok === false && /no puede/i.test(String(r.error)) && !r.indicadores, r); } },
+
+  { id: 'obra.resumen_ejecutivo.rango_invalido', modulo: 'obra', nombre: 'GET resumen_ejecutivo: fechas inválidas, hasta<desde o rango > 366 días → rechazo legible',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('resumen_ejecutivo es DB-only del Worker (BACKEND_OBRA=db); no está en el .gs vm');
+      const tok = await api.sesion('jefe');
+      const a = await api.obra.get({ action: 'resumen_ejecutivo', desde: RANGO_D182.hasta, hasta: RANGO_D182.desde, token: tok });
+      t.ok('hasta<desde → rechazo', a.ok === false && typeof a.error === 'string' && a.error.length > 3, a);
+      const b = await api.obra.get({ action: 'resumen_ejecutivo', desde: 'no-es-fecha', hasta: RANGO_D182.hasta, token: tok });
+      t.ok('fecha inválida → rechazo', b.ok === false, b);
+      const c = await api.obra.get({ action: 'resumen_ejecutivo', desde: '2019-01-01', hasta: '2020-06-01', token: tok });
+      t.ok('rango > 366 días → rechazo', c.ok === false, c); } },
+
+  { id: 'obra.resumen_ejecutivo.ok', modulo: 'obra', nombre: 'GET resumen_ejecutivo con semillas (D182: 2020-01-20..24) → {ok, desde, hasta, anterior, datos_hasta, indicadores, texto}',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('resumen_ejecutivo es DB-only del Worker (BACKEND_OBRA=db)');
+      const tok = await api.sesion('jefe');
+      const r = await api.obra.get({ action: 'resumen_ejecutivo', desde: RANGO_D182.desde, hasta: RANGO_D182.hasta, token: tok });
+      t.ok('forma de la respuesta', r.ok === true && tiene(r, ['desde', 'hasta', 'anterior', 'datos_hasta', 'indicadores', 'texto']), faltan(r, ['desde', 'hasta', 'anterior', 'datos_hasta', 'indicadores', 'texto']));
+      t.ok('eco de fechas', r.desde === RANGO_D182.desde && r.hasta === RANGO_D182.hasta, [r.desde, r.hasta]);
+      t.ok('anterior = mismo Nº de días (5) inmediatamente antes', r.anterior && r.anterior.desde === '2020-01-15' && r.anterior.hasta === '2020-01-19', r.anterior);
+      const ind = r.indicadores || {};
+      t.ok('indicadores.principales con las 4 partidas', ind.principales && ['excavacion', 'terraplen', 'subbase', 'base'].every(k => ind.principales[k] && typeof ind.principales[k].prod === 'number'), ind.principales);
+      t.ok('indicadores.global con prod_total numérico y clase reconocida', ind.global && typeof ind.global.prod_total === 'number' && ['muy_buena', 'dentro', 'por_debajo', null].indexOf(ind.global.clase) >= 0, ind.global);
+      t.ok('indicadores.clima con dias_rango=5', ind.clima && ind.clima.dias_rango === 5, ind.clima);
+      t.ok('indicadores.drenajes con odt/odl/otras', ind.drenajes && ind.drenajes.odt && ind.drenajes.odl && ind.drenajes.otras, ind.drenajes);
+      t.ok('texto no vacío', typeof r.texto === 'string' && r.texto.length > 10, r.texto); } },
+
+  { id: 'obra.resumen_ejecutivo_ia.sin_ai', modulo: 'obra', escribe: true, nombre: 'POST resumen_ejecutivo_ia sin binding AI (banco) → cae a reglas: {ok:true, ia:false, texto, aviso}; rol no permitido → rechazo',
+    async run(api, t){ if (api.modo === 'vm') return t.omitir('resumen_ejecutivo_ia es DB-only del Worker (BACKEND_OBRA=db)');
+      const tok = await api.sesion('jefe');
+      const r = await api.obra.post({ token: tok, action: 'resumen_ejecutivo_ia', desde: RANGO_D182.desde, hasta: RANGO_D182.hasta });
+      t.ok('ok:true, ia:false, texto y aviso (el banco no tiene env.AI)', r.ok === true && r.ia === false && typeof r.texto === 'string' && r.texto.length > 10 && typeof r.aviso === 'string', r);
+      const sinRol = await api.obra.post({ token: await api.sesion('capataz'), action: 'resumen_ejecutivo_ia', desde: RANGO_D182.desde, hasta: RANGO_D182.hasta });
+      t.ok('rol no permitido (capataz) → rechazo', sinRol.ok === false, sinRol); } }
 ];
 
 /* ---------- D187: columnas del CSV y un parser RFC 4180 mínimo (comillas, "" y saltos de línea dentro de comillas) ---------- */
