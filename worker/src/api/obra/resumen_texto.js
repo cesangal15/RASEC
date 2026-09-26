@@ -6,19 +6,24 @@
  * También vive aquí el VALIDADOR de números del texto de la IA (resumen_ejecutivo_ia): puro por lo mismo
  * (nunca confiar en la IA sin comprobar sus cifras contra las de `indicadores`).
  *
+ * D218: las 4 partidas (excavación/terraplén/subbase/base) son materiales DISTINTOS — nunca se suman en
+ * un total de producción ni de plan (16.649 m³ de "plan total" no tiene sentido). El texto va SIEMPRE por
+ * partida, agrupando por su propia clasificación (muy buena / dentro de lo planeado / por debajo / sin
+ * producción / sin plan). `global` puede seguir viniendo en `indicadores` para quien lo use, pero
+ * redactarResumen ya NO lo lee.
+ *
  * Forma esperada de `indicadores` (la arma resumen_ejecutivo.js):
- *   { desde, hasta,
+ *   { desde, hasta, hasta_pedido?,
  *     principales: { excavacion|terraplen|subbase|base: {prod, plan, cumpl, prod_ant, var_pct} },
- *     global: { prod_total, plan_total, cumpl, prod_ant, var_pct, clase: 'muy_buena'|'dentro'|'por_debajo'|null },
  *     clima: { dias_rango, dias_con_registro, dias_lluvia, horas_lluvia, horas_varada, por_clima:{...} },
  *     drenajes: { odt:{actividades:[{actividad,unidad,cantidad,dias}]}, odl:{...}, otras:{...} },
- *     avance: { partidas:{...}, global:{cumpl,...}, hasta } | null
- *   }
+ *     avance: { partidas:{...}, global:{cumpl,...}, hasta } | null }
  *
  * Umbrales (D-xx pendiente de cierre documental por el orquestador): CUMPL_BUENA/CUMPL_DENTRO clasifican
- * el cumplimiento global (≥100% muy buena, 75–100% dentro de lo planeado, <75% por debajo — umbral fijado
- * por el jefe); UMBRAL_LLUVIA_FUERTE decide si la lluvia se menciona como causa principal. Un solo lugar:
- * el handler del endpoint importa estas mismas constantes para clasificar (nunca las repite).
+ * el cumplimiento de CADA partida (≥100% muy buena, 75–100% dentro de lo planeado, <75% por debajo — umbral
+ * fijado por el jefe); UMBRAL_LLUVIA_FUERTE decide si la lluvia se menciona como causa principal, ahora
+ * sobre `dias_con_registro` (D218-C), no sobre el rango calendario. Un solo lugar: el handler del endpoint
+ * importa estas mismas constantes para clasificar cada partida (nunca las repite).
  */
 
 export const CUMPL_BUENA = 1.00;
@@ -26,6 +31,7 @@ export const CUMPL_DENTRO = 0.75;
 export const UMBRAL_LLUVIA_FUERTE = 0.25;
 
 const ETQ_PARTIDA = { excavacion: 'Excavación', terraplen: 'Terraplén', subbase: 'Subbase', base: 'Base/BTC' };
+const ETQ_PARTIDA_ART = { excavacion: 'la excavación', terraplen: 'el terraplén', subbase: 'la subbase', base: 'la base/BTC' };
 const ORDEN_PARTIDAS = ['excavacion', 'terraplen', 'subbase', 'base'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
@@ -43,71 +49,115 @@ function fechaLarga_(iso) {
   if (!m) return txt_(iso);
   return Number(m[3]) + ' de ' + MESES[Number(m[2]) - 1] + ' de ' + m[1];
 }
-function aperturaFechas_(desde, hasta) {
-  if (desde === hasta) return 'El ' + fechaLarga_(desde);
-  return 'Del ' + fechaLarga_(desde) + ' al ' + fechaLarga_(hasta);
+// La fecha de inicio sin el mes/año que repite la de cierre: «Del 1 al 15 de septiembre de 2026».
+function fechaCorta_(desde, hasta) {
+  const a = /^(\d{4})-(\d{2})-(\d{2})$/.exec(txt_(desde)), b = /^(\d{4})-(\d{2})-(\d{2})$/.exec(txt_(hasta));
+  if (!a || !b) return fechaLarga_(desde);
+  if (a[1] !== b[1]) return fechaLarga_(desde);
+  if (a[2] !== b[2]) return Number(a[3]) + ' de ' + MESES[Number(a[2]) - 1];
+  return String(Number(a[3]));
 }
-function clasificacionTexto_(clase) {
-  if (clase === 'muy_buena') return 'una muy buena producción';
-  if (clase === 'por_debajo') return 'una producción por debajo del plan';
-  if (clase === 'dentro') return 'una producción dentro de lo planeado';
-  return 'producción registrada (sin plan cargado para comparar)';
+// D218-B: si el rango pedido pasa del último día con datos, `hasta` ya viene recortado (lo hace el
+// handler) y `hastaPedido` es el que se pidió de verdad: se avisa en una coletilla breve.
+function aperturaFechas_(desde, hasta, hastaPedido) {
+  let base = (desde === hasta) ? 'El ' + fechaLarga_(desde) : 'Del ' + fechaCorta_(desde, hasta) + ' al ' + fechaLarga_(hasta);
+  if (hastaPedido && hastaPedido !== hasta) base += ' (último día con datos; se pidió hasta el ' + fechaLarga_(hastaPedido) + ')';
+  return base;
 }
-// La partida con mejor/peor cumplimiento de `principales` (solo entre las que tienen plan>0, cumpl≠null).
-function partidaExtremo_(principales, mejor) {
-  if (!principales) return null;
-  let out = null;
+
+// «a», «a y b», «a, b y c».
+function listaY_(xs) {
+  return xs.length <= 1 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' y ' + xs[xs.length - 1];
+}
+
+/* ---------- D218-A: clasificación y redacción POR PARTIDA (nunca un total) ---------- */
+// Clasifica una partida sola: con plan>0 usa los mismos umbrales que antes clasificaban el global; sin
+// plan, si produjo algo se dice sin comparar contra nada; sin plan y sin producción no hay nada que decir.
+export function clasificarPartida_(v) {
+  if (!v) return null;
+  const plan = Number(v.plan) || 0, prod = Number(v.prod) || 0;
+  if (plan > 0) {
+    if (prod === 0) return 'sin_produccion';
+    const c = v.cumpl;
+    if (c == null) return null;
+    if (c >= CUMPL_BUENA) return 'muy_buena';
+    if (c >= CUMPL_DENTRO) return 'dentro';
+    return 'por_debajo';
+  }
+  if (prod > 0) return 'sin_plan';
+  return null;
+}
+function agruparPartidas_(principales) {
+  const grupos = { muy_buena: [], dentro: [], por_debajo: [], sin_produccion: [], sin_plan: [] };
   ORDEN_PARTIDAS.forEach(function (k) {
-    const v = principales[k];
-    if (!v || v.cumpl == null) return;
-    if (!out || (mejor ? v.cumpl > out.v.cumpl : v.cumpl < out.v.cumpl)) out = { k: k, v: v };
+    const v = principales && principales[k];
+    const clase = clasificarPartida_(v);
+    if (clase) grupos[clase].push({ k: k, v: v });
   });
-  return out;
+  return grupos;
 }
+// Cifra entre paréntesis de una partida dentro de su frase de grupo. `esPrimeroDelGrupo`: solo el primer
+// elemento de un grupo positivo dice "del plan" (los siguientes ya lo tienen implícito, D218-A: "sin
+// repetir la unidad de más si queda pesado").
+function cifraPartida_(it, tipo, esPrimeroDelGrupo) {
+  const v = it.v, nombre = ETQ_PARTIDA[it.k];
+  if (tipo === 'muy_buena' || tipo === 'dentro') {
+    return nombre + ' (' + fmtN_(v.prod) + ' m³' + (v.plan > 0 ? ', ' + fmtPct_(v.cumpl) + (esPrimeroDelGrupo ? ' del plan' : '') : '') + ')';
+  }
+  if (tipo === 'por_debajo') return nombre + ' (' + fmtN_(v.prod) + ' m³, ' + fmtPct_(v.cumpl) + ')';
+  if (tipo === 'sin_produccion') return nombre + ' (plan ' + fmtN_(v.plan) + ' m³)';
+  return nombre; // sin_plan: la cifra va en el verbo (produjo/produjeron X m³)
+}
+function verbo_(tipo, plural) {
+  if (tipo === 'muy_buena') return plural ? 'tuvieron muy buena producción' : 'tuvo muy buena producción';
+  if (tipo === 'dentro') return plural ? 'tuvieron una producción dentro de lo planeado' : 'tuvo una producción dentro de lo planeado';
+  if (tipo === 'por_debajo') return plural ? 'quedaron por debajo del plan' : 'quedó por debajo del plan';
+  if (tipo === 'sin_produccion') return plural ? 'no registraron producción' : 'no registró producción';
+  return '';
+}
+function fraseGrupo_(items, tipo) {
+  if (!items || !items.length) return '';
+  const plural = items.length > 1;
+  if (tipo === 'sin_plan') {
+    const partes = items.map(function (it) { return ETQ_PARTIDA[it.k] + ' produj' + (plural ? 'eron' : 'o') + ' ' + fmtN_(it.v.prod) + ' m³'; });
+    return partes.join(' y ') + ' (sin plan cargado para comparar)';
+  }
+  const nombres = items.map(function (it, i) { return cifraPartida_(it, tipo, i === 0); }).join(' y ');
+  return nombres + ' ' + verbo_(tipo, plural);
+}
+const ORDEN_GRUPOS = ['muy_buena', 'dentro', 'por_debajo', 'sin_produccion', 'sin_plan'];
 
 /* ---------- redacción por reglas ---------- */
 export function redactarResumen(ind) {
   if (!ind || typeof ind !== 'object') return 'No hay información suficiente para redactar el resumen.';
   const desde = txt_(ind.desde), hasta = txt_(ind.hasta);
-  const g = ind.global || {};
   const clima = ind.clima || {};
+  const grupos = agruparPartidas_(ind.principales);
+  const frasesProd = ORDEN_GRUPOS.map(function (t) { return fraseGrupo_(grupos[t], t); }).filter(Boolean);
 
-  if (!clima.dias_con_registro && !(g.prod_total > 0)) {
-    return aperturaFechas_(desde, hasta) + ' no hay registros de producción en Galca para este rango: sin datos para redactar el resumen.';
+  if (!frasesProd.length) {
+    return aperturaFechas_(desde, hasta, ind.hasta_pedido) + ' no hay registros de producción en Galca para este rango: sin datos para redactar el resumen.';
   }
 
   const p1 = [];
-  p1.push(aperturaFechas_(desde, hasta) + ' la obra tuvo ' + clasificacionTexto_(g.clase) + ': '
-    + fmtN_(g.prod_total) + ' m³ compactos'
-    + (g.plan_total > 0 ? ' frente a un plan de ' + fmtN_(g.plan_total) + ' m³ (' + fmtPct_(g.cumpl) + ' de cumplimiento)' : ' (sin plan cargado para el periodo)')
-    + '.');
+  p1.push(aperturaFechas_(desde, hasta, ind.hasta_pedido) + ', ' + frasesProd.join('; ') + '.');
 
-  // Causa: clima primero (D182), si no explica → la partida más rezagada.
-  const propLluvia = clima.dias_rango > 0 ? (clima.dias_lluvia || 0) / clima.dias_rango : 0;
-  // El peso que se le da a la lluvia depende del resultado: con buena producción no puede «afectar de forma
-  // importante» (se contradice con el cumplimiento); se dice que se logró pese a ella.
-  const detLluvia = (clima.dias_lluvia || 0) + ' de ' + clima.dias_rango + ' días con lluvia'
+  // Causa: clima primero (D182), sobre `dias_con_registro` (D218-C, no el rango calendario completo).
+  const diasConRegistro = clima.dias_con_registro || 0;
+  const propLluvia = diasConRegistro > 0 ? (clima.dias_lluvia || 0) / diasConRegistro : 0;
+  const detLluvia = (clima.dias_lluvia || 0) + ' de ' + diasConRegistro + ' días con lluvia'
     + (clima.horas_lluvia != null ? ', ' + fmtN_(clima.horas_lluvia) + ' horas de lluvia registradas en los partes de maquinaria' : '');
-  if (propLluvia >= UMBRAL_LLUVIA_FUERTE && g.clase === 'muy_buena') {
-    p1.push('El resultado se logró pese a la lluvia (' + detLluvia + ').');
-  } else if (propLluvia >= UMBRAL_LLUVIA_FUERTE && g.clase === 'dentro') {
-    p1.push('La lluvia restó producción en el periodo (' + detLluvia + ').');
-  } else if (propLluvia >= UMBRAL_LLUVIA_FUERTE) {
-    p1.push('La lluvia afectó de forma importante la producción (' + detLluvia + ').');
+  const partidasPorDebajo = grupos.por_debajo.length + grupos.sin_produccion.length;
+  if (propLluvia >= UMBRAL_LLUVIA_FUERTE) {
+    if (partidasPorDebajo > 0) p1.push('La lluvia afectó la producción (' + detLluvia + ').');
+    else p1.push('El resultado se logró pese a la lluvia (' + detLluvia + ').');
   } else if ((clima.dias_lluvia || 0) >= 1) {
     p1.push('Hubo lluvia en ' + clima.dias_lluvia + ' día' + (clima.dias_lluvia === 1 ? '' : 's') + ' del periodo, sin afectar de forma determinante el resultado.');
-  } else if (g.clase === 'por_debajo') {
-    const peor = partidaExtremo_(ind.principales, false);
-    p1.push('El resultado no se explica por el clima' + (peor ? ': la partida más rezagada fue ' + ETQ_PARTIDA[peor.k] + ' (' + fmtPct_(peor.v.cumpl) + ' de cumplimiento).' : '.'));
+  } else if (partidasPorDebajo > 0) {
+    p1.push('El rezago no se explica por el clima.');
   }
 
-  // Partidas destacadas (mayor y menor cumplimiento), solo si hay al menos 2 partidas con plan.
-  const mejor = partidaExtremo_(ind.principales, true), peor2 = partidaExtremo_(ind.principales, false);
-  if (mejor && peor2 && mejor.k !== peor2.k) {
-    p1.push('Por partida, ' + ETQ_PARTIDA[mejor.k] + ' tuvo el mejor cumplimiento (' + fmtPct_(mejor.v.cumpl) + ') y ' + ETQ_PARTIDA[peor2.k] + ' el más bajo (' + fmtPct_(peor2.v.cumpl) + ').');
-  }
-
-  // Segundo párrafo: drenajes, avance y variación vs periodo anterior.
+  // Segundo párrafo: drenajes, avance y variación vs periodo anterior (por partida, D218-A).
   const p2 = [];
   ['odt', 'odl'].forEach(function (a) {
     const d = ind.drenajes && ind.drenajes[a];
@@ -121,11 +171,27 @@ export function redactarResumen(ind) {
     const top = otras.actividades.slice(0, 3).map(function (x) { return x.actividad + ' (' + fmtN_(x.cantidad) + ' ' + x.unidad + ')'; }).join(', ');
     p2.push('En otras actividades se reportó ' + top + '.');
   }
-  if (ind.avance && ind.avance.global && ind.avance.global.cumpl != null) {
-    p2.push('El avance del contrato llegó a ' + fmtPct_(ind.avance.global.cumpl) + ' al ' + fechaLarga_(ind.avance.hasta || hasta) + '.');
+  // Avance del contrato POR PARTIDA (D218-A): cada material contra su propia cantidad contratada.
+  const avP = (ind.avance && ind.avance.partidas) || {};
+  const avances = ORDEN_PARTIDAS.filter(function (k) { return avP[k] && avP[k].cumpl != null; })
+    .map(function (k) { return ETQ_PARTIDA_ART[k].replace(/^(la|el) /, '') + ' ' + fmtPct_(avP[k].cumpl); });
+  if (avances.length) {
+    p2.push('Avance del contrato al ' + fechaLarga_(ind.avance.hasta || hasta) + ': ' + listaY_(avances) + '.');
   }
-  if (g.prod_ant != null && g.prod_ant > 0 && g.var_pct != null) {
-    p2.push('Frente al periodo anterior (' + fmtN_(g.prod_ant) + ' m³), la producción ' + (g.var_pct >= 0 ? 'subió' : 'bajó') + ' ' + fmtPct_(Math.abs(g.var_pct)) + '.');
+  const conVariacion = ORDEN_PARTIDAS.map(function (k) { return { k: k, v: ind.principales && ind.principales[k] }; })
+    .filter(function (x) { return x.v && x.v.prod_ant > 0 && x.v.var_pct != null; });
+  if (conVariacion.length) {
+    // Un grupo por dirección («subió … y …; bajó … y …»), para no encadenar «y» de más.
+    const grupo = function (sube) {
+      const xs = conVariacion.filter(function (x) { return (x.v.var_pct >= 0) === sube; });
+      if (!xs.length) return '';
+      const verbo = sube ? 'subió' : 'bajó';
+      return listaY_(xs.map(function (x, i) {
+        return ETQ_PARTIDA_ART[x.k] + (i === 0 ? ' ' + verbo : '') + ' ' + fmtPct_(Math.abs(x.v.var_pct));
+      }));
+    };
+    const grupos = [grupo(true), grupo(false)].filter(Boolean);
+    p2.push('Frente al periodo anterior, ' + grupos.join('; ') + '.');
   }
 
   const t1 = p1.join(' '), t2 = p2.join(' ');

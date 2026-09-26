@@ -47,8 +47,12 @@
   .tot-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
   .tot-row:last-child{border-bottom:none;}
   .tot-row.destacado{padding:12px 0;}
-  .tot-row .cat{color:var(--text);min-width:0;}
-  .tot-row .val{font-family:'Syne',sans-serif;font-weight:700;white-space:nowrap;text-align:right;}
+  /* min-width:0 dejaba que .cat (p.ej. "ODT"/"ODL") se encogiera a 0 cuando .val traía texto largo: el
+     texto de .cat entonces se pintaba por encima del de .val (se veía "ODLConcreto clase 14…" pegado).
+     flex-shrink:0 + un ancho mínimo fijan la columna de la etiqueta; .val ya no fuerza nowrap para poder
+     partir línea en listas de actividades largas. */
+  .tot-row .cat{color:var(--text);flex-shrink:0;min-width:78px;}
+  .tot-row .val{font-family:'Syne',sans-serif;font-weight:700;text-align:right;min-width:0;}
   .tot-row .val small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;color:var(--muted);font-size:11px;}
   .tot-row .val .u{font-family:'DM Sans',sans-serif;font-size:11px;color:var(--muted);font-weight:400;margin-left:4px;}
   .tot-row .val.ok{color:var(--success-txt);}
@@ -59,6 +63,9 @@
   .ind-tabla th,.ind-tabla td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--border);}
   .ind-tabla th:first-child,.ind-tabla td:first-child{text-align:left;}
   .ind-tabla th{color:var(--muted);font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;}
+  .chip-clase{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:20px;background:var(--input-bg);border:1px solid var(--border);color:var(--muted);font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;vertical-align:middle;}
+  .chip-clase.ok{border-color:var(--success);color:var(--success-txt);}
+  .chip-clase.mal{border-color:var(--error);color:var(--error-txt);}
 
   /* ===== PC (D151) — dos columnas desde 1100px =========================
    * display:contents en móvil: los envoltorios DESAPARECEN para el layout y el
