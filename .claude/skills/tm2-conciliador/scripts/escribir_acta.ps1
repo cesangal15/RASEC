@@ -27,6 +27,9 @@
     fórmula de M da #VALOR!: se sobrescribe M con el literal 'kmTot' que
     traiga la fila del json (Q recalcula solo, porque su fórmula referencia
     a M por nombre de columna).
+    En libros donde M y Q son valores literales (p. ej. D&S.xlsx, hoja «D&S»):
+    la fórmula de M con ABS solo se exige si alguna fila trae Kilometraje
+    Inicial numérico, y si Q no quedó con fórmula se le pone =Cantidad*M.
   - 'Observaciones' se copia con la fórmula de la tabla, salvo que la fila
     del json traiga 'obs' explícita (TM1/PUENTES con texto ya resuelto):
     en ese caso se escribe ese texto literal, sobrescribiendo la fórmula.
@@ -197,7 +200,8 @@ try {
         $fm = [string]$lo.ListRows.Item($i).Range.Cells.Item(1, $colKmTot).Formula
         if ($fm -match '^=.*ABS\(.*Kilometraje Final') { $fTemplateKmTot = $fm; break }
     }
-    if (-not $fTemplateKmTot) { throw "No encontré en las últimas filas la fórmula de 'Kilómetros Totales trabajados' con ABS; revisa la tabla antes de escribir." }
+    $hayKmIniNumerico = @($filasEntrada | Where-Object { Es-Numerico ([string]$_.kmIni) }).Count -gt 0
+    if (-not $fTemplateKmTot -and $hayKmIniNumerico) { throw "No encontré en las últimas filas la fórmula de 'Kilómetros Totales trabajados' con ABS; revisa la tabla antes de escribir." }
 
     # Reconstruir 'Acta No.' con textos provisionales (misma estructura IF UF1/UF2)
     $reActaNo = [regex]'^(.*IF\(.*?,\s*)"[^"]*"\s*,\s*"[^"]*"(\).*)$'
@@ -280,6 +284,11 @@ try {
             $celdaKmTot.Formula = '=' + $kmTot.ToString([System.Globalization.CultureInfo]::InvariantCulture)
         }
         $m3km = $kmTot * [double]$fila.m3
+        # Q con literal en la tabla (libros sin columna calculada): se le pone =Cantidad*M
+        $celdaQ = $rango.Cells.Item(1, $colM3Km)
+        if (-not ([string]$celdaQ.Formula).StartsWith('=')) {
+            $celdaQ.Formula = '=' + $rango.Cells.Item(1, $colCantidad).Address($false, $false) + '*' + $rango.Cells.Item(1, $colKmTot).Address($false, $false)
+        }
 
         # -- Observaciones (S): literal si viene 'obs', si no la fórmula de la tabla --
         if ($fila.PSObject.Properties.Match('obs').Count -gt 0 -and $fila.obs) {
