@@ -143,7 +143,7 @@ Complementa el diagrama de arriba. Todas hablan con la API en **`https://api.gal
 | `residente-drenajes.html` | residente_dren, admin | Bandeja combinada ODT+ODL, envío por área. |
 | `residente.html` | residente, admin | Panel de selección del residente. |
 | `jefe.html` | jefe, residente, admin | Consulta post-DATA por rango, filtro de área, copiado A:S (D65). |
-| `resumen-ejecutivo.html` | jefe, residente, admin, residentes de drenajes | Resumen ejecutivo por rango (pestaña del Hub del Jefe y acceso en `jefe.html`): texto por reglas + «Redactar con IA» opcional (D217). |
+| `resumen-ejecutivo.html` | jefe, residente, admin, residentes de drenajes | Resumen ejecutivo por rango (pestaña del Hub del Jefe y acceso en `jefe.html`): texto por reglas con «Copiar» (D217); el botón de IA está oculto (D220). |
 | `tablero-produccion.html` (+`tablero/`) | admin, jefe, residentes | Tablero de producción; foto compartida (D158). |
 | `produccion-maquinaria.html` («Maquinaria») | admin, residente; jeisson (Flota); jefe (lectura) | Producción del día + Flota sobre `MAQUINAS` (D59–D62/D139). |
 | `parte.html?eq=<código>` | **público por QR** | Parte digital del equipo; identidad = equipo (D165). |
@@ -639,6 +639,7 @@ Un solo HTML (SheetJS embebido + motor + foto de datos embebida) que reemplaza l
 - `GET ?action=resumen_ejecutivo&desde=&hasta=` (token; admin, jefe, residente, residentes de drenajes; rango ≤ 366 días) → `{ok, desde, hasta, anterior, datos_hasta, indicadores, texto}`. Módulo `worker/src/api/obra/resumen_ejecutivo.js`; solo con `BACKEND_OBRA=db`.
 - Indicadores: partidas principales con `sumaPorDia_` (`pliegue.js`, igual que el Tablero; excavación = `exc`), plan de `proy_plan` prorrateado por días calendario del periodo 16→15, avance D163, clima (D182), horas de lluvia/varada de `tablero_horas` si existen, drenajes ODT/ODL y otras actividades de DATA, periodo anterior de igual duración.
 - **D218:** todo por partida (cada `principales[k]` trae `clase`; sin total global en texto, panel ni IA); el rango se recorta a `datos_hasta` (`indicadores.hasta_pedido` si hubo recorte); lluvia sobre `dias_con_registro`; `horas_lluvia`/`horas_varada` = `null` sin partes del rango; avance del contrato por partida.
+- **D220:** el botón «Redactar con IA» se quitó de la pantalla; `resumen_ejecutivo_ia` y el binding `[ai]` quedan sin uso.
 - **D219:** la llamada a Workers AI va con `chat_template_kwargs.enable_thinking=false` y el texto se extrae con `textoDeRespuestaIA` (`response` texto, `choices[0].message.content`, `result`); sin texto real → cae a reglas.
 - Texto: `worker/src/api/obra/resumen_texto.js` (puro): `redactarResumen` con los umbrales en constantes únicas (1,00 · 0,75 · lluvia 0,25) y `validarNumerosTexto`.
 - `POST {action:'resumen_ejecutivo_ia', desde, hasta}`: recalcula en el servidor y llama `env.AI.run` (binding `[ai]` de `wrangler.toml`, Workers AI, modelo en la constante `IA_MODELO`). Sin binding, con error, sin cupo o con una cifra no verificable → `{ok:true, ia:false, texto:<reglas>, aviso}`.
