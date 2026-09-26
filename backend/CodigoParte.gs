@@ -255,7 +255,8 @@ function parteCCConocidos_(){
 }
 function parteNormCC_(v){
   const s=parteTexto_(v);
-  const m=/^(37\d\d)\.(\d{1,2})\.(\d{1,2})$/.exec(s);
+  // Pedido del dueño (25-sep): «3701,02,07» —el operador que escribe con comas— es el mismo CC que 3701.02.07.
+  const m=/^(37\d\d)\s*[.,]\s*(\d{1,2})\s*[.,]\s*(\d{1,2})$/.exec(s);
   if(!m) return s;
   const numerica=m[1]+'.'+partePad2_(m[2])+'.'+partePadDec_(m[3]);
   if(m[3].length===2) return numerica;

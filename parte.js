@@ -104,7 +104,7 @@ function ccDeItem(item, pr){ return item ? proyectoDe(pr)+'.'+item : ''; }
 // D178: un CC derivado o escrito con proyecto 3701/3702 sigue al PR; los pseudo-CC y 3703 no se tocan.
 function ccConProyecto(cc, pr){ const m=/^370[12]\.(.+)$/.exec(String(cc||'')); return m ? proyectoDe(pr)+'.'+m[1] : cc; }
 // «3701.2.7» escrito a mano: se lee como 02.07 si ese CC existe en la lista y 02.70 no (misma regla que el backend).
-function normCCTexto(cc){ const m=/^(37\d\d)\.(\d{1,2})\.(\d{1,2})$/.exec(String(cc||'').trim()); if(!m) return String(cc||'').trim(); const p2=x=>x.length>=2?x:('0'+x).slice(-2), pd=x=>x.length>=2?x.slice(0,2):(x+'00').slice(0,2); const num=m[1]+'.'+p2(m[2])+'.'+pd(m[3]), abr=m[1]+'.'+p2(m[2])+'.'+p2(m[3]); if(m[3].length===2) return num; return (!ccDe(num) && ccDe(abr)) ? abr : num; }
+function normCCTexto(cc){ const m=/^(37\d\d)\s*[.,]\s*(\d{1,2})\s*[.,]\s*(\d{1,2})$/.exec(String(cc||'').trim()); if(!m) return String(cc||'').trim(); const p2=x=>x.length>=2?x:('0'+x).slice(-2), pd=x=>x.length>=2?x.slice(0,2):(x+'00').slice(0,2); const num=m[1]+'.'+p2(m[2])+'.'+pd(m[3]), abr=m[1]+'.'+p2(m[2])+'.'+p2(m[3]); if(m[3].length===2) return num; return (!ccDe(num) && ccDe(abr)) ? abr : num; }
 function habituales(){ return (ACTS.habituales||[]).slice(0, MAX_HABITUALES); }
 function actLabel(item){ const a=(ACTS.habituales||[]).concat(ACTS.todas||[]).find(x=>x.item===item); return a ? a.actividad : item; }
 function actLabelHTML(r){
@@ -125,6 +125,29 @@ function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'Am
 // D179: el parte se admite hasta 7 días atrás (antes hoy/ayer): un operador que pasó la semana sin señal o
 // sin teléfono transcribe los partes físicos atrasados él mismo. El backend solo rechaza fechas futuras.
 const DIAS_ATRAS = 7;
+// Madrugada (pedido del dueño, 25-sep): entre las 00:00 y las 08:59 lo que se sube es el turno noche que acaba
+// de terminar o el parte de ayer que quedó sin subir, así que la fecha sugerida es AYER (el día en que EMPEZÓ
+// el turno, D188). Sigue editable; el aviso bajo la fecha lo dice. Antes quedaba «hoy» y el turno noche caía
+// un día adelante.
+const HORA_FIN_MADRUGADA = 9;
+function horaBogota(){ return new Date().toLocaleTimeString('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}); }
+function esMadrugada(){ return Number(horaBogota().slice(0,2)) < HORA_FIN_MADRUGADA; }
+function fechaSugerida(){ return esMadrugada() ? diasAntes(HOY, 1) : HOY; }
+function fechaCorta(f){ const m=/^\d{4}-(\d{2})-(\d{2})$/.exec(f||''); return m ? Number(m[2])+'-'+['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][Number(m[1])-1] : f; }
+function pintarAvisoFecha(){
+  const el=document.getElementById('fechaAviso'); if(!el) return;
+  const f=document.getElementById('fecha').value, h=horaBogota();
+  let txt='';
+  if(esMadrugada() && f===diasAntes(HOY, 1)) txt='🌙 Son las <b>'+esc(h)+'</b>: la fecha quedó en <b>ayer ('+esc(fechaCorta(f))+')</b>, el día en que empezó el turno. Si el parte es de hoy, cámbiala.';
+  else if(esMadrugada() && f===HOY) txt='🌙 Son las <b>'+esc(h)+'</b> y elegiste <b>hoy</b>. Si es el turno de anoche o el parte de ayer, la fecha es la de <b>ayer</b>.';
+  el.innerHTML=txt; el.classList.toggle('hidden', !txt);
+}
+// Jornada del tramo en horas con el cruce de medianoche de D188 (misma cuenta que parteJornadaH_ del Worker).
+// Más de JORNADA_MAX_H es una hora mal digitada (17:00→16:30 = 23,5 h): no se deja enviar (el mismo umbral
+// marca HORARIO_RARO en la revisión).
+const JORNADA_MAX_H = 14;
+function horaMin(h){ const m=/^(\d{1,2}):(\d{2})/.exec(String(h||'')); return m ? Number(m[1])*60+Number(m[2]) : -1; }
+function jornadaH(de, a){ const d=horaMin(de), f=horaMin(a); if(d<0 || f<0 || d===f) return null; return Math.round(((f>d?f:f+1440)-d)/60*100)/100; }
 function diasAntes(f, n){ const d=new Date(f+'T12:00:00'); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
 function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
 function fmt(n){ return (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
@@ -203,7 +226,7 @@ async function cargar(){
   document.getElementById('hSub').textContent=EQ.tipo+(EQ.placa?' · '+EQ.placa:'')+(EQ.proveedor?' · '+EQ.proveedor:'');
   document.getElementById('hMedidor').textContent= EQ.medidor==='HOROMETRO' ? 'HORÓMETRO' : EQ.medidor==='KM' ? 'KILÓMETROS' : 'SIN MEDIDOR';
   document.title='Parte '+EQ.codigo;
-  const f=document.getElementById('fecha'); f.value=HOY; f.max=HOY; f.min=diasAntes(HOY, DIAS_ATRAS);
+  const f=document.getElementById('fecha'); f.value=fechaSugerida(); f.max=HOY; f.min=diasAntes(HOY, DIAS_ATRAS); pintarAvisoFecha();
   operador = localStorage.getItem(keyOp()) || '';
   pintarOperador();
   const av=document.getElementById('avisoTop'); av.classList.add('hidden');
@@ -465,6 +488,8 @@ function validar(){
       else if(b<a) errs.push(n+'el final ('+fmt(b)+') es menor que el inicial ('+fmt(a)+').');
       else if(tope && b-a>tope.bloquea) errs.push(n+'el total ('+fmt(b-a)+' '+tope.unidad+') pasa de '+tope.bloquea+' '+tope.unidad+'. Revisa el medidor.');
     }
+    const jor=jornadaH(t.hora_de, t.hora_a);
+    if(jor!==null && jor>JORNADA_MAX_H) errs.push('El horario '+t.hora_de+' → '+t.hora_a+' da '+fmt(jor)+' h de jornada. Revisa la hora de salida: en turno noche es la de la madrugada (p. ej. 17:00 → 04:30).');
     const rep=t.reparto||[];
     // D174: sin CC vale SOLO en texto libre (una fila, actividad escrita): llega con SIN_CC y lo pone revisión.
     // D178: «Otra» vale sin CC si hay descripción (SIN_CC → revisión) o con un CC escrito a mano.
@@ -507,13 +532,16 @@ function pintarResumen(){
       +'</div>';
   });
   html+='<div>'+esc(EQ.codigo)+' · '+esc(document.getElementById('fecha').value||'sin fecha')+' · parte nº <b>'+esc(document.getElementById('reporteNum').value||'—')+'</b> · <b>'+esc(operador||'sin operador')+'</b></div>';
+  const t0=tramos[0];
+  if(t0 && Number(horaBogota().slice(0,2))<6 && t0.hora_de===HORA_DE_DEF && t0.hora_a===HORA_A_DEF)
+    html+='<div class="ojo">🌙 Son las '+esc(horaBogota())+' y el horario sigue en <b>'+HORA_DE_DEF+' → '+HORA_A_DEF+'</b> (el de día). Si fue <b>turno noche</b>, pon la hora real de entrada y de salida (p. ej. 17:00 → 04:30).</div>';
   if(errs.length) html+='<div class="falta"><b>Antes de enviar:</b><br>'+errs.map(esc).join('<br>')+'</div>';
   else html+='<div class="listo">✓ Todo listo. Pulsa ENVIAR PARTE.</div>';
   b.innerHTML=html;
   document.getElementById('btnSubmit').disabled = enviando;
   marcarFaltantes();
 }
-document.getElementById('fecha').addEventListener('input', pintarResumen);
+document.getElementById('fecha').addEventListener('input', ()=>{ pintarAvisoFecha(); pintarResumen(); });
 document.getElementById('reporteNum').addEventListener('input', pintarResumen);
 
 /* ---------- envío ---------- */
@@ -582,7 +610,7 @@ function otroTramo(){
   render(); mostrar('formMain'); window.scrollTo(0,0);
 }
 function nuevoParte(){
-  tramos=[]; intento=false; document.getElementById('reporteNum').value=''; document.getElementById('fecha').value=HOY;
+  tramos=[]; intento=false; document.getElementById('reporteNum').value=''; document.getElementById('fecha').value=fechaSugerida(); pintarAvisoFecha();
   addTramo(); mostrar('formMain'); window.scrollTo(0,0);
 }
 

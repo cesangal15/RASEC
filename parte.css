@@ -138,6 +138,8 @@
   .resumen .r-row.mal{border-color:var(--error);}
   .resumen .falta{margin-top:8px;background:rgba(239,106,92,0.08);border:1px solid var(--error);border-radius:10px;padding:10px 12px;color:var(--text);}
   .resumen .falta b{color:var(--error-txt);}
+  .resumen .ojo{margin-top:8px;background:rgba(245,166,35,0.10);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;color:var(--text);}
+  .resumen .ojo b{color:var(--accent-txt);}
   .resumen .listo{margin-top:8px;color:var(--success-txt);font-weight:600;}
   .aviso{border:1px solid rgba(245,166,35,0.45);background:rgba(245,166,35,0.08);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);line-height:1.5;margin-bottom:12px;}
   .aviso.error{border-color:var(--error);background:rgba(239,106,92,0.08);}
