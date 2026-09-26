@@ -9,13 +9,13 @@
 const path = require('path');
 const REPO = path.resolve(__dirname, '..', '..');
 
-let redactarResumen, validarNumerosTexto, clasificarPartida_, CUMPL_BUENA, CUMPL_DENTRO;
+let redactarResumen, validarNumerosTexto, textoDeRespuestaIA, clasificarPartida_, CUMPL_BUENA, CUMPL_DENTRO;
 let fallos = 0, casos = 0;
 function ok(n, c, x) { casos++; if (!c) { fallos++; console.log('  ✗ ' + n + (x !== undefined ? '  → ' + x : '')); } else console.log('  ✓ ' + n); }
 
 async function main() {
   const mod = await import('file://' + path.join(REPO, 'worker', 'src', 'api', 'obra', 'resumen_texto.js').replace(/\\/g, '/'));
-  ({ redactarResumen, validarNumerosTexto, clasificarPartida_, CUMPL_BUENA, CUMPL_DENTRO } = mod);
+  ({ redactarResumen, validarNumerosTexto, textoDeRespuestaIA, clasificarPartida_, CUMPL_BUENA, CUMPL_DENTRO } = mod);
 
   ok('umbrales: muy buena ≥ 100%, dentro 75–100%, por debajo < 75%', CUMPL_BUENA === 1.00 && CUMPL_DENTRO === 0.75);
 
@@ -182,6 +182,17 @@ async function main() {
     const conTolerancia = 'Excavación produjo 8.510 m³ (110% del plan de 7.734 m³).';
     const r3 = validarNumerosTexto(conTolerancia, ind);
     ok('tolerancia de redondeo ±1', r3.ok === true, JSON.stringify(r3));
+  }
+
+  console.log('\n== textoDeRespuestaIA: formatos de Workers AI (el «[object Object]» de producción) ==');
+  {
+    const T = 'Del 21 al 24 de septiembre de 2026, la excavación tuvo muy buena producción.';
+    ok('{response:"…"}', textoDeRespuestaIA({ response: T }) === T);
+    ok('formato OpenAI choices[0].message.content', textoDeRespuestaIA({ choices: [{ message: { role: 'assistant', content: T } }] }) === T);
+    ok('content como lista de partes', textoDeRespuestaIA({ choices: [{ message: { content: [{ type: 'text', text: T }] } }] }) === T);
+    ok('anidado en result', textoDeRespuestaIA({ result: { response: T } }) === T);
+    ok('objeto sin texto → "" (cae a reglas, nunca «[object Object]»)', textoDeRespuestaIA({ response: { foo: 1 } }) === '' && textoDeRespuestaIA({}) === '' && textoDeRespuestaIA(null) === '');
+    ok('«[object Object]» literal → ""', textoDeRespuestaIA({ response: '[object Object] y algo más de texto para pasar el largo mínimo' }) === '');
   }
 
   console.log('\n' + (fallos ? '✗ ' + fallos + ' fallo(s) de ' + casos : '✓ ' + casos + ' comprobaciones OK'));

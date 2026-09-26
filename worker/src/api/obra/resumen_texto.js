@@ -146,7 +146,7 @@ export function redactarResumen(ind) {
   const diasConRegistro = clima.dias_con_registro || 0;
   const propLluvia = diasConRegistro > 0 ? (clima.dias_lluvia || 0) / diasConRegistro : 0;
   const detLluvia = (clima.dias_lluvia || 0) + ' de ' + diasConRegistro + ' días con lluvia'
-    + (clima.horas_lluvia != null ? ', ' + fmtN_(clima.horas_lluvia) + ' horas de lluvia registradas en los partes de maquinaria' : '');
+    + (clima.horas_lluvia > 0 ? ', ' + fmtN_(clima.horas_lluvia) + ' horas de lluvia registradas en los partes de maquinaria' : '');
   const partidasPorDebajo = grupos.por_debajo.length + grupos.sin_produccion.length;
   if (propLluvia >= UMBRAL_LLUVIA_FUERTE) {
     if (partidasPorDebajo > 0) p1.push('La lluvia afectó la producción (' + detLluvia + ').');
@@ -196,6 +196,35 @@ export function redactarResumen(ind) {
 
   const t1 = p1.join(' '), t2 = p2.join(' ');
   return t2 ? (t1 + '\n\n' + t2) : t1;
+}
+
+/* ---------- texto de la respuesta de Workers AI ----------
+ * Según el modelo, env.AI.run devuelve {response:'…'}, {response:{…}}, el formato OpenAI
+ * {choices:[{message:{content:'…' | [{type:'text', text:'…'}]}}]} o {result:{…}}. Se busca el TEXTO en esas
+ * formas; si no aparece un texto de verdad (p. ej. solo un objeto), devuelve '' y el endpoint cae a reglas
+ * (antes se pintaba «[object Object]»). */
+export function textoDeRespuestaIA(r) {
+  const deContenido = function (c) {
+    if (typeof c === 'string') return c;
+    if (Array.isArray(c)) return c.map(function (p) { return p && typeof p.text === 'string' ? p.text : (typeof p === 'string' ? p : ''); }).join('');
+    return '';
+  };
+  const buscar = function (o, prof) {
+    if (o == null || prof > 3) return '';
+    if (typeof o === 'string') return o;
+    if (typeof o !== 'object') return '';
+    if (typeof o.response === 'string') return o.response;
+    if (Array.isArray(o.choices) && o.choices[0]) {
+      const ch = o.choices[0];
+      const t = deContenido(ch.message && ch.message.content) || (typeof ch.text === 'string' ? ch.text : '');
+      if (t) return t;
+    }
+    if (typeof o.output_text === 'string') return o.output_text;
+    return buscar(o.response, prof + 1) || buscar(o.result, prof + 1);
+  };
+  const t = String(buscar(r, 0) || '').trim();
+  // Un resumen de verdad tiene letras y algo de largo; «[object Object]» o basura corta no pasa.
+  return (t.length >= 40 && /[a-záéíóúñ]{3,}/i.test(t) && t.indexOf('[object') === -1) ? t : '';
 }
 
 /* ---------- validador de números del texto de la IA ----------
