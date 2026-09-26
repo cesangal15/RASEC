@@ -1,8 +1,8 @@
 /* ============================================================================
  * resumen-ejecutivo.js — Resumen ejecutivo para el jefe.
  * Rango desde/hasta → 1-2 párrafos redactados por reglas (gratis, determinista) más los indicadores que
- * los respaldan, con botón «Copiar» y «Redactar con IA» opcional (Cloudflare Workers AI, cupo gratis; si
- * falla o no hay cupo, se queda con el texto por reglas y avisa). Funciona embebida (?embed=1, hub-jefe.js)
+ * los respaldan, con botón «Copiar». «Redactar con IA» está OCULTO (D220): el botón se quitó del HTML y redactarConIA
+ * queda sin uso, lista por si se retoma. Funciona embebida (?embed=1, hub-jefe.js)
  * y suelta. Solo lectura: no escribe nada en DATA. CSP D170: sin JS/CSS en línea (data-on-*, data-estilo).
  * ==========================================================================*/
 if(window.TM2Estilos) TM2Estilos.aplicar();
@@ -64,7 +64,7 @@ async function generar(){
   if(hasta<desde){ alert('«Hasta» no puede ser anterior a «Desde».'); return; }
   const zt=document.getElementById('zonaTexto'), zi=document.getElementById('zonaIndicadores');
   zt.innerHTML='<div class="loading">⏳ Calculando…</div>'; zi.innerHTML='';
-  document.getElementById('btnIA').disabled=true; document.getElementById('btnCopiar').disabled=true;
+  document.getElementById('btnCopiar').disabled=true;
   try{
     const d = await leer('resumen_ejecutivo', { desde, hasta });
     if(!d.ok){
@@ -81,7 +81,7 @@ async function generar(){
 function render(d){
   document.getElementById('zonaTexto').innerHTML = bloqueTexto(d);
   document.getElementById('zonaIndicadores').innerHTML = bloqueIndicadores(d);
-  document.getElementById('btnIA').disabled=false; document.getElementById('btnCopiar').disabled=false;
+  document.getElementById('btnCopiar').disabled=false;
 }
 
 /* ---------- texto ---------- */
