@@ -89,6 +89,12 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
    `python $S/decidir.py --cruce cruce.json --clasificacion clasificacion.json --out 02_decision [--respuestas respuestas.json]`
    → `decisiones.json` + `preguntas.md`. Revisa además días internos y faltante de BTC
    (`references/internos_y_cuota.md`) y el cubicaje de terraplén (`python $S/cubicaje.py …`).
+   **Errores de digitación los corrige el dueño a mano** (sep-2026): si el viaje SÍ está en la base
+   pero con un dato mal (empresa de otro, p. ej. «Betulia»; UF o CC equivocados), no va a la
+   digitadora: decisión `ACEPTADA_MANUAL` + nota «corregir a mano», va al acta con los datos de su fila
+   de la base (el bloque de la herramienta la deja vacía: rellénala en `filas.json`) y se lista aparte
+   para el dueño. `PENDIENTE_DIGITACION` queda solo para lo que no existe en la base. También se
+   rechaza (`RECHAZADA`) lo que ya está en el libro de actas (buscar cada remisión en él antes).
    **Muestra `preguntas.md` al dueño**; sus respuestas van en `respuestas.json` (mismo formato: estado,
    evidencia, area/cc, destino/origen corregidos, m3/viajes) y se repite este paso.
 5. **Aplicar con la herramienta y exportar**
@@ -99,6 +105,9 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
 6. **Acta en la copia del libro**
    `python $S/armar_filas.py --bloque 03_exportes/bloque_acta_*.xlsx --pendientes 03_exportes/bloque_acta_pendientes_*.xlsx --decisiones 02_decision/decisiones.json --out filas.json`
    `powershell -File $S/escribir_acta.ps1 -Libro <libro del contratista> -Filas filas.json -Salida "<corte>/<libro> (skill <fecha>).xlsx"`
+   `-Hoja` si el libro no usa `CORTOS-INTERNOS-PUTANA` (D&S: `-Hoja "D&S"`; `rutas.json` →
+   `contratistas.<id>.hoja_acta`). Observación literal con `obs` cuando el libro no la tiene como fórmula
+   (D&S: «PUTANA - VIAJE CORTO A MAS DE 5KM» / «PUENTES - …» para CC 3701.11.03).
    Añade las filas al FINAL de la tabla de `CORTOS-INTERNOS-PUTANA` (sin tocar las anteriores): entradas
    (fecha, UF, actividad, CC, remisión, placa, km, m³, unidad) + fórmulas del dueño (día, hábil, km con
    ABS, m³·km, observación PUENTES) + «Acta No.» con textos provisionales `MEMORIA UF1/UF2 — POR DEFINIR`
