@@ -88,11 +88,14 @@ function render(d){
 function bloqueTexto(d){
   const parrafos = String(d.texto||'').split('\n\n').map(p=>'<p>'+esc(p).replace(/\n/g,'<br>')+'</p>').join('');
   const aviso = d._aviso_ia ? '<div class="aviso-ia">'+esc(d._aviso_ia)+'</div>' : '';
+  // D218-B: si el plan se recortó al último día con datos, la meta-line lo muestra además de la coletilla del texto.
+  const hastaPedido = d.indicadores && d.indicadores.hasta_pedido;
+  const efectiva = hastaPedido ? ' · fecha efectiva '+esc(d.indicadores.hasta)+' (se pidió hasta '+esc(hastaPedido)+')' : '';
   return '<div class="card">'
     + '<div class="section-title">Resumen '+ (d._ia?'· redactado con IA':'· por reglas') +'</div>'
     + aviso
     + '<div class="texto-resumen" id="textoResumen">'+parrafos+'</div>'
-    + '<p class="meta-line">'+esc(d.desde)+' a '+esc(d.hasta)+' · datos hasta '+esc(d.datos_hasta||'—')+'</p>'
+    + '<p class="meta-line">'+esc(d.desde)+' a '+esc(d.hasta)+' · datos hasta '+esc(d.datos_hasta||'—')+efectiva+'</p>'
     + '</div>';
 }
 async function copiarTexto(){
@@ -130,7 +133,6 @@ const ETQ_PARTIDA = { excavacion:'Excavación', terraplen:'Terraplén', subbase:
 function bloqueIndicadores(d){
   const ind = d.indicadores||{};
   let h = '<div class="card"><div class="section-title">Indicadores</div>';
-  h += filaGlobal(ind.global);
   h += tablaPrincipales(ind.principales);
   h += bloqueClima(ind.clima);
   h += bloqueDrenajes(ind.drenajes);
@@ -138,19 +140,16 @@ function bloqueIndicadores(d){
   h += '</div>';
   return h;
 }
-function filaGlobal(g){
-  if(!g) return '';
-  const clase = g.clase==='muy_buena'?'ok':(g.clase==='por_debajo'?'mal':'');
-  return '<div class="tot-row destacado"><div class="cat">Producción total</div>'
-    + '<div class="val '+clase+'">'+fmt(g.prod_total)+'<span class="u">m³</span>'
-    + (g.plan_total>0 ? ' <small>('+fmtPct(g.cumpl)+' del plan '+fmt(g.plan_total)+')</small>' : ' <small>(sin plan)</small>')
-    + '</div></div>';
-}
+// D218-A: sin producción total ni plan total (materiales distintos, no se suman); `clase` la calcula el
+// backend (clasificarPartida_ de resumen_texto.js, un solo lugar para el umbral) y aquí solo se pinta.
+const CLASE_CSS = { muy_buena:'ok', dentro:'', por_debajo:'mal', sin_produccion:'mal', sin_plan:'' };
+const CLASE_ETQ = { muy_buena:'Muy buena', dentro:'Dentro del plan', por_debajo:'Por debajo', sin_produccion:'Sin producción', sin_plan:'Sin plan' };
 function tablaPrincipales(p){
   if(!p) return '';
   const filas=Object.keys(ETQ_PARTIDA).map(k=>{
     const x=p[k]||{};
-    return '<tr><td>'+esc(ETQ_PARTIDA[k])+'</td><td>'+fmt(x.prod)+'</td><td>'+(x.plan>0?fmt(x.plan):'—')+'</td>'
+    const chip = x.clase ? '<span class="chip-clase '+(CLASE_CSS[x.clase]||'')+'">'+esc(CLASE_ETQ[x.clase]||x.clase)+'</span>' : '';
+    return '<tr><td>'+esc(ETQ_PARTIDA[k])+chip+'</td><td>'+fmt(x.prod)+'</td><td>'+(x.plan>0?fmt(x.plan):'—')+'</td>'
       + '<td>'+fmtPct(x.cumpl)+'</td><td>'+(x.var_pct!=null?(x.var_pct>=0?'▲':'▼')+' '+fmtPct(Math.abs(x.var_pct)):'—')+'</td></tr>';
   }).join('');
   return '<table class="ind-tabla"><thead><tr><th>Partida</th><th>Prod.</th><th>Plan</th><th>Cumpl.</th><th>vs anterior</th></tr></thead><tbody>'+filas+'</tbody></table>';
@@ -159,7 +158,9 @@ function bloqueClima(c){
   if(!c) return '';
   let h='<div class="tot-row"><div class="cat">🌦️ Clima</div><div class="val">'
     + c.dias_con_registro+'/'+c.dias_rango+' días con registro · '+c.dias_lluvia+' con lluvia</div></div>';
-  if(c.horas_lluvia!=null) h+='<div class="tot-row"><div class="cat">Horas de lluvia / varada (partes)</div><div class="val">'+fmt(c.horas_lluvia)+' / '+fmt(c.horas_varada)+' h</div></div>';
+  // D218-D: sin partes de maquinaria cargados para el rango → no se inventa un "0 h", se avisa.
+  h+='<div class="tot-row"><div class="cat">Horas de lluvia / varada (partes)</div><div class="val">'
+    + (c.horas_lluvia!=null ? fmt(c.horas_lluvia)+' / '+fmt(c.horas_varada)+' h' : '<small>sin partes cargados</small>') + '</div></div>';
   return h;
 }
 function listaActividades(acts){
@@ -173,8 +174,13 @@ function bloqueDrenajes(d){
     + (d.otras && d.otras.actividades && d.otras.actividades.length ? '<div class="tot-row"><div class="cat">Tierras (otras)</div><div class="val">'+listaActividades(d.otras.actividades)+'</div></div>' : '');
 }
 function bloqueAvance(a, nota){
-  if(!a || !a.global || a.global.cumpl==null) return nota ? '<div class="tot-row"><div class="cat">Avance del contrato</div><div class="val"><small>'+esc(nota)+'</small></div></div>' : '';
-  return '<div class="tot-row destacado"><div class="cat">Avance del contrato</div><div class="val">'+fmtPct(a.global.cumpl)+'</div></div>';
+  if(!a || !a.partidas) return nota ? '<div class="tot-row"><div class="cat">Avance del contrato</div><div class="val"><small>'+esc(nota)+'</small></div></div>' : '';
+  // Por partida (D218-A): cada material contra su propia cantidad contratada, nunca un % mezclado.
+  const p=a.partidas||{};
+  const items=Object.keys(ETQ_PARTIDA).filter(k=>p[k]&&p[k].cumpl!=null)
+    .map(k=>esc(ETQ_PARTIDA[k])+' <b>'+fmtPct(p[k].cumpl)+'</b>');
+  if(!items.length) return '';
+  return '<div class="tot-row destacado"><div class="cat">Avance del contrato</div><div class="val">'+items.join('<br>')+'</div></div>';
 }
 
 /* ---------- arranque ---------- */
