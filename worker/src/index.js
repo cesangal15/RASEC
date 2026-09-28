@@ -513,10 +513,27 @@ async function manejar(request, env, ctx) {
   return conCors(resp, cors);
 }
 
+// Retención del LOG (4.18-5 / D223): un cron diario borra las filas de `log` más viejas que LOG_RETENCION_DIAS
+// (365 por defecto). Nunca toca otra tabla; cualquier fallo (BD caída, etc.) se traga: es mantenimiento, no
+// tiene que romper nada si no corre un día.
+async function limpiarLog_(env) {
+  const con = abrirDb(env, DB_PROD);
+  if (!con) return;
+  try {
+    const dias = parseInt(env.LOG_RETENCION_DIAS, 10) || 365;
+    await con.sql`DELETE FROM log WHERE fecha_hora < now() - make_interval(days => ${dias})`;
+  } catch (e) { /* mantenimiento: no rompe nada si falla */ }
+  finally { await con.cerrar().catch(() => {}); }
+}
+
 export default {
   async fetch(request, env, ctx) {
     try { return await manejar(request, env, ctx); }
     catch (e) { return json({ ok: false, error: 'worker', detalle: String(e && e.message || e).slice(0, 200) }, 500); }
+  },
+  async scheduled(event, env, ctx) {
+    const p = limpiarLog_(env).catch(() => {});
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); else await p;
   }
 };
 

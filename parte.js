@@ -120,6 +120,9 @@ let pickerCtx = null;     // {tipo:'operador'|'cc', tramoId, repIdx}
 let enviando = false;
 let ultimoEnvio = null;   // para "Reportar otro tramo"
 let intento = false;      // ya intentó enviar: se marcan en rojo los campos que faltan
+let FIRMA = false;        // D223: el catálogo pide cédula + declaración de veracidad para este equipo
+function soloDigitos(v){ return String(v||'').replace(/\D+/g,''); }
+function limpiarFirma(){ const c=document.getElementById('firmaCedula'); if(c) c.value=''; const de=document.getElementById('firmaDeclaro'); if(de) de.checked=false; }
 
 function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
 // D179: el parte se admite hasta 7 días atrás (antes hoy/ayer): un operador que pasó la semana sin señal o
@@ -216,6 +219,10 @@ async function cargar(){
     mostrar('pantallaQR'); return;
   }
   EQ=data.equipo; ULTIMO=data.ultimo||null; OPERADORES=data.operadores||[]; CC=data.cc||[]; SUGS=data.sugerencias||[];
+  // D223: `firma` la manda op=equipo (nunca en modo demo); con ella el envío exige cédula + declaración.
+  FIRMA = !DEMO && !!data.firma;
+  document.getElementById('firmaBox').classList.toggle('hidden', !FIRMA);
+  limpiarFirma();   // D223: la cédula nunca queda en la ficha del equipo ni en localStorage
   // D176: si hay partes de ESTE equipo esperando señal en el teléfono, el último final es el de ellos
   // (el servidor todavía no los conoce). Nada más se toma de la cola: solo el medidor.
   const pend=ultimoFinalPendiente();
@@ -479,6 +486,10 @@ function validar(){
   else if(fecha<diasAntes(HOY, DIAS_ATRAS)) errs.push('Solo se admiten partes de los últimos '+DIAS_ATRAS+' días. Uno más viejo lo captura maquinaria desde revisión.');
   if(!document.getElementById('reporteNum').value.trim()) errs.push('Falta el nº del parte físico.');
   if(!operador) errs.push('Falta el operador.');
+  if(FIRMA){   // D223
+    if(!soloDigitos(document.getElementById('firmaCedula').value)) errs.push('Falta la cédula del operador.');
+    if(!document.getElementById('firmaDeclaro').checked) errs.push('Falta marcar la declaración de veracidad.');
+  }
   const tope=TOPES[EQ.medidor];
   tramos.forEach((t,i)=>{
     const n='';
@@ -507,6 +518,10 @@ function marcarFaltantes(){
   if(!intento) return;
   document.getElementById('reporteNum').classList.toggle('field-error', !document.getElementById('reporteNum').value.trim());
   document.getElementById('btnOperador').classList.toggle('field-error', !operador);
+  if(FIRMA){   // D223
+    document.getElementById('firmaCedula').classList.toggle('field-error', !soloDigitos(document.getElementById('firmaCedula').value));
+    document.getElementById('firmaDeclaro').classList.toggle('field-error', !document.getElementById('firmaDeclaro').checked);
+  }
   tramos.forEach(t=>{
     if(t.reparto) t.reparto.forEach((r,j)=>{ const rb=document.getElementById('ccr-'+t.id+'-'+j); if(rb) rb.classList.toggle('field-error', !(r.cc || (r.libre && String(t.desc||'').trim())));
       const pi=document.querySelector('#act-'+t.id+'-'+j+' .pct input'); if(pi) pi.classList.toggle('field-error', !(num(r.pct)>0)); });
@@ -543,11 +558,13 @@ function pintarResumen(){
 }
 document.getElementById('fecha').addEventListener('input', ()=>{ pintarAvisoFecha(); pintarResumen(); });
 document.getElementById('reporteNum').addEventListener('input', pintarResumen);
+document.getElementById('firmaCedula').addEventListener('input', pintarResumen);   // D223
+document.getElementById('firmaDeclaro').addEventListener('change', pintarResumen);
 
 /* ---------- envío ---------- */
 function armarPayload(){
   const fecha=document.getElementById('fecha').value, reporte=document.getElementById('reporteNum').value.trim();
-  return { mod:'parte', op:'reporte', codigo:EQ.codigo, origen:'qr',
+  const p={ mod:'parte', op:'reporte', codigo:EQ.codigo, origen:'qr',
     tramos: tramos.map((t,i)=>{
       const o={ id_registro:t.id, fecha:fecha, reporte_num:reporte, operador:operador,
         inicial: EQ.medidor?num(t.inicial):'', final: EQ.medidor?num(t.final):'',
@@ -557,6 +574,8 @@ function armarPayload(){
         observaciones:t.obs.trim() };
       if(t.reparto && t.reparto.length>1) o.reparto=t.reparto.map(r=>({ centro_coste:r.cc, pct:num(r.pct), pr:prMetros(r.pr)===null?'':prMetros(r.pr), uf:ufDe(r.cc) }));
       return o; }) };
+  if(FIRMA){ p.cedula=soloDigitos(document.getElementById('firmaCedula').value); p.declaracion=true; }   // D223
+  return p;
 }
 async function enviar(){
   if(enviando) return;
@@ -576,6 +595,7 @@ async function enviar(){
   }
   enviando=false; btn.disabled=false; btn.textContent='ENVIAR PARTE →';
   if(!data || !data.ok){ alert('No se guardó:\n\n'+((data&&data.error)||'error desconocido')); return; }
+  limpiarFirma();   // D223: la cédula no sobrevive al envío
   ultimoEnvio={ fecha:fecha, reporte:reporte, tramos:tramos.slice(), filas:data.filas||[] };
   document.getElementById('okIco').textContent = encolado ? '📥' : '✅';
   document.getElementById('okTit').textContent = encolado ? 'Parte guardado en el teléfono' : 'Parte enviado';
@@ -611,6 +631,7 @@ function otroTramo(){
 }
 function nuevoParte(){
   tramos=[]; intento=false; document.getElementById('reporteNum').value=''; document.getElementById('fecha').value=fechaSugerida(); pintarAvisoFecha();
+  limpiarFirma();   // D223
   addTramo(); mostrar('formMain'); window.scrollTo(0,0);
 }
 

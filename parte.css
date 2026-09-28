@@ -178,6 +178,11 @@
   .motivo small{display:block;font-family:'DM Sans',sans-serif;font-weight:400;font-size:11px;color:var(--muted);margin-top:3px;}
   .tm2-tema-grupo{gap:8px;}
 
+  /* D223: firma con cédula + declaración de veracidad (equipos con `firma` encendida en el catálogo). */
+  .firma-box{margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);}
+  .firma-check{display:flex;align-items:flex-start;gap:10px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text);cursor:pointer;line-height:1.4;}
+  .firma-check input{width:20px;height:20px;min-height:0;flex-shrink:0;accent-color:var(--accent);cursor:pointer;margin-top:1px;}
+
   /* D170: antes eran style= en línea del marcado (la CSP ya no los admite). */
   .u-mt14{margin-top:14px;}
   .u-mt18{margin-top:18px;}

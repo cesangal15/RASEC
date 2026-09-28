@@ -391,6 +391,10 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 │      · PENDIENTES: fecha, tarjetas con todos los campos editables, alertas en naranja,     │
 │        ✓ aprobar / ✕ descartar (con las ediciones), «Aprobar todo lo sin alertas»,         │
 │        revisadas del día (reabrir), panel «Equipos sin parte» + «+ manual» (origen=manual) │
+│      · D223: hora real de recepción («📥 Recibido») y chip «⏰ tardío» (informativo) por    │
+│        parte; tarjeta «Equipos de parte periódico» (LUMINARIA / TORRE DE ILUMINACION, no   │
+│        se esperan a diario; «+ manual» por periodo, sin tope 24 h); todo cambio a           │
+│        parte_bandeja queda en `parte_auditoria` (trigger, solo inserción, quién/antes/después)│
 │      · BASE: aprobados por rango/equipo/CC/texto, edición por fila, «Copiar para Excel»    │
 │        = TSV con las columnas B→AR de BASE MAQUINARIA (vacío donde va fórmula)             │
 │  menu.html  grupo «Maquinaria · parte digital» con los dos accesos                         │

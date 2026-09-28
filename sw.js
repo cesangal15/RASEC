@@ -50,7 +50,7 @@
 // de la API y se carga el PRIMERO; `entorno.js` deja de tener URLs y depende de él. Un teléfono sin
 // señal con el auth.js/entorno.js viejos y un HTML nuevo (orden de scripts cambiado, CSP sin
 // script.google.com) no arrancaría, o saldría a Google y la CSP lo frenaría. Por eso se sube.
-const CACHE_V = 'tm2-v17';  // v17: Parte Digital — fecha de ayer de madrugada, jornada > 14 h no se envía, CC con comas.
+const CACHE_V = 'tm2-v18';  // v18 (D223): Parte Digital — firma con cédula + declaración de veracidad.
                             // v16: Catálogos a todo el ancho, sin recuadro de texto y con los filtros ocultos al entrar.
                             // v15: catalogos.html pasa a enlazar data.css (misma hoja que Revisión de DATA) → entra al precache.
                             // v14: entra la pantalla de Catálogos (catalogos.html/.js/.css, solo admin)

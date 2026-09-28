@@ -222,6 +222,12 @@
   .seg-grupo.en-barra{margin:0;align-self:center;}                     /* D198: en la barra de la Base (modo solo Base) */
   .seg-grupo.en-barra button{padding-top:5px;padding-bottom:5px;}
 
+  /* D223: recepción (timestamp del servidor), parte tardío y firma con cédula. */
+  .recibido{font-size:11px;color:var(--muted);margin:-4px 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .badge.tardio{border-color:rgba(245,166,35,0.5);color:var(--accent-txt);}
+  .badge.firmado{border-color:var(--success);color:var(--success-txt);}
+  #gridBase td.b-tardio .cq-v{color:var(--accent-txt);}
+
   /* D207 — continuidad del medidor, turno noche y selector de CC con buscador */
   .badge.noche{border-color:rgba(58,155,220,0.5);color:var(--uf1-txt);}
   .mas1{text-transform:none;color:var(--uf1-txt);letter-spacing:0;}
