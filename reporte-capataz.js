@@ -56,6 +56,9 @@ function desmonteVals(b, x){
   const prodMaq=(x.maqUnidad==='m2')?m2:m3;
   return {m2, esp, ha, m3, prodMaq, maqU:(x.maqUnidad==='m2'?'m²':'m³')};
 }
+// Se perdió al externalizar el JS (merge 1d8fa1a, PR #11): sin ella, el m² de desmonte/descapote
+// lanzaba ReferenceError en refreshAll() y validate() cortaba el envío sin aviso.
+function fmtNum(n){ if(n==null||isNaN(n)) return '0'; return ''+(Math.round(n*100)/100); }
 function capFromCc(cc){ if(!cc) return ''; const p=cc.split('.')[0]; return p==='02'?'EXPLANACIONES':p==='03'?'BASES, SUBBASES Y AFIRMADOS':p==='04'?'PAVIMENTOS ASFALTICOS':'ESTRUCTURAS'; }
 // La BASE clasifica tierras y estructuras/MSR (CC 05.*) bajo el mismo grupo: TIERRAS. El CAPITULO sí
 // distingue (capFromCc: ESTRUCTURAS para 05.*), pero el GRUPO es TIERRAS en el alcance V1. Excepción
