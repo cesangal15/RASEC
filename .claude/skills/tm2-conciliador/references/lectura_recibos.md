@@ -56,6 +56,23 @@ Ejemplo real (2DA PARTE… p.52): tiquete 8737, 27/08/2026, SQA934, triturado 3/
 triturado 17,69: justo el tipo de diferencia que hay que reportar). Página 68: tiquete 9159 TAU745 MDC-25
 «UF-2 ASF» (asfaltos) y tiquete 9278 BTH918 sub base 50, 15,54 m³ → PK 20+400.
 
+## Otros formatos que también son soporte (sep-2026)
+
+Todos van con el mismo esquema y **el número siempre en `recibo_n`** (no `tiquete_n` ni `remision_n`).
+
+- **«PARTE DIARIO TRABAJO MÁQUINA»** (FEYM460, número en rojo arriba a la derecha): volqueta de Puentes
+  «por el día». **No lo saltes**: la proforma puede cobrar el viaje con ese número (2.ª Q sep: la proforma
+  dijo 4628 y era el parte **1628**, USE111, PR22+500 → PR16+500, 17,22 m³). Fecha, placa y el desglose
+  (PK de cargue y de descargue, m³) van a los campos normales.
+- **«Registro de Salida F-08-RT» de AVENSA** (arena): número del registro → `recibo_n`, producto, m³ y
+  toneladas en `observaciones`.
+- **«Servicio de transporte de carga» de ASOTRASAT** (tractomula, cama alta: tubos, canastas): número en
+  rojo → `recibo_n`, «Cant. de Servicios» → `viajes`, Cargue/Descargue, «Requerido por». Ojo: la cama alta
+  no se concilia con la proforma de volquetas (va aparte): léelo, pero el dueño lo descarta.
+- **El «+» del PK a mano se lee como «1»**: «pr 11350» es PR1+350, «PK 14540» puede ser PK1+590. Si el PK
+  no cuadra con la programación, anota ambas lecturas en `legible`. Igual con un «1» inicial perdido en
+  los m³ («6,37» por 16,37): contrástalo con el cubicaje de la placa.
+
 ## Tachones y letra dudosa
 
 Si un campo tiene un tachón, una reescritura encima, o la letra es ambigua entre dos

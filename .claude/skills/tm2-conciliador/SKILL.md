@@ -67,6 +67,13 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
    está en nuestras bases, `conciliar.js` lo saca solo como EXCLUIDA_ASFALTO (esos materiales solo los pide
    asfaltos): no pasan por WhatsApp ni por los PDF. Si alguno SÍ está en la base, lo avisa: pregúntale al
    dueño. Lista ajustable con `--materiales-asfalto=<regex>`. (Prueba sep-2026: 19 de 19 = las del dueño.)
+   **Doble cobro**: `python $S/ya_pagadas.py --libro <corte>/bases/<libro de actas> --sesion 01_cruce/conciliador_sesion_*.json`
+   lista lo que ya está pagado en el libro (misma remisión, placa y fecha ±3 días) → `preguntas.md`; con el
+   sí del dueño, `RECHAZADA` «ya pagado en <Acta No.>» (2.ª Q sep: 8655/8689 ya en Memoria 6 UF2).
+   **Número mal digitado en la proforma** (el recibo trae otro número y ESE sí está en la base: 40887→42887,
+   4628→parte 1628): copia de la proforma en `bases\` con solo esa celda corregida (el original nunca se
+   toca), re-correr el cruce con la copia y anotarlo en el resumen de errores de la proforma. Sin comas en
+   los nombres de archivo que se pasan a `conciliar.js`.
 2. **WhatsApp primero** (los UF3/asfaltos no necesitan soporte):
    `python $S/chats.py desde-db --grupo "<grupo 1>" --grupo "<grupo 2>" --desde … --hasta … --out mensajes.json`
    (lee en SOLO LECTURA la base del puente local de `rutas.json`; si avisa de mensajes sin autor o el
@@ -77,8 +84,18 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
    pedido** (no por el orden de los mensajes); TM1 = origen antes de PK9+800; MDC desde Putana = asfaltos.
    Salida `clasificacion.json`: `[{remisiones, fecha, placa, origen, destino, clasificacion: NOSOTROS|PUENTES|TM1|UF3|ASFALTOS|DUDA, confianza, pedido, respuesta, nota}]`
    citando autor y hora. La heurística de `contexto.json` es solo una sugerencia (~65 % de acierto).
+   **Mensajes editados**: la base del puente NO guarda los mensajes que su autor editó (ni el original ni
+   el editado). `contexto` marca `alerta_pedido_faltante` cuando la placa sale en una respuesta pero ningún
+   pedido de la ventana casa con la ruta (p. ej. «hora del servicio?» → «De 8:00 am a 3:00 pm» → placas):
+   antes de ponerlo en DUDA, **pide al dueño que busque el pedido en el grupo** (2.ª Q sep: «PROGRAMACIÓN
+   PUENTES 20-09-2026», editado, con SSZ126). Busca también fuera de la ventana: un pedido «por el día»
+   puede cubrir varios días («sábado y domingo»).
 3. **Soportes** de los NOSOTROS/PUENTES/TM1/DUDA:
    - `python $S/soportes.py render --pdf … --out render/` (110 dpi basta).
+   - **Los soportes suelen venir en el orden de las filas de la proforma** (2 recibos por página): comprueba
+     con la primera y alguna del medio, y lee solo las páginas de los viajes que necesitan soporte
+     (página ≈ (fila − fila_inicial_del_PDF)/2 + 1, ±3 por los partes de máquina y viajes múltiples).
+     2.ª Q sep: 90 de 170 páginas, todos los no encontrados con soporte.
    - Si hay sesión de la herramienta con OCR: `python $S/soportes.py paginas-candidatas --ocr <sesión_página> --sesion 01_cruce/conciliador_sesion_*.json --solo <remisiones>` → lee a fondo solo esas páginas (en la prueba: 14 de 162). Lo que no aparezca, búscalo en el resto.
    - Lectura con visión siguiendo `references/lectura_recibos.md` (recibos a mano **y tiquetes impresos
      de báscula de Putana**; guarda el JSON tras cada página: las conexiones se caen). Subagentes en
@@ -94,7 +111,11 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
    digitadora: decisión `ACEPTADA_MANUAL` + nota «corregir a mano», va al acta con los datos de su fila
    de la base (el bloque de la herramienta la deja vacía: rellénala en `filas.json`) y se lista aparte
    para el dueño. `PENDIENTE_DIGITACION` queda solo para lo que no existe en la base. También se
-   rechaza (`RECHAZADA`) lo que ya está en el libro de actas (buscar cada remisión en él antes).
+   rechaza (`RECHAZADA`) lo que ya está en el libro de actas (`ya_pagadas.py`, paso 1) y lo que no va con
+   esta proforma (cama alta / tractomula: se concilia aparte).
+   Recibo con «N viajes» que el dueño acepta: `m3` = m³ del viaje × N (y `viajes` = N); en terraplén el m³
+   del viaje es el del cubicaje de la placa. Para cada día interno, pregunta si es día completo o **media
+   jornada** (media cuota: la pone el dueño en la dinámica; anótalo en el resumen).
    **Muestra `preguntas.md` al dueño**; sus respuestas van en `respuestas.json` (mismo formato: estado,
    evidencia, area/cc, destino/origen corregidos, m3/viajes) y se repite este paso.
 5. **Aplicar con la herramienta y exportar**
@@ -103,7 +124,13 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
    la herramienta con 💾 Importar sesión).
    `python $S/soportes.py pdf-pendientes --sesion 03_exportes/conciliador_sesion_*.json --pdf-dir <carpeta PDF> --out 03_exportes/pdf_pendientes_<…>.pdf` → **PDF de la digitadora** (mismo orden que su Excel).
 6. **Acta en la copia del libro**
-   `python $S/armar_filas.py --bloque 03_exportes/bloque_acta_*.xlsx --pendientes 03_exportes/bloque_acta_pendientes_*.xlsx --decisiones 02_decision/decisiones.json --out filas.json`
+   `python $S/armar_filas.py --bloque 03_exportes/bloque_acta_*.xlsx --pendientes 03_exportes/bloque_acta_pendientes_*.xlsx --decisiones 02_decision/decisiones.json --internos 02_decision/internos.json --out filas.json`
+   `internos.json` = los días internos que confirmó el dueño (`references/internos_y_cuota.md`, «En el
+   acta»): TODAS las filas de esa placa ese día salen con el mismo CC y la observación de interno escrita
+   (propio / PUENTES / TM1), aunque algún viaje sea largo; `remisiones` si ese día tuvo dos programaciones.
+   Los viajes sueltos de ≤3 km que no son día interno salen como «… VIAJE CORTO ENTRE 3 KM A 5 KM» y el
+   script los lista: confírmalos con el dueño. Corrige antes en el bloque las fechas vacías o erradas
+   (un viaje sin fecha no casa con su día interno).
    `powershell -File $S/escribir_acta.ps1 -Libro <libro del contratista> -Filas filas.json -Salida "<corte>/<libro> (skill <fecha>).xlsx"`
    `-Hoja` si el libro no usa `CORTOS-INTERNOS-PUTANA` (D&S: `-Hoja "D&S"`; `rutas.json` →
    `contratistas.<id>.hoja_acta`). Observación literal con `obs` cuando el libro no la tiene como fórmula
@@ -117,7 +144,10 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
 
 Lo que el dueño usa va a **su carpeta de la quincena** en OneDrive, junto a la proforma:
 `PROFORMAS\<quincena>\<CONTRATISTA> - ENTREGA SKILL\` con la copia del acta
-(«<libro> (skill <fecha>).xlsx»), el Excel y el PDF de la digitadora y `preguntas.md` / `resumen.txt`.
+(«<libro> (skill <fecha>).xlsx»), el Excel y el PDF de la digitadora, `preguntas.md` / `resumen.txt` y
+`errores_proforma_<…>.md`: los errores de la proforma (números, fechas, destinos, cubicación, ya pagados,
+m³ de un solo viaje en filas de N viajes, lo que no va en esta proforma), con el **mensaje listo para
+enviar por WhatsApp** a quien la hizo, para que no reclamen luego guiándose por ella.
 Lo intermedio queda en `C:\GALCA\conciliacion\cortes\…`.
 
 En el chat: conteo por estado, viajes al acta (encontrados + pendientes), fuera (UF3/asfaltos con su
@@ -144,6 +174,11 @@ diferencias: 6 CC y 1 fecha que la digitación cambió en la base después del a
 idéntico página a página. El skill además detectó lo que el dueño no vio: 8663 era bolo 19,99 m³ (la
 proforma repitió los datos de otro tiquete), 9278 eran 15,54 m³ (no 16), recibos 2737/2739 de otra
 placa y con «9 viajes».
+
+2.ª Q sep (Asotrasaat, 337 reclamos): 273 al acta (219 en bases + 54 con soporte), 43 UF3, 17 asfaltos,
+4 rechazados; 5.779,72 m³ y 76.606,09 m³·km, escrito en el libro real con el sí del dueño. Lo que el dueño
+corrigió después y ya está en las reglas: observación de interno en todo el día (TAW895 18/09), viaje suelto
+de ≤3 km como corto 3 a 5 (42297) y el pedido editado de Puentes que el puente no guardó.
 
 Coste medido en ese corte pesado: lectura completa de 162 páginas ≈ 390 mil tokens y ~30 min (un lector);
 clasificación WhatsApp ≈ 140 mil tokens / 9 min. Con la primera pasada (`paginas-candidatas`) la lectura

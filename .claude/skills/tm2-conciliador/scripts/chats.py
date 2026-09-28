@@ -287,9 +287,23 @@ def cmd_contexto(args: argparse.Namespace) -> int:
                 "es_sugerencia_no_decision": True,
             }
 
+        # El puente de WhatsApp NO guarda los mensajes editados (ni el original ni el editado): si la
+        # placa sale en una respuesta pero ningún pedido de la ventana casa con la ruta, puede que el
+        # pedido sea un mensaje editado que falta. Caso real: «PROGRAMACIÓN PUENTES 20-09-2026» (sep-2026).
+        casa_ruta = any(
+            _distancia_min(_pks_en_texto(m["texto"]), origen_m, tolerancia)[1]
+            or _distancia_min(_pks_en_texto(m["texto"]), destino_m, tolerancia)[1]
+            for m in pedidos
+        )
+        alerta = None
+        if respuestas_con_placa and not casa_ruta and (origen_m is not None or destino_m is not None):
+            alerta = ("respuesta con la placa sin pedido que case con la ruta: puede ser un mensaje "
+                      "editado que el puente no guardó; pedir al dueño que lo busque en el grupo")
+
         salida.append({
             "viaje": viaje,
             "ventana": {"desde": d_ini, "hasta": d_fin},
+            "alerta_pedido_faltante": alerta,
             "pedidos": [
                 {"fecha_iso": m["fecha_iso"], "hora": m["hora"], "autor": m["autor"],
                  "rol": m["rol"], "nombre_autor": m["nombre_autor"], "texto": m["texto"],
@@ -318,6 +332,10 @@ def cmd_contexto(args: argparse.Namespace) -> int:
     print(f"{len(salida)} viajes con contexto -> {args.out}")
     con_sugerencia = sum(1 for x in salida if x.get("sugerencia"))
     print(f"  con sugerencia heurística: {con_sugerencia}")
+    faltantes = [x["viaje"] for x in salida if x.get("alerta_pedido_faltante")]
+    if faltantes:
+        print(f"  ⚠ {len(faltantes)} con respuesta pero sin pedido que case (¿mensaje editado?): "
+              + ", ".join(f"{v.get('placa')} {v.get('fecha')} {v.get('remision')}" for v in faltantes[:20]))
     return 0
 
 
@@ -418,6 +436,7 @@ def main() -> int:
     p_contexto.set_defaults(func=cmd_contexto)
 
     args = ap.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8")   # la consola de Windows (cp1252) no imprime «→»
     return args.func(args)
 
 
