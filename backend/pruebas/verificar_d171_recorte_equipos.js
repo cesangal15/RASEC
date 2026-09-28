@@ -242,6 +242,20 @@ console.log('\n8 · Frontend: formulario, flota.js, encargado, estado, menú, sw
   ok('…con el selector de chips (togglePicker, renderPicker, toggleEquipo, equiposDe) y el catálogo de flota.js', /togglePicker|renderPicker|toggleEquipo|equiposDe/.test(cap) && /TM2Flota\.equiposCapataz/.test(cap));
   ok('…y el payload de cada equipo es {id_registro, id_maquina, tipo_equipo}', /id_registro:TM2Offline\.uuid\(\), id_maquina:cod, tipo_equipo:tipoDe\(cod\)/.test(cap));
   { let e=''; try{ new Function(cap); }catch(x){ e=x.message; } ok('reporte-capataz.js compila', !e, e); }
+  // fmtNum se perdió al externalizar el JS (PR #11) y el desmonte/descapote no se podía enviar
+  // (ReferenceError en refreshAll → validate). Toda llamada suelta debe estar declarada en los scripts
+  // que carga reporte-capataz.html (o ser del navegador).
+  {
+    const html=leer('reporte-capataz.html');
+    const scripts=[...html.matchAll(/<script[^>]*src="([^"]+)"/g)].map(m=>m[1]).filter(s=>!/^https?:/.test(s));
+    const todo=scripts.map(s=>leer(s)).join('\n');
+    const decl=new Set([...todo.matchAll(/function\s+([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=|window\.([A-Za-z_$][\w$]*)\s*=/g)].map(m=>m[1]||m[2]||m[3]));
+    const NAV=new Set(['if','for','while','switch','catch','function','return','typeof','parseFloat','parseInt','isNaN','isFinite','alert','confirm','String','Number','Math','Object','Array','JSON','Promise','Date','Set','Map','Error','encodeURIComponent','decodeURIComponent','setTimeout','clearTimeout','setInterval','fetch','RegExp','Boolean','structuredClone','requestAnimationFrame']);
+    const codigo=cap.replace(/\/\*[\s\S]*?\*\//g,'').replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\/\/.*$/gm,"''");
+    const sueltas=[...new Set([...codigo.matchAll(/(?:^|[^.\p{L}\w$])([A-Za-z_$][\w$]*)\s*\(/gu)].map(m=>m[1]))]
+      .filter(n=>!NAV.has(n) && !decl.has(n));
+    ok('reporte-capataz.js no llama funciones sin declarar (p. ej. fmtNum del desmonte)', sueltas.length===0, sueltas.join(', '));
+  }
   { let e=''; try{ new Function(leer('encargado.js')); }catch(x){ e=x.message; } ok('encargado.js compila', !e, e); }
   // flota.js en node
   const w={}; const ctxF={ window:w, fetch:()=>Promise.reject(new Error('sin red')), TM2Offline:undefined };
