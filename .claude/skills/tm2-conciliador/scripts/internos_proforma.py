@@ -5,11 +5,11 @@ TFT906 21/09, 7 viajes de 5,7 km con la cuota del día en una celda combinada de
 
   python internos_proforma.py --proforma "<PROFORMA>.xlsx" [--out internos_proforma.json]
 
-Por cada hoja busca, en la columna de valor total (V.total / Total) y en la de valor unitario:
-- celdas COMBINADAS que abarcan varias filas (la cuota de la placa ese día en una sola celda);
-- filas con V.unitario claramente más alto que la tarifa mínima de la hoja (0–3 o 3–5 km, o valor por
-  día, en vez de > 5 km);
-- las filas de una hoja que se llame «INTERNOS» (la cobra el contratista aparte);
+Por cada hoja busca:
+- celdas COMBINADAS en la columna de valor total (V.total / Total) que abarcan varias filas (la cuota
+  de la placa ese día en una sola celda);
+- las filas de una hoja que se llame «INTERNOS» (la cobra el contratista aparte).
+La tarifa (V.unitario) NO es señal: depende de los km del viaje (0–3, 3–5, > 5 km), no del día interno.
 y agrupa por placa + fecha. Es solo una señal: la decisión (día interno, CC, observación) la confirma
 el dueño (`references/internos_y_cuota.md`). Solo lee la proforma; no escribe nada salvo --out.
 """
@@ -20,7 +20,7 @@ import datetime as dt
 import json
 import sys
 import unicodedata
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 import openpyxl
 
@@ -68,10 +68,6 @@ def main() -> int:
         # solo filas de viaje: remisión y fecha de verdad (debajo a veces hay dinámicas o totales)
         filas = [r for r in range(h + 1, ws.max_row + 1) if wsv.cell(r, cr).value not in (None, "")
                  and (not cf or isinstance(wsv.cell(r, cf).value, (dt.datetime, dt.date)))]
-        tarifa = Counter(wsv.cell(r, cu).value for r in filas if cu and wsv.cell(r, cu).value is not None)
-        habitual = tarifa.most_common(1)[0][0] if tarifa else None
-        numericas = [t for t in tarifa if isinstance(t, (int, float))]
-        minima = min(numericas) if numericas else None
         hoja_interna = "INTERN" in norm(ws.title)
         marcas = defaultdict(lambda: {"filas": [], "motivos": set(), "valor": None})
 
@@ -88,12 +84,6 @@ def main() -> int:
                         g["filas"].append(r); g["motivos"].add(f"V.total combinado {m.coord}")
                         g["valor"] = wsv.cell(m.min_row, m.min_col).value
         for r in filas:
-            vu = wsv.cell(r, cu).value if cu else None
-            # tarifa claramente más alta que la mínima de la hoja (0–3 o 3–5 km, o valor por día) = señal;
-            # 977 contra 978 no lo es.
-            if isinstance(vu, (int, float)) and minima and vu > 1.3 * minima:
-                g = marcas[clave(r)]
-                g["filas"].append(r); g["motivos"].add(f"V.unitario {vu} (habitual {habitual})")
             if hoja_interna:
                 g = marcas[clave(r)]
                 g["filas"].append(r); g["motivos"].add("hoja de INTERNOS")
@@ -108,7 +98,7 @@ def main() -> int:
               f"{', '.join(x['remisiones'])} · {'; '.join(x['motivos'])}"
               + (f" · valor {x['valor_combinado']}" if x["valor_combinado"] is not None else ""))
     if not hallazgos:
-        print("Sin señales de día interno cobrado sin marcar (ni V.total combinado ni V.unitario distinto).")
+        print("Sin señales de día interno cobrado sin marcar (ni V.total combinado ni hoja INTERNOS).")
     if a.out:
         json.dump(hallazgos, open(a.out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     return 0

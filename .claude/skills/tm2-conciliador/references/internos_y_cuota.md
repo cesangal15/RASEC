@@ -36,16 +36,16 @@ iniciativa propia.
 ### Cómo lo reclama la proforma (no siempre dice «interno») — D226
 
 No basta con buscar viajes de ≤ 3 km ni la palabra «interno»: el contratista cobra el día interno de
-tres maneras, y las tres cuentan como **día interno reclamado**:
+dos maneras, y las dos cuentan como **día interno reclamado**:
 
 1. una hoja propia «INTERNOS» (Asotranspa), con «VLR DIA DE TRABAJO»;
 2. una **celda combinada en V.total** que abarca los viajes de esa placa ese día, con la CUOTA
-   (p. ej. $1.234.640) y el resto de filas sin valor propio;
-3. un **V.unitario más alto** que el de la hoja (tarifa 0–3 o 3–5 km en vez de > 5 km), aunque los
-   viajes pasen de 3 km.
+   (p. ej. $1.234.640) y el resto de filas sin valor propio, aunque los viajes pasen de 3 km.
 
-Ej.: Suministros 2.ª Q sep, TFT906 21/09: 7 viajes de 5,7 km (Cantera Diviso → PR 14+300), tarifa 1.718
-y V.total combinado N118:N124 = CUOTA; los recibos dicen «Interno». Se reconoció como día interno
+La tarifa (V.unitario) **no** es señal de interno: depende de los km del viaje (0–3, 3–5, > 5 km).
+
+Ej.: Suministros 2.ª Q sep, TFT906 21/09: 7 viajes de 5,7 km (Cantera Diviso → PR 14+300) con
+V.total combinado N118:N124 = CUOTA; los recibos dicen «Interno». Se reconoció como día interno
 (observación «VIAJE INTERNO» en las 7 filas, CUOTA_INT en la dinámica). Detector, en el paso 4, antes de
 decidir: `python $S/internos_proforma.py --proforma <proforma> [--out internos_proforma.json]`. Lista por
 hoja, placa y día cada señal; en la hoja de UF3 o de asfaltos se ignora porque queda fuera del acta. Lo
