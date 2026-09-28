@@ -166,7 +166,8 @@ def cmd_cruzar(args: argparse.Namespace) -> int:
     # Índice de lecturas por número de recibo exacto.
     por_recibo: dict[str, list[dict]] = {}
     for lec in lecturas:
-        n = _num_recibo(lec.get("recibo_n"))
+        # Tiquetes de Putana y registros de AVENSA a veces llegan leídos como tiquete_n / remision_n.
+        n = _num_recibo(lec.get("recibo_n") or lec.get("tiquete_n") or lec.get("remision_n"))
         if not n:
             continue
         por_recibo.setdefault(n, []).append(lec)
@@ -462,6 +463,7 @@ def main() -> int:
     p_pdf.set_defaults(func=cmd_pdf_pendientes)
 
     args = ap.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8")   # la consola de Windows (cp1252) no imprime «→»
     return args.func(args)
 
 

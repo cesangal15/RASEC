@@ -33,6 +33,29 @@ iniciativa propia.
 - Si el viaje estaba programado a > 3 km y terminó siendo interno (o al revés), se marca como duda
   con el mensaje de programación: a veces pasa «por x o y motivos» y hay registro.
 
+## En el acta: CC y observación (sep-2026)
+
+El dueño **filtra el acta por la columna Observaciones** y pone la cuota (CONVERSION) en la tabla dinámica;
+en cada fila va la cantidad real que se hizo (m³ del viaje, o m³ × N si el recibo dice «N viajes»). Para que
+la dinámica salga bien:
+
+- **Día interno** (propio, de Puentes o de TM1): TODAS las filas de esa placa ese día llevan **el mismo CC**
+  (el que diga el dueño) **y la observación de interno escrita**: «VIAJE INTERNO», «PUENTES - VIAJE
+  INTERNO» o «TM1 - VIAJE INTERNO», **aunque algún viaje de ese día sea largo** (no se deja la fórmula
+  «VIAJE CORTO MAYOR A 5KM»). TM1 lleva el texto a mano aunque sean 11–14 km (no hay fórmula para TM1).
+  Ej.: TAW895 18/09 (42253, 43253, 43331 internos y 43332 de 24,6 km) → las 4 con 3701.02.10 y «VIAJE INTERNO».
+- **Dos programaciones el mismo día** (p. ej. interno de día y viajes en el turno nocturno): cada parte se
+  reconoce por separado, con su CC y su observación; solo la parte interna va como día interno. Lo decide
+  el dueño. Ej.: SXT274 17/09 → 42931 interno (UF1) + 7 viajes nocturnos a PR36+580 (UF2).
+- **Viaje suelto de ≤3 km que NO es día interno** (la placa solo hizo ese mini viaje para ese frente): no se
+  paga como interno aunque la fórmula lo marque así por los km; va como corto, como mucho «… VIAJE CORTO
+  ENTRE 3 KM A 5 KM» (con «PUENTES - » si es de Puentes). Ej.: 42297 TAW895 22/09, 2,3 km a Puentes.
+- **Media jornada**: si el chat dice que fue medio día, se reconoce media cuota (la pone el dueño en la
+  dinámica); el skill lo anota en el resumen. Ej.: 41956 SOI414 29/08.
+
+`armar_filas.py --internos internos.json` aplica estas reglas (ver su docstring) y lista los viajes sueltos
+de ≤3 km para confirmarlos con el dueño.
+
 ## Faltante de BTC (granulares, cargue de BTC)
 
 - Se agrupa por **placa + día** los viajes de BTC (tarifa > 5 km). Si su valor no llega a la cuota
@@ -46,5 +69,7 @@ iniciativa propia.
 ## Qué entrega el skill
 
 Una sección «Internos y cuota» en `preguntas.md` con, por placa y día: viajes, m³·km reales, lo que
-cobra la proforma, la propuesta (CUOTA_INT / STAND BY BTC / nada) y el mensaje de WhatsApp que la
-respalda o la falta de él.
+cobra la proforma, la propuesta (CUOTA_INT / media cuota / STAND BY BTC / nada), si el día es mixto (y el
+CC que se propone para todo el día) y el mensaje de WhatsApp que la respalda o la falta de él. Antes de
+proponer una cuota, comprueba que ese día no esté ya en el libro de actas. Con las respuestas del dueño
+se arma `internos.json` para `armar_filas.py`.
