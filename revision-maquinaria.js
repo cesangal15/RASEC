@@ -33,6 +33,16 @@ function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number
 function fmt(n){ return n===null||n===''||n===undefined ? '' : (Math.round(n*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
 function ufDe(cc){ const s=String(cc||''); return s.indexOf('3701')===0?'1':s.indexOf('3702')===0?'2':s.indexOf('3703')===0?'3':''; }
 function norm(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
+// D223: partes periódicos (torres de iluminación) — sin tope de 24 h/día ni TOTAL_ALTO, comparación sin tildes.
+const TIPOS_PERIODICOS=['LUMINARIA','TORRE DE ILUMINACION'];
+function esPeriodico(tipo){ return TIPOS_PERIODICOS.indexOf(norm(tipo))>=0; }
+// D223: hora real de recepción del servidor (timestamp ISO) en hora de Bogotá, p. ej. «24-sept 08:25».
+function recibidoBogota(iso){
+  if(!iso) return null;
+  const d=new Date(iso); if(isNaN(d.getTime())) return null;
+  const p={}; new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).forEach(x=>p[x.type]=x.value);
+  return (p.day||'')+'-'+(p.month||'').replace(/\.$/,'')+' '+(p.hour||'')+':'+(p.minute||'');
+}
 function uuid(){ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); return 'm-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10); }
 function fechaExcel(iso){ const p=String(iso||'').slice(0,10).split('-'); if(p.length<3) return String(iso||''); return p[2]+'/'+p[1]+'/'+p[0]; }
 let toastT=null; function toast(msg, err){ let t=document.querySelector('.toast'); if(!t){ t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); } t.textContent=msg; t.classList.toggle('err',!!err); t.style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none', err?6000:2500); }
@@ -55,7 +65,7 @@ let BASE=null;         // respuesta de op=base
 let GRUPO = (function(){ let g=''; try{ g=localStorage.getItem('tm2_rev_grupo')||''; }catch(e){} return ['todos','tierras','drenajes'].indexOf(g)>=0 ? g : ((rol==='residente_dren' || usuario==='duvan') ? 'drenajes' : 'todos'); })();
 function codNorm(c){ return String(c||'').toUpperCase().replace(/[^A-Z0-9]/g,''); }
 function grupoDe(codigo){
-  const k=codNorm(codigo), q=(LISTAS.equipos||[]).concat(BAND.faltantes||[]).find(x=>codNorm(x.codigo)===k);
+  const k=codNorm(codigo), q=(LISTAS.equipos||[]).concat(BAND.faltantes||[]).concat(BAND.periodicos||[]).find(x=>codNorm(x.codigo)===k);   // D223
   return q && q.grupo==='drenajes' ? 'drenajes' : 'tierras';
 }
 function enGrupo(codigo){ return GRUPO==='todos' || grupoDe(codigo)===GRUPO; }
@@ -105,6 +115,21 @@ function pintarBandeja(){
   document.getElementById('faltantes').innerHTML = faltantesHTML(falt);
   document.getElementById('sinopBar').classList.toggle('hidden', !falt.length);
   pintarSel();
+  pintarPeriodicos();
+}
+// D223: equipos de parte periódico (torres de iluminación) que YA NO vienen en faltantes: se listan aparte
+// con su último parte y el mismo «+ manual» de siempre, para cargarlos cuando llegue el parte físico (~15 días).
+function pintarPeriodicos(){
+  const cont=document.getElementById('cardPeriodicos'); if(!cont) return;
+  const lista=(BAND.periodicos||[]).filter(q=>enGrupo(q.codigo));
+  cont.classList.toggle('hidden', !lista.length);
+  document.getElementById('cntPeriod').textContent=lista.length;
+  document.getElementById('periodicos').innerHTML=lista.map(periodicoFilaHTML).join('');
+}
+function periodicoFilaHTML(q){
+  const u=q.ultimo||{};
+  const ult = u.fecha ? ' · últ. '+fechaCorta(u.fecha)+((u.final!==undefined&&u.final!==null&&u.final!=='')?' → '+fmt(u.final):'') : ' · sin parte anterior';
+  return '<div class="falt"><span class="cod">'+esc(q.codigo)+'</span><span class="tipo">'+esc(q.tipo)+(q.placa?' · '+esc(q.placa):'')+ult+(q.grupo==='drenajes'?' <span class="grchip-r">Drenajes</span>':'')+'</span><button class="btn mini" data-on-click="abrirManual('+esc(JSON.stringify(q.codigo))+')">+ manual</button></div>';
 }
 // Apartado consolidado (pedido del dueño, sep-2026): equipos que REPORTARON hoy sin estar vigentes en la
 // flota (alerta FUERA_DE_FLOTA). Son el otro lado de «Equipos sin parte»: reportaron pero no se les esperaba
@@ -288,8 +313,8 @@ function filaHTML(r, soloLectura){
   const al=alertasDe(r), id=r.id_registro, d=dirty[id]||{}, idA=esc(id), idJs=esc(String(id).replace(/'/g,"\\'"));
   const v=k=> d.hasOwnProperty(k) ? d[k] : r[k];
   const tot = (num(v('inicial'))!==null && num(v('final'))!==null) ? Math.round((num(v('final'))-num(v('inicial')))*100)/100 : null;
-  const tope=TOPES[r.medidor], unidad=tope?esc(tope.unidad):'';
-  const totCls = tot===null ? '' : tot<0 || (tope && tot>tope.bloquea) ? 'mal' : (tope && tot>tope.alerta) ? 'alto' : '';
+  const tope=TOPES[r.medidor], unidad=tope?esc(tope.unidad):'', periodico=esPeriodico(r.tipo);   // D223
+  const totCls = tot===null ? '' : tot<0 || (!periodico && tope && tot>tope.bloquea) ? 'mal' : (!periodico && tope && tot>tope.alerta) ? 'alto' : '';
   const ro = soloLectura ? ' disabled' : '';
   const on = soloLectura ? '' : ' data-on-change="edit(\''+idJs+'\',this)"';
   const inp=(k,tipo,extra)=>'<input type="'+tipo+'" data-k="'+k+'" value="'+esc(v(k))+'"'+(extra||'')+ro+on+'>';
@@ -308,6 +333,11 @@ function filaHTML(r, soloLectura){
         +'<button class="btn mini" data-on-click="abrirRepartir(\''+idJs+'\')" title="Abrir esta fila en varias (una por centro de coste o actividad)">⑂ Repartir</button>'
         +'<button class="btn mini btn-guardar'+(Object.keys(d).length?'':' hidden')+'" data-on-click="revisar(\''+idJs+'\',\'\')">💾 Guardar</button>')
     +'</span></div>'
+    +(r.timestamp||r.tardio||r.firma==='cedula' ? '<div class="recibido">'
+      +(r.timestamp?'📥 Recibido '+esc(recibidoBogota(r.timestamp)||''):'')
+      +(r.tardio?' <span class="badge tardio" title="Llegó después del mediodía del día siguiente al del parte">⏰ tardío</span>':'')
+      +(r.firma==='cedula'?' <span class="badge firmado" title="El operador firmó con cédula y la declaración de veracidad">✍ firmado</span>':'')
+      +'</div>' : '')
     +'<div class="campos">'
     +'<div class="c"><label>Fecha</label>'+inp('fecha','date')+'</div>'
     +'<div class="c"><label>Nº parte</label>'+inp('reporte_num','text')+'</div>'
@@ -338,8 +368,8 @@ function edit(id, el){
   if(k==='inicial'||k==='final'){
     const r=(BAND.pendientes||[]).find(x=>x.id_registro===id)||{}, d=dirty[id];
     const a=num(d.hasOwnProperty('inicial')?d.inicial:r.inicial), b=num(d.hasOwnProperty('final')?d.final:r.final);
-    const tot=(a!==null&&b!==null)?Math.round((b-a)*100)/100:null, tope=TOPES[r.medidor], box=f.querySelector('.tot');
-    if(box){ box.className='tot '+(tot===null?'':tot<0||(tope&&tot>tope.bloquea)?'mal':(tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?esc(tope.unidad):'')+'</small>'; }
+    const tot=(a!==null&&b!==null)?Math.round((b-a)*100)/100:null, tope=TOPES[r.medidor], periodico=esPeriodico(r.tipo), box=f.querySelector('.tot');   // D223
+    if(box){ box.className='tot '+(tot===null?'':tot<0||(!periodico&&tope&&tot>tope.bloquea)?'mal':(!periodico&&tope&&tot>tope.alerta)?'alto':''); box.innerHTML=(tot===null?'—':fmt(tot))+' <small>'+(tope?esc(tope.unidad):'')+'</small>'; }
     const ct=f.querySelector('.cont'); if(ct && k==='inicial') ct.outerHTML=continuidadHTML(r, d.inicial);   // D207: ¿empalma con el anterior?
   }
   if(k==='hora_de'||k==='hora_a'){   // D207: jornada y «(+1 día)» del turno noche al momento
@@ -395,9 +425,9 @@ async function aprobarSinAlertas(){
 /* ---------- agregar manual ---------- */
 let manualEq=null;
 function abrirManual(codigo){
-  const q=(LISTAS.equipos||[]).find(e=>e.codigo===codigo) || (BAND.faltantes||[]).find(e=>e.codigo===codigo);
+  const q=(LISTAS.equipos||[]).find(e=>e.codigo===codigo) || (BAND.faltantes||[]).find(e=>e.codigo===codigo) || (BAND.periodicos||[]).find(e=>e.codigo===codigo);   // D223
   if(!q) return;
-  const f=(BAND.faltantes||[]).find(e=>e.codigo===codigo); const ult=f&&f.ultimo?f.ultimo.final:'';
+  const f=(BAND.faltantes||[]).find(e=>e.codigo===codigo) || (BAND.periodicos||[]).find(e=>e.codigo===codigo); const ult=f&&f.ultimo?f.ultimo.final:'';
   manualEq=q;
   document.getElementById('mTitulo').textContent='Agregar parte manual · '+q.codigo+' · '+q.tipo+(q.placa?' · '+q.placa:'')+' · '+(q.medidor||'sin medidor');
   const c=document.getElementById('mCampos');
@@ -591,6 +621,9 @@ const COLS_BASE=[
   { k:'observaciones',       etiqueta:'Observaciones', edita:true, ancho:180 },
   { k:'alertas',             etiqueta:'Alertas',      ancho:130, fmt:function(v){ return alertasDe({alertas:v}).join(' · '); }, clase:function(r){ return alertasDe(r).length?'b-alerta':''; } },
   { k:'estado',              etiqueta:'Estado',       ancho:96, fmt:function(v,r){ return r._accion==='descartar'?'→ descartar':r._accion==='aprobar'?'→ aprobar':v; } },
+  // D223: solo lectura — hora real de recepción (timestamp del servidor) y si el operador firmó con cédula.
+  { k:'timestamp',           etiqueta:'Recibido',     ancho:110, fmt:function(v,r){ const s=recibidoBogota(v); return s?(s+(r.tardio?' ⏰':'')):''; }, clase:function(r){ return r.tardio?'b-tardio':''; } },
+  { k:'firma',               etiqueta:'Firma',        ancho:60, fmt:function(v){ return v==='cedula'?'✍':''; } },
   { k:'revisado_por',        etiqueta:'Revisó',       ancho:96, fmt:function(v,r){ return String(v||'')+(r.origen==='manual'?' · manual':''); } },
 ];
 function montarBase(){

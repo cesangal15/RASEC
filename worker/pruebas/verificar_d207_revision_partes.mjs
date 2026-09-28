@@ -74,14 +74,15 @@ console.log('\n4 · Horario raro');
   ok('17:00→04:30 = 11,5 h (turno noche normal) → sin HORARIO_RARO', !f('a3').alertas.includes('HORARIO_RARO') && cont.a3.jornada_h === 11.5, { a: f('a3').alertas, j: cont.a3.jornada_h });
 }
 
-console.log('\n5 · Bandeja: lista de CC completa y ordenada, filas de 27 columnas');
+console.log('\n5 · Bandeja: lista de CC completa y ordenada, filas de 27 columnas + firma + tardio (D223)');
 {
   const d = await parteBandeja(ctx(), { fecha: '2026-09-19' });   // json() del Worker devuelve el objeto
   const cc = d.listas.cc.map((x) => x.centro_coste);
   ok('incluye CC de la BASE que no están en PARTE_CC (3701.06.20, 3702.01.02)', cc.includes('3701.06.20') && cc.includes('3702.01.02'), cc);
   ok('orden UF1 → UF2 y, dentro, tierras antes que ODT/ODL; pseudo-CC al final', JSON.stringify(cc.filter((x) => /^37/.test(x))) === JSON.stringify(['3701.02.03', '3701.06.20', '3701.07.01', '3702.01.02', '3702.02.03']) && d.listas.cc[d.listas.cc.length - 1].pseudo === true, cc);
   ok('cada CC trae uf y area', d.listas.cc.filter((x) => !x.pseudo).every((x) => x.uf && x.area), d.listas.cc);
-  ok('la fila de bandeja sigue con 27 columnas y la continuidad va aparte', d.pendientes.length === 1 && Object.keys(d.pendientes[0]).length === 27 && d.continuidad && d.continuidad.a4 && d.continuidad.a4.previo.final === 1358, d.pendientes[0] && Object.keys(d.pendientes[0]).length);
+  // D223: 27 de siempre + firma (parteFilaSalida_) + tardio (informativo, solo en la bandeja) = 29.
+  ok('la fila de bandeja sigue con sus columnas (+firma +tardio, D223) y la continuidad va aparte', d.pendientes.length === 1 && Object.keys(d.pendientes[0]).length === 29 && d.continuidad && d.continuidad.a4 && d.continuidad.a4.previo.final === 1358, d.pendientes[0] && Object.keys(d.pendientes[0]).length);
   ok('bandeja: el aviso viejo no llega a la pantalla', d.pendientes[0].alertas === 'SIN_CC', d.pendientes[0].alertas);
 }
 

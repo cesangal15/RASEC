@@ -219,7 +219,8 @@ const CA_TABLAS = {
     columnas:[
       { id:'operador', etiqueta:'Operador', tipo:'texto', editable:false, requerido:true },
       { id:'partes_ult_4_meses', etiqueta:'Partes últ. 4 meses', tipo:'numero', editable:true },
-      { id:'activo', etiqueta:'Activo', tipo:'texto', editable:true }
+      { id:'activo', etiqueta:'Activo', tipo:'texto', editable:true },
+      { id:'cedula', etiqueta:'Cédula', tipo:'texto', editable:true }   // D223: solo para validar la firma del parte
     ]
   },
   parte_equipos: {

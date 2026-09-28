@@ -84,6 +84,46 @@ const PARTE_OPERADORES_ALIAS = {
 function parteOperadorCanon_(n){ const s=parteTexto_(n); if(!s) return ''; const c=PARTE_OPERADORES_ALIAS[normTexto(s)]; return c || s; }
 // PARTE_FRENTES (['UF1-UF2']) se importa de catalogos.js
 const PARTE_TOPES = { HOROMETRO:{ bloquea:24, alerta:12, unidad:'h' }, KM:{ bloquea:700, alerta:400, unidad:'km' } };
+// D223 (V3-32) — equipos de parte PERIÓDICO (no diario): no van a «faltantes» (no se espera parte cada día)
+// y su tope de horas no aplica (un parte de ~15 días acumula cientos de horas sin ser una alerta real).
+const PARTE_TIPOS_PERIODICOS = ['LUMINARIA','TORRE DE ILUMINACION'];
+function parteEsPeriodico_(tipo){ return PARTE_TIPOS_PERIODICOS.indexOf(normTexto(tipo))>=0; }
+// D223 — «tardío»: informativo (no es alerta, no frena «Aprobar todo»); la recepción llegó después del
+// mediodía de Bogotá del día SIGUIENTE a la fecha del parte.
+const PARTE_TARDIO_HORA = 12;
+export function parteTardio_(fecha, ts){
+  const f=fdateValida_(fecha); if(!f) return false;
+  const dt=toDate(f); if(!dt) return false;
+  dt.setDate(dt.getDate()+1);
+  const y=dt.getFullYear(), m=('0'+(dt.getMonth()+1)).slice(-2), d=('0'+dt.getDate()).slice(-2);
+  // Bogotá no tiene horario de verano: siempre UTC-05:00.
+  const limite=Date.parse(y+'-'+m+'-'+d+'T'+('0'+PARTE_TARDIO_HORA).slice(-2)+':00:00-05:00');
+  const t=(ts && typeof ts==='object' && typeof ts.getTime==='function') ? ts.getTime() : Date.parse(String(ts||''));
+  return isFinite(limite) && isFinite(t) && t>limite;
+}
+// D223 — firma del operador con cédula (interruptor PARTE_FIRMA; "no" por defecto). Con el interruptor
+// apagado, cedula/declaracion del body se ignoran. La cédula JAMÁS se guarda, ni sale en logs ni en la
+// respuesta: solo se compara contra parte_operadores.cedula y se guarda su huella (sha256).
+function parteFirmaOn_(c){ return String((c.env && c.env.PARTE_FIRMA) || 'no').trim().toLowerCase()==='si'; }
+function parteCedulaNorm_(v){ const s=String(v==null?'':v).replace(/[.\s]/g,''); return /^\d{5,12}$/.test(s) ? s : ''; }
+async function parteSha256Hex_(txt){
+  const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  const b=new Uint8Array(buf); let hex=''; for(let i=0;i<b.length;i++) hex+=('0'+b[i].toString(16)).slice(-2);
+  return hex;
+}
+// Cédula por operador CANÓNICO (respeta PARTE_OPERADORES_ALIAS), normalizada (solo dígitos); memo por petición.
+async function parteCedulasOperadores_(c){
+  return memo_(c, 'operadores_cedulas', async function(){
+    const filas=await c.sql`SELECT operador, cedula FROM parte_operadores WHERE obra_id=${OBRA_ID}`;
+    const out={};
+    filas.forEach(function(r){
+      const n=parteOperadorCanon_(r.operador); if(!n) return;
+      const ced=parteCedulaNorm_(r.cedula); if(!ced) return;
+      out[normTexto(n)]=ced;
+    });
+    return out;
+  });
+}
 const PARTE_DIAS_CC_RECIENTE = 30;
 const PARTE_MAX_DIAS_BASE   = 186;
 const PARTE_ESTADOS = ['pendiente','aprobado','descartado'];
@@ -222,6 +262,7 @@ function parteFilaSalida_(c, r){
   ['inicial','final','total','horas_varada','horas_lluvia','pr'].forEach(function(k){ const n=parteNum_(o[k]); o[k]= n===null ? '' : n; });
   if(o.timestamp && typeof o.timestamp==='object' && typeof o.timestamp.getFullYear==='function') o.timestamp=o.timestamp.toISOString();
   if(o.revisado_ts && typeof o.revisado_ts==='object' && typeof o.revisado_ts.getFullYear==='function') o.revisado_ts=o.revisado_ts.toISOString();
+  o.firma=parteTexto_(r.firma);   // D223: '' | 'cedula' — la huella (firma_huella) NUNCA sale de aquí
   return o;
 }
 
@@ -536,7 +577,7 @@ export async function parteEquipo(c, params){
   const eq=parteTexto_(params.eq), mapa=await parteEquipos_(c);
   logIdentidad_(c, eq, 'equipo');
   const lista=await parteSelectorEquipos_(c);
-  if(!eq) return json(c, { ok:true, equipo:null, equipos:lista, hoy:parteHoy_() });
+  if(!eq) return json(c, { ok:true, equipo:null, equipos:lista, hoy:parteHoy_(), firma:parteFirmaOn_(c) });
   const vig = (await parteEquipoVigente_(c, eq)) || (await parteEquipoVigente_(c, eq, parteFechaMasDias_(parteHoy_(), -1)));
   const q = vig || mapa[parteNormCod_(eq)];
   if(!q) return json(c, { ok:false, error:'El código «'+eq+'» no tiene ficha en PARTE_EQUIPOS. Elige tu equipo en la lista o avisa a maquinaria (un equipo nuevo se da de alta en Maquinaria › Flota).', equipos:lista, hoy:parteHoy_() });
@@ -547,7 +588,7 @@ export async function parteEquipo(c, params){
              en_flota: !!vig },
     ultimo:ultimo, operadores:await parteOperadores_(c), cc:await parteCC_(c), sugerencias:await parteSugerencias_(c, q.tipo),
     actividades:await parteActividades_(c, q, hist),
-    topes:PARTE_TOPES, hoy:parteHoy_() });
+    topes:PARTE_TOPES, hoy:parteHoy_(), firma:parteFirmaOn_(c) });
 }
 
 /* ---------- reparto por porcentaje (copiado tal cual) ---------- */
@@ -604,11 +645,11 @@ function numNulo_(v){ const n=parteNum_(v); return n===null ? null : n; }
 async function insertarFila_(sql, f, onConflict){
   const r=await sql`INSERT INTO parte_bandeja (obra_id, id_registro, "timestamp", estado, fecha, codigo, tipo, placa, medidor, reporte_num,
       inicial, final, total, inicial_modificado, horas_varada, horas_lluvia, hora_de, hora_a, descripcion_trabajo, centro_coste, pr, uf,
-      operador, observaciones, alertas, revisado_por, revisado_ts, origen)
+      operador, observaciones, alertas, revisado_por, revisado_ts, origen, firma, firma_huella)
     VALUES (${OBRA_ID}, ${f.id_registro}, ${nulo_(f.timestamp)}, ${f.estado||'pendiente'}, ${f.fecha}, ${f.codigo}, ${f.tipo||''}, ${f.placa||''}, ${f.medidor||''}, ${f.reporte_num||''},
       ${numNulo_(f.inicial)}, ${numNulo_(f.final)}, ${numNulo_(f.total)}, ${f.inicial_modificado||''}, ${numNulo_(f.horas_varada)}, ${numNulo_(f.horas_lluvia)}, ${f.hora_de||''}, ${f.hora_a||''},
       ${f.descripcion_trabajo||''}, ${f.centro_coste||''}, ${numNulo_(f.pr)}, ${f.uf||''}, ${f.operador||''}, ${f.observaciones||''}, ${f.alertas||''},
-      ${f.revisado_por||''}, ${nulo_(f.revisado_ts)}, ${f.origen||'qr'})
+      ${f.revisado_por||''}, ${nulo_(f.revisado_ts)}, ${f.origen||'qr'}, ${f.firma||''}, ${f.firma_huella||''})
     ON CONFLICT (obra_id, id_registro) DO NOTHING RETURNING id_registro`;
   return r.length>0;
 }
@@ -649,7 +690,12 @@ export async function parteReporte(c, body, ses){
   if(origen==='manual'){ logIdentidad_(c, ses.usuario, ses.rol); logMarcar_(c, 'ok', 'origen manual · equipo '+q.codigo); }
   const hoy=parteHoy_();
   const ccValidos={}; (await parteCCRevision_(c)).forEach(function(x){ ccValidos[normTexto(x.centro_coste)]=x; });   // D207: + CC de la BASE
-  const tope=PARTE_TOPES[q.medidor] || null;
+  // D223 (V3-32): un equipo de tipo periódico no tiene tope de horas (un parte de ~15 días acumula muchas).
+  const tope = parteEsPeriodico_(q.tipo) ? null : (PARTE_TOPES[q.medidor] || null);
+  // D223 — firma con cédula: solo exigida en origen QR y con el interruptor encendido.
+  const firmaOn = parteFirmaOn_(c) && origen==='qr';
+  const cedulasOperadores = firmaOn ? await parteCedulasOperadores_(c) : {};
+  let usuarioLog = origen==='manual' ? String((ses && ses.usuario)||'') : '';
 
   const hist=await parteHistorial_(c, q.codigo);
   const ultimo=parteUltimoFinalDe_(hist, q);
@@ -672,7 +718,7 @@ export async function parteReporte(c, body, ses){
   });
 
   const ts=new Date();
-  const filas=[], salida=[]; let duplicadas=0;
+  const filas=[], salida=[], firmasPorId={}; let duplicadas=0;
   let finalPrevio = ultimo ? ultimo.final : null;
   for(let i=0;i<tramos.length;i++){
     const t=tramos[i]||{}, n=i+1;
@@ -682,6 +728,16 @@ export async function parteReporte(c, body, ses){
     const reporte=parteTexto_(t.reporte_num), operador=parteOperadorCanon_(t.operador), cc=parteNormCC_(c, t.centro_coste);
     if(!reporte && !(origen==='manual' && parteEsPseudoCC_(cc))) return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
     if(!operador) return rechazo('Tramo '+n+': falta el operador. No se guardó nada.');
+    if(!usuarioLog && origen==='qr') usuarioLog = 'qr:'+q.codigo+' · '+operador;
+    let firmaTramo='';
+    if(firmaOn){
+      const cedulaOperador = cedulasOperadores[normTexto(operador)] || '';
+      if(!cedulaOperador) return rechazo(operador+' no tiene cédula registrada para firmar el parte. Avisa a maquinaria. No se guardó nada.');
+      const cedulaDada = parteCedulaNorm_(body.cedula);
+      if(!cedulaDada || cedulaDada!==cedulaOperador) return rechazo('La cédula no coincide con el operador elegido. No se guardó nada.');
+      if(body.declaracion!==true) return rechazo('Falta aceptar la declaración del parte. No se guardó nada.');
+      firmaTramo='cedula';
+    }
     const sinCC = !cc;
     if(sinCC && !parteTexto_(t.descripcion_trabajo)) return rechazo('Tramo '+n+': falta el centro de coste o, si la actividad no está en la lista, escribe qué hizo la máquina. No se guardó nada.');
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
@@ -710,6 +766,7 @@ export async function parteReporte(c, body, ses){
     if(fueraDeFlota) alertas.push('FUERA_DE_FLOTA');
 
     const id = parteTexto_(t.id_registro) || crypto.randomUUID();
+    if(firmaTramo==='cedula') firmasPorId[id] = { firma:'cedula', firma_huella: await parteSha256Hex_(OBRA_ID+'|'+id+'|'+parteCedulaNorm_(body.cedula)) };
     if(idsEx[id]){ duplicadas++; salida.push({ id_registro:id, duplicada:true }); continue; }
     const iniMod = parteSiNo_(t.inicial_modificado, false) ? 'SI' : 'NO';
     filas.push([ id, ts, 'pendiente', fecha, q.codigo, q.tipo, q.placa, q.medidor,
@@ -724,8 +781,11 @@ export async function parteReporte(c, body, ses){
   if(filas.length){
     // UNA transacción; ON CONFLICT DO NOTHING = el reenvío que llegó en paralelo cuenta como duplicada (D82).
     await c.sql.begin(async function(sql){
+      await sql`SELECT set_config('galca.usuario', ${usuarioLog}, true), set_config('galca.op', ${''}, true)`;   // D223
       for(const f of filas){
-        const ok=await insertarFila_(sql, filaDesde_(f));
+        const o=filaDesde_(f), fm=firmasPorId[o.id_registro];
+        if(fm){ o.firma=fm.firma; o.firma_huella=fm.firma_huella; }
+        const ok=await insertarFila_(sql, o);
         if(ok) guardadas++;
         else { duplicadas++; const s=salida.find(function(x){ return x.id_registro===f[0]; }); if(s){ Object.keys(s).forEach(function(k){ delete s[k]; }); s.id_registro=f[0]; s.duplicada=true; } }
       }
@@ -752,16 +812,21 @@ export async function parteBandeja(c, params){
   filas.forEach(function(r){
     const est=r.estado.toLowerCase()||'pendiente';
     if(est!=='descartado') conParte[parteNormCod_(r.codigo)]=1;
+    r.tardio=parteTardio_(r.fecha, r.timestamp);   // D223: informativo, no es alerta
     (est==='pendiente' ? pendientes : revisadas).push(r);
   });
   const ordena=function(a,b){ return (a.codigo+a.hora_de)<(b.codigo+b.hora_de)?-1:1; };
   pendientes.sort(ordena); revisadas.sort(ordena);
   const vigentes=await parteEquiposActivos_(c, fecha);
   const ultimos=await parteUltimosFinales_(c);
-  const faltantes=vigentes.filter(function(q){ return !conParte[parteNormCod_(q.codigo)]; })
+  // D223 (V3-32): los periódicos (luminaria, torre de iluminación) no van a faltantes; van aparte, todos los
+  // vigentes, tengan o no parte ese día.
+  const faltantes=vigentes.filter(function(q){ return !parteEsPeriodico_(q.tipo) && !conParte[parteNormCod_(q.codigo)]; })
     .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras', ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q), sin_ficha:!!q.sin_ficha }; });
+  const periodicos=vigentes.filter(function(q){ return parteEsPeriodico_(q.tipo); })
+    .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras', ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q) }; });
   const continuidad=await parteContinuidad_(c, pendientes.concat(revisadas));   // D207: en vivo
-  return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes, continuidad:continuidad,
+  return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes, periodicos:periodicos, continuidad:continuidad,
     flota_fuente: (await parteFlotaVigente_(c, fecha)) ? 'hoja' : 'activo',
     listas:{ operadores:await parteOperadores_(c), cc:await parteCCRevision_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras' }; }) },
     topes:PARTE_TOPES });
@@ -780,6 +845,7 @@ export async function parteRevisar(c, body, ses){
   const hechos=[], errores=[];
   // Escritura QUIRÚRGICA: una transacción; cada fila se bloquea (FOR UPDATE), se mezcla y se reescribe.
   await c.sql.begin(async function(sql){
+    await sql`SELECT set_config('galca.usuario', ${quien}, true), set_config('galca.op', ${''}, true)`;   // D223
     for(const x of cambios){
       const id=parteTexto_(x.id_registro);
       const enc=await sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND id_registro=${id} FOR UPDATE`;
@@ -835,6 +901,7 @@ export async function parteRepartir(c, body, ses){
   const quien=String((ses&&ses.usuario)||''), ts=new Date();
   let respuesta=null;
   await c.sql.begin(async function(sql){
+    await sql`SELECT set_config('galca.usuario', ${quien}, true), set_config('galca.op', ${'repartir'}, true)`;   // D223
     const enc=await sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND id_registro=${id} FOR UPDATE`;
     if(!enc.length){ respuesta={ ok:false, error:'La fila «'+id+'» no existe.' }; return; }
     const obj=enc[0]; obj.fecha=fdate(obj.fecha);

@@ -61,6 +61,12 @@ BACKEND_ASISTENCIAS_PRUEBA = "db"
 # Versión del token (D109): la MISMA que la propiedad AUTH_V de los Apps Script (los tokens se verifican y,
 # con obra en db, se emiten aquí con el mismo par AUTH_SECRETO/AUTH_V; subirla saca a todos).
 AUTH_V = "1"
+# D223 — Parte Digital: firma del operador con cédula (interruptor). "no" = como hoy (sin exigir cédula);
+# "si" exige cédula + declaración aceptada en cada parte por QR. Vuelta atrás inmediata: "no" + deploy.
+PARTE_FIRMA = "no"
+# D223 (4.18-5) — retención del LOG: días que se conservan las filas de `log` antes de que el cron diario
+# las borre (scheduled() en src/index.js). No toca ninguna otra tabla.
+LOG_RETENCION_DIAS = "365"
 
 # Hyperdrive (pool de conexiones a Supabase). Crear UNA vez con la cadena de conexión del proyecto
 # galca-tm2sur (Supabase → Connect → Session pooler, puerto 5432, IPv4):
@@ -84,6 +90,10 @@ name = "RATE_LIMITER"
 type = "ratelimit"
 namespace_id = "1001"
 simple = { limit = 120, period = 60 }
+
+# D223 (4.18-5) — cron diario de retención del LOG: 09:00 UTC = 04:00 Bogotá (sin horario de verano).
+[triggers]
+crons = ["0 9 * * *"]
 
 [observability]
 enabled = true
