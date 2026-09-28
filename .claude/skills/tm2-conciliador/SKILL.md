@@ -106,6 +106,8 @@ Excel instalado (escritura vía COM). Primera vez o herramienta cambiada: `node 
    `python $S/decidir.py --cruce cruce.json --clasificacion clasificacion.json --out 02_decision [--respuestas respuestas.json]`
    → `decisiones.json` + `preguntas.md`. Revisa además días internos y faltante de BTC
    (`references/internos_y_cuota.md`) y el cubicaje de terraplén (`python $S/cubicaje.py …`).
+   **Internos que la proforma no marca** (D226): `python $S/internos_proforma.py --proforma …` avisa de
+   V.total combinado con la cuota, V.unitario de tarifa corta u hoja «INTERNOS», aunque los viajes pasen de 3 km.
    **Errores de digitación los corrige el dueño a mano** (sep-2026): si el viaje SÍ está en la base
    pero con un dato mal (empresa de otro, p. ej. «Betulia»; UF o CC equivocados), no va a la
    digitadora: decisión `ACEPTADA_MANUAL` + nota «corregir a mano», va al acta con los datos de su fila
