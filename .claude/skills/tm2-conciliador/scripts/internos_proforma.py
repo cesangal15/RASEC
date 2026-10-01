@@ -8,7 +8,10 @@ TFT906 21/09, 7 viajes de 5,7 km con la cuota del día en una celda combinada de
 Por cada hoja busca:
 - celdas COMBINADAS en la columna de valor total (V.total / Total) que abarcan varias filas (la cuota
   de la placa ese día en una sola celda);
-- las filas de una hoja que se llame «INTERNOS» (la cobra el contratista aparte).
+- las filas de una hoja que se llame «INTERNOS» (la cobra el contratista aparte);
+- las filas cuyo texto (material, descripción, observación) dice «INTERNO», SIN importar los km: el
+  contratista lo reclama como interno y hay que corroborar con el dueño qué pasó ese día (Asotrasaat 2.ª Q
+  sep: TAU745 21/09, 8 viajes de 6,3 km «INTERNO/ MATERIAL TERRAPLEN / DIVISO», se escapó por mirar solo ≤3 km).
 La tarifa (V.unitario) NO es señal: depende de los km del viaje (0–3, 3–5, > 5 km), no del día interno.
 y agrupa por placa + fecha. Es solo una señal: la decisión (día interno, CC, observación) la confirma
 el dueño (`references/internos_y_cuota.md`). Solo lee la proforma; no escribe nada salvo --out.
@@ -87,6 +90,10 @@ def main() -> int:
             if hoja_interna:
                 g = marcas[clave(r)]
                 g["filas"].append(r); g["motivos"].add("hoja de INTERNOS")
+            elif any(isinstance(v, str) and "INTERN" in norm(v)
+                     for v in (wsv.cell(r, c).value for c in range(1, ws.max_column + 1))):
+                g = marcas[clave(r)]
+                g["filas"].append(r); g["motivos"].add("el texto de la fila dice INTERNO")
         for (fecha, placa), g in sorted(marcas.items()):
             rs = sorted(set(g["filas"]))
             hallazgos.append({"hoja": ws.title, "fecha": fecha, "placa": placa,
@@ -98,7 +105,7 @@ def main() -> int:
               f"{', '.join(x['remisiones'])} · {'; '.join(x['motivos'])}"
               + (f" · valor {x['valor_combinado']}" if x["valor_combinado"] is not None else ""))
     if not hallazgos:
-        print("Sin señales de día interno cobrado sin marcar (ni V.total combinado ni hoja INTERNOS).")
+        print("Sin señales de día interno (ni V.total combinado, ni hoja INTERNOS, ni «INTERNO» en el texto).")
     if a.out:
         json.dump(hallazgos, open(a.out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     return 0
