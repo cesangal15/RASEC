@@ -40,7 +40,7 @@
 import {
   OBRA_ID, json, hoyBogota, fdate, toDate, fdateValida_, normTexto, ccCorto, memo_,
   logIdentidad_, logMarcar_, puerta_, sesion_, rateLimit_, respuestaRateLimit_,
-  valEsquema_, valListaDe_, rechazoPayload_, VAL_MAX_HORAS
+  valEsquema_, valListaDe_, rechazoPayload_, VAL_MAX_HORAS, textoArrayPg_
 } from '../comun.js';
 // Fases 3–4: los catálogos que OBRA también usa (fichas de parte_equipos, flota vigente de `maquinas`,
 // ítems de la BASE) viven en src/catalogos.js con los mismos nombres; aquí solo se importan.
@@ -135,10 +135,12 @@ const PARTE_VAL_TRAMO = {
   reporte_num:['t',30], operador:['t',100], inicial:['n',0,PARTE_VAL_MAX_MEDIDOR], final:['n',0,PARTE_VAL_MAX_MEDIDOR],
   hora_de:['h'], hora_a:['h'], centro_coste:['t',100], pr:['n',0,1000000], uf:['t',5], descripcion_trabajo:['t',500],
   horas_varada:['n',0,VAL_MAX_HORAS], horas_lluvia:['n',0,VAL_MAX_HORAS], observaciones:['t',1000],
-  inicial_modificado:['t',10], id_registro:['t',100], reparto:['a',10]
+  inicial_modificado:['t',10], id_registro:['t',100], reparto:['a',10],
+  sin_operacion:['t',40]   // D228: Domingo/Festivo/Taller/Disponible/Lluvia/Sin operador; opcional
 };
 const PARTE_VAL_REPARTO = { centro_coste:['t',100], pct:['n',0,100], pr:['n',0,1000000], uf:['t',5], descripcion_trabajo:['t',500] };
 const PARTE_VAL_REPORTE = { codigo:['t',50], origen:['t',20], tramos:['a',50] };
+const PARTE_VAL_DESHACER = { id_registro:['t',100] };
 const PARTE_VAL_CAMBIO  = { id_registro:['t',100], estado:['l',PARTE_ESTADOS] };
 const PARTE_VAL_REPARTIR = { id_registro:['t',100], reparto:['a',10] };
 const PARTE_VAL_CAMPOS  = {
@@ -158,6 +160,10 @@ function parteValidarReporte_(c, body){
 function parteValidarRepartir_(c, body){
   let f=valEsquema_(body, PARTE_VAL_REPARTIR, '');
   if(!f) f=valListaDe_(body.reparto, PARTE_VAL_REPARTO, 'reparto', 10);
+  return f ? rechazoPayload_(c, f.campo, f.motivo) : null;
+}
+function parteValidarDeshacer_(c, body){
+  const f=valEsquema_(body, PARTE_VAL_DESHACER, '');
   return f ? rechazoPayload_(c, f.campo, f.motivo) : null;
 }
 function parteValidarRevisar_(c, body){
@@ -330,13 +336,22 @@ async function parteActividades_(c, q, hist){
     if(vistos[x.item]) return; vistos[x.item]=1;
     habituales.push({ item:x.item, actividad:parteEtiquetaItem_(x.item, delTipo, tabla, ccs), nombre:parteNombreItem_(x.item, ccs), veces:x.veces, propio:false });
   });
+  const hab=parteEtiquetasUnicas_(habituales.slice(0,PARTE_MAX_HABITUALES), delTipo, tabla, ccs);
+  // D228: el resto de las actividades activas del tipo (para «más»): sin repetir ítem ni frase de las habituales.
+  const enHab={}; hab.forEach(function(h){ enHab[h.item]=1; });
+  const vecesItem={}, ordenItem=[];
+  delTipo.forEach(function(x){ if(!(x.item in vecesItem)){ vecesItem[x.item]=0; ordenItem.push(x.item); } vecesItem[x.item]+=x.veces; });
+  const masIni=ordenItem.filter(function(it){ return !enHab[it]; }).sort(function(a,b){ return vecesItem[b]-vecesItem[a]; })
+    .map(function(it){ return { item:it, actividad:parteEtiquetaItem_(it, delTipo, tabla, ccs), nombre:parteNombreItem_(it, ccs) }; });
+  // Lista combinada (habituales ya únicas primero, luego «más»): parteEtiquetasUnicas_ queda idéntica a la del .gs.
+  const mas=parteEtiquetasUnicas_(hab.concat(masIni), delTipo, tabla, ccs).slice(hab.length);
   const todosV={}, todas=[];
   tabla.forEach(function(x){
     const k=normTexto(x.actividad)+'|'+x.item; if(!x.actividad || todosV[k]) return; todosV[k]=1;
     todas.push({ item:x.item, actividad:x.actividad, nombre:parteNombreItem_(x.item, ccs) });
   });
   todas.sort(function(a,b){ return normTexto(a.actividad)<normTexto(b.actividad)?-1:normTexto(a.actividad)>normTexto(b.actividad)?1:(a.item<b.item?-1:1); });
-  return { habituales:parteEtiquetasUnicas_(habituales.slice(0,PARTE_MAX_HABITUALES), delTipo, tabla, ccs), todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
+  return { habituales:hab, mas:mas, todas:todas, proyecto_habitual:(ultimoProy==='3702'?'3702':'3701') };
 }
 async function parteEquipoVigente_(c, cod, fecha){
   const k=parteNormCod_(cod);
@@ -395,6 +410,22 @@ function parteDescBase_(items, cc){
   }catch(err){ return ''; }
 }
 function parteEsPseudoCC_(cc){ const k=normTexto(cc); return PARTE_CC_PSEUDO.some(function(p){ return normTexto(p.centro_coste)===k; }); }
+// D228: «día pseudo» = Disponible o Domingo/Festivo (en esos días la máquina se carga a un CC real; Taller va sin CC).
+function parteEsPseudoDia_(cc){ const k=normTexto(cc); return k==='DISPONIBLE' || k==='DOMINGO/FESTIVO'; }
+function partePseudoTexto_(cc){ const k=normTexto(cc), p=PARTE_CC_PSEUDO.filter(function(x){ return normTexto(x.centro_coste)===k; })[0]; return p ? p.centro_coste : parteTexto_(cc); }
+// CC sugerido: el de la fila NO descartada más reciente (fecha, luego hora_de) con CC real, dentro de `hist`.
+function parteCCSugeridoDe_(c, hist, hastaFecha){
+  let mejor=null;
+  (hist||[]).forEach(function(r){
+    if(parteEstadoDe_(r)==='descartado') return;
+    const cc=parteNormCC_(c, r.centro_coste); if(!cc || parteEsPseudoCC_(cc)) return;
+    if(hastaFecha && fdate(r.fecha)>hastaFecha) return;
+    const k=fdate(r.fecha)+'|'+parteHoraStr_(r.hora_de);
+    if(!mejor || k>mejor.k) mejor={ k:k, cc:cc };
+  });
+  return mejor ? mejor.cc : '';
+}
+const PARTE_ALERTAS_CC = ['SIN_CC','CC_DESCONOCIDO','CC_INUSUAL','CC_SUGERIDO'];
 function parteTipoBase_(t){ return normTexto(t).replace(/ES\b/g,'').replace(/S\b/g,'').replace(/\s+/g,' ').trim(); }
 async function parteSugerencias_(c, tipo){
   const filas=await memo_(c, 'actividades', function(){ return c.sql`SELECT tipo_equipo, descripcion_trabajo, veces FROM parte_actividades WHERE obra_id=${OBRA_ID}`; });
@@ -554,6 +585,7 @@ async function parteCCRevision_(c){
       if(!capDe[cc]) capDe[cc]=parteTexto_(b.capitulo); if(!descDe[cc]) descDe[cc]=parteTexto_(b.descripcion); });
     (await parteCC_(c)).forEach(function(x){
       const k=normTexto(x.centro_coste); if(vistos[k]) return; vistos[k]=1;
+      if(parteEsPseudoDia_(x.centro_coste)) return;   // D228: quien revisa ya no ve Disponible ni Domingo/Festivo (sí Taller)
       out.push(Object.assign({}, x, { uf:x.pseudo?'':parteUF_(x.centro_coste), area:x.pseudo?'':parteAreaCC_(x.centro_coste), capitulo:capDe[x.centro_coste]||'' }));
     });
     Object.keys(descDe).forEach(function(cc){
@@ -657,7 +689,7 @@ async function actualizarFila_(sql, o){
   await sql`UPDATE parte_bandeja SET estado=${o.estado}, fecha=${o.fecha}, reporte_num=${o.reporte_num||''}, inicial=${numNulo_(o.inicial)}, final=${numNulo_(o.final)},
       total=${numNulo_(o.total)}, horas_varada=${numNulo_(o.horas_varada)}, horas_lluvia=${numNulo_(o.horas_lluvia)}, hora_de=${o.hora_de||''}, hora_a=${o.hora_a||''},
       descripcion_trabajo=${o.descripcion_trabajo||''}, centro_coste=${o.centro_coste||''}, pr=${numNulo_(o.pr)}, uf=${o.uf||''}, operador=${o.operador||''},
-      observaciones=${o.observaciones||''}, revisado_por=${o.revisado_por||''}, revisado_ts=${nulo_(o.revisado_ts)}
+      observaciones=${o.observaciones||''}, alertas=${o.alertas||''}, revisado_por=${o.revisado_por||''}, revisado_ts=${nulo_(o.revisado_ts)}
     WHERE obra_id=${OBRA_ID} AND id_registro=${o.id_registro}`;
 }
 function filaDesde_(arr){ const o={}; PARTE_BANDEJA_HEADERS.forEach(function(k,i){ o[k]=arr[i]; }); return o; }
@@ -718,15 +750,20 @@ export async function parteReporte(c, body, ses){
   });
 
   const ts=new Date();
-  const filas=[], salida=[], firmasPorId={}; let duplicadas=0;
+  const filas=[], salida=[], firmasPorId={}, lote=[]; let duplicadas=0;
   let finalPrevio = ultimo ? ultimo.final : null;
   for(let i=0;i<tramos.length;i++){
     const t=tramos[i]||{}, n=i+1;
     const fecha=fdateValida_(t.fecha);
     if(!fecha) return rechazo('Tramo '+n+': la fecha llegó vacía o no se entiende. No se guardó nada.');
     if(fecha>hoy) return rechazo('Tramo '+n+': la fecha no puede ser futura. No se guardó nada.');
-    const reporte=parteTexto_(t.reporte_num), operador=parteOperadorCanon_(t.operador), cc=parteNormCC_(c, t.centro_coste);
-    if(!reporte && !(origen==='manual' && parteEsPseudoCC_(cc))) return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
+    const reporte=parteTexto_(t.reporte_num), operador=parteOperadorCanon_(t.operador), ccOrig=parteNormCC_(c, t.centro_coste);
+    const pseudoDia=parteEsPseudoDia_(ccOrig);
+    // D228: día Disponible/Domingo/Festivo → CC REAL sugerido del historial del equipo (o vacío = SIN_CC).
+    //       Solo filas hasta la fecha del parte (un parte atrasado no toma el CC de un día posterior, igual que la
+    //       bandeja) y también los tramos anteriores de este mismo envío (`lote`).
+    const cc = pseudoDia ? parteCCSugeridoDe_(c, hist.concat(lote), fecha) : ccOrig;
+    if(!reporte && !(origen==='manual' && (parteEsPseudoCC_(ccOrig) || parteTexto_(t.sin_operacion)))) return rechazo('Tramo '+n+': falta el número del parte físico. No se guardó nada.');
     if(!operador) return rechazo('Tramo '+n+': falta el operador. No se guardó nada.');
     if(!usuarioLog && origen==='qr') usuarioLog = 'qr:'+q.codigo+' · '+operador;
     let firmaTramo='';
@@ -739,7 +776,7 @@ export async function parteReporte(c, body, ses){
       firmaTramo='cedula';
     }
     const sinCC = !cc;
-    if(sinCC && !parteTexto_(t.descripcion_trabajo)) return rechazo('Tramo '+n+': falta el centro de coste o, si la actividad no está en la lista, escribe qué hizo la máquina. No se guardó nada.');
+    if(sinCC && !pseudoDia && !parteTexto_(t.descripcion_trabajo)) return rechazo('Tramo '+n+': falta el centro de coste o, si la actividad no está en la lista, escribe qué hizo la máquina. No se guardó nada.');
     const ini=parteNum_(t.inicial), fin=parteNum_(t.final);
     const sinMedidor = !q.medidor;
     if(!sinMedidor && (ini===null || fin===null)) return rechazo('Tramo '+n+': faltan el medidor inicial o final. No se guardó nada.');
@@ -750,7 +787,8 @@ export async function parteReporte(c, body, ses){
       if(tope && total>tope.bloquea) return rechazo('Tramo '+n+': el total ('+total+' '+tope.unidad+') supera el máximo de '+tope.bloquea+' '+tope.unidad+' en un día. Revisa el medidor. No se guardó nada.');
     }
     const hDe=parteHoraStr_(t.hora_de), hA=parteHoraStr_(t.hora_a);
-    const uf = parteTexto_(t.uf) || parteUF_(cc);
+    const uf = pseudoDia ? parteUF_(cc) : (parteTexto_(t.uf) || parteUF_(cc));
+    const descTrabajo = pseudoDia ? (parteTexto_(t.descripcion_trabajo) || partePseudoTexto_(ccOrig)) : parteTexto_(t.descripcion_trabajo);
     const alertas=[];
     if(ini!==null && finalPrevio!==null && finalPrevio!==undefined && Math.abs(ini-finalPrevio)>0.001) alertas.push('INICIAL_DISTINTO');
     if(tope && total!=='' && total>tope.alerta) alertas.push('TOTAL_ALTO');
@@ -759,10 +797,11 @@ export async function parteReporte(c, body, ses){
     if(dup) alertas.push('DUPLICADO');
     // Mismo nº de parte físico ya subido en OTRO día (D188): posible doble carga del mismo turno noche.
     if(reporte && reportesPrevios[reporte] && !reportesPrevios[reporte][fecha]) alertas.push('PARTE_REPETIDO');
-    if(sinCC) alertas.push('SIN_CC');
+    if(pseudoDia) alertas.push(cc ? 'CC_SUGERIDO' : 'SIN_CC');
+    else if(sinCC) alertas.push('SIN_CC');
     else if(!parteEsPseudoCC_(cc) && hayHistorialCC && !ccRecientes[normTexto(cc)]) alertas.push('CC_INUSUAL');
     if(sinMedidor) alertas.push('SIN_MEDIDOR');
-    if(!sinCC && !ccValidos[normTexto(cc)]) alertas.push('CC_DESCONOCIDO');
+    if(!pseudoDia && !sinCC && !ccValidos[normTexto(cc)]) alertas.push('CC_DESCONOCIDO');
     if(fueraDeFlota) alertas.push('FUERA_DE_FLOTA');
 
     const id = parteTexto_(t.id_registro) || crypto.randomUUID();
@@ -772,9 +811,10 @@ export async function parteReporte(c, body, ses){
     filas.push([ id, ts, 'pendiente', fecha, q.codigo, q.tipo, q.placa, q.medidor,
       reporte, ini===null?'':ini, fin===null?'':fin, total, iniMod,
       parteNum_(t.horas_varada)===null?'':parteNum_(t.horas_varada), parteNum_(t.horas_lluvia)===null?'':parteNum_(t.horas_lluvia),
-      hDe, hA, parteTexto_(t.descripcion_trabajo), cc, parteNum_(t.pr)===null?'':parteNum_(t.pr), uf, operador,
+      hDe, hA, descTrabajo, cc, parteNum_(t.pr)===null?'':parteNum_(t.pr), uf, operador,
       parteTexto_(t.observaciones), alertas.join(';'), '', '', origen ]);
     salida.push({ id_registro:id, fecha:fecha, total:total, uf:uf, alertas:alertas });
+    if(cc && !parteEsPseudoCC_(cc)) lote.push({ estado:'pendiente', fecha:fecha, hora_de:hDe, centro_coste:cc });
     if(fin!==null) finalPrevio=fin;
   }
   let guardadas=0;
@@ -803,6 +843,27 @@ function parteAutoriza_(ses){
 }
 function parteSinPermiso_(c){ logMarcar_(c, 'rechazado','rol sin permiso de revisión'); return json(c, { ok:false, error:'Tu usuario no revisa partes de maquinaria (roles: '+PARTE_ROLES_REVISAN.join(', ')+'; usuarios: '+PARTE_USUARIOS_REVISAN.join(', ')+').' }); }
 
+// D228: por cada equipo de la bandeja, el CC real de su fila NO descartada más reciente con fecha <= la de la bandeja.
+// UNA consulta (DISTINCT ON); sin historial el código no aparece. { CODIGO: { centro_coste, fecha, descripcion_trabajo } }
+async function parteCCSugeridos_(c, fecha, filas){
+  const porNorm={}; filas.forEach(function(r){ const k=parteNormCod_(r.codigo); if(k && !porNorm[k]) porNorm[k]=r.codigo; });
+  const ks=Object.keys(porNorm), out={};
+  if(!ks.length) return out;
+  const pseudos=PARTE_CC_PSEUDO.map(function(p){ return normTexto(p.centro_coste); });
+  const rs=await c.sql`SELECT DISTINCT ON (upper(regexp_replace(codigo, '[^A-Za-z0-9]', '', 'g')))
+      upper(regexp_replace(codigo, '[^A-Za-z0-9]', '', 'g')) AS k, centro_coste, fecha, descripcion_trabajo
+    FROM parte_bandeja
+    WHERE obra_id=${OBRA_ID} AND lower(estado)<>'descartado' AND fecha<=${fecha}
+      AND trim(centro_coste)<>'' AND upper(trim(centro_coste))<>ALL(${textoArrayPg_(pseudos)}::text[])
+      AND upper(regexp_replace(codigo, '[^A-Za-z0-9]', '', 'g'))=ANY(${textoArrayPg_(ks)}::text[])
+    ORDER BY upper(regexp_replace(codigo, '[^A-Za-z0-9]', '', 'g')), fecha DESC, hora_de DESC, "timestamp" DESC`;
+  rs.forEach(function(r){
+    const cc=parteNormCC_(c, r.centro_coste);
+    if(!cc || parteEsPseudoCC_(cc) || !porNorm[r.k]) return;
+    out[porNorm[r.k]]={ centro_coste:cc, fecha:fdate(r.fecha), descripcion_trabajo:parteTexto_(r.descripcion_trabajo) };
+  });
+  return out;
+}
 export async function parteBandeja(c, params){
   const fecha=fdateValida_(params.fecha||'') || parteHoy_();
   await precargar_(c);
@@ -826,12 +887,16 @@ export async function parteBandeja(c, params){
   const periodicos=vigentes.filter(function(q){ return parteEsPeriodico_(q.tipo); })
     .map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras', ultimo:parteUltimoFinalDe_(ultimos[parteNormCod_(q.codigo)], q) }; });
   const continuidad=await parteContinuidad_(c, pendientes.concat(revisadas));   // D207: en vivo
-  return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes, periodicos:periodicos, continuidad:continuidad,
+  const ccSugerido=await parteCCSugeridos_(c, fecha, pendientes.concat(revisadas, faltantes));   // D228
+  return json(c, { ok:true, fecha:fecha, pendientes:pendientes, revisadas:revisadas, faltantes:faltantes, periodicos:periodicos, continuidad:continuidad, cc_sugerido:ccSugerido,
     flota_fuente: (await parteFlotaVigente_(c, fecha)) ? 'hoja' : 'activo',
     listas:{ operadores:await parteOperadores_(c), cc:await parteCCRevision_(c), equipos:vigentes.map(function(q){ return { codigo:q.codigo, tipo:q.tipo, placa:q.placa, medidor:q.medidor, grupo:q.grupo||'tierras' }; }) },
     topes:PARTE_TOPES });
 }
 
+function parteAlertasSin_(txt, quitar){
+  return String(txt||'').split(';').map(function(a){ return a.trim(); }).filter(function(a){ return a && quitar.indexOf(a)<0; }).join(';');
+}
 const PARTE_CAMPOS_EDITABLES = ['fecha','reporte_num','inicial','final','horas_varada','horas_lluvia','hora_de','hora_a',
   'descripcion_trabajo','centro_coste','pr','uf','operador','observaciones'];
 export async function parteRevisar(c, body, ses){
@@ -854,6 +919,7 @@ export async function parteRevisar(c, body, ses){
       if(soloBase && parteEstadoDe_(obj)!=='aprobado'){ errores.push({ id_registro:id, error:'solo se corrigen filas aprobadas de la Base' }); continue; }
       if(soloBase && parteTexto_(x.estado)){ errores.push({ id_registro:id, error:'aprobar o descartar lo hace quien revisa los partes' }); continue; }
       const campos=x.campos||{}; let tocado=false, malo='';
+      const ccAntes=normTexto(parteNormCC_(c, obj.centro_coste));
       PARTE_CAMPOS_EDITABLES.forEach(function(k){
         if(malo || !Object.prototype.hasOwnProperty.call(campos, k)) return;
         let val=campos[k];
@@ -874,11 +940,26 @@ export async function parteRevisar(c, body, ses){
         } else obj.total='';
       }
       if(Object.prototype.hasOwnProperty.call(campos,'centro_coste') && !Object.prototype.hasOwnProperty.call(campos,'uf')) obj.uf=parteUF_(obj.centro_coste);
+      const ccSinReal = !parteTexto_(obj.centro_coste) || parteEsPseudoDia_(obj.centro_coste);
+      if(Object.prototype.hasOwnProperty.call(campos,'centro_coste') && normTexto(obj.centro_coste)!==ccAntes){
+        // D228: alertas de CC en vivo, solo si el CC CAMBIÓ (una pantalla que reenvía el mismo CC no borra CC_INUSUAL);
+        // un CC que escribe quien revisa es su decisión (no se marca CC_DESCONOCIDO).
+        const al=parteAlertasSin_(obj.alertas, PARTE_ALERTAS_CC).split(';').filter(function(a){ return !!a; });
+        if(ccSinReal) al.push('SIN_CC');
+        obj.alertas=al.join(';');
+      }
+      // D228: una fila APROBADA (Base: jefe D198 o quien revisa) no puede quedar sin CC real al corregirle el CC.
+      if(Object.prototype.hasOwnProperty.call(campos,'centro_coste') && ccSinReal && parteEstadoDe_(obj)==='aprobado' && !parteTexto_(x.estado)){
+        errores.push({ id_registro:id, error:obj.codigo+': una fila aprobada necesita un centro de coste real (no vacío, ni Disponible ni Domingo/Festivo).' }); continue;
+      }
       const est=parteTexto_(x.estado).toLowerCase();
       if(est){
         if(PARTE_ESTADOS.indexOf(est)<0){ errores.push({ id_registro:id, error:'estado desconocido' }); continue; }
         if(est==='aprobado' && !parteTexto_(obj.centro_coste)){ errores.push({ id_registro:id, error:obj.codigo+': sin centro de coste; ponlo antes de aprobar' }); continue; }
+        // D228: aprobar exige CC real (Taller sí se aprueba; Disponible / Domingo-Festivo no son CC).
+        if(est==='aprobado' && parteEsPseudoDia_(obj.centro_coste)){ errores.push({ id_registro:id, error:obj.codigo+': día disponible/festivo sin centro de coste; ponle el CC al que se carga antes de aprobar' }); continue; }
         obj.estado=est; tocado=true;
+        if(est==='aprobado') obj.alertas=parteAlertasSin_(obj.alertas, ['CC_SUGERIDO']);   // quedó confirmado
       }
       if(!tocado){ errores.push({ id_registro:id, error:'sin cambios' }); continue; }
       obj.revisado_por=quien; obj.revisado_ts=ts;
@@ -943,6 +1024,58 @@ export async function parteRepartir(c, body, ses){
   return json(c, respuesta);
 }
 
+/* ============ D228 — deshacer un reparto (TOKEN) ============ */
+const PARTE_RE_MARCA_REPARTO = /(?: · )?\[Repartido en \d+ filas\]/;
+export async function parteDeshacerReparto(c, body, ses){
+  if(!parteAutoriza_(ses)) return parteSinPermiso_(c);
+  const vp=parteValidarDeshacer_(c, body); if(vp) return vp;
+  const id0=parteTexto_(body.id_registro);
+  if(!id0) return json(c, { ok:false, error:'Falta el id de la fila.' });
+  await precargar_(c);
+  const quien=String((ses&&ses.usuario)||''), ts=new Date();
+  const esOriginal=function(r){ return r && parteEstadoDe_(r)==='descartado' && PARTE_RE_MARCA_REPARTO.test(parteTexto_(r.observaciones)); };
+  let respuesta=null;
+  await c.sql.begin(async function(sql){
+    await sql`SELECT set_config('galca.usuario', ${quien}, true), set_config('galca.op', ${'deshacer_reparto'}, true)`;
+    // la original: el id dado, o (si es una hija <orig>-rN / <orig>-rN-k) el id sin ese sufijo
+    let orig=null;
+    const e0=await sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND id_registro=${id0} FOR UPDATE`;
+    if(esOriginal(e0[0])) orig=e0[0];
+    else {
+      const m=/^(.+?)-r\d+(?:-\d+)?$/.exec(id0);
+      if(m){ const e1=await sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND id_registro=${m[1]} FOR UPDATE`; if(esOriginal(e1[0])) orig=e1[0]; }
+    }
+    if(!orig){ respuesta={ ok:false, error:'La fila «'+id0+'» no es un reparto (no hay una original descartada con «[Repartido en N filas]»).' }; return; }
+    const id=orig.id_registro;
+    const re=new RegExp('^'+id.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'-r\\d+(?:-\\d+)?$');
+    // starts_with y no LIKE: un «_», «%» o «\» en el id no se toma como comodín.
+    const cand=await sql`SELECT * FROM parte_bandeja WHERE obra_id=${OBRA_ID} AND starts_with(id_registro, ${id+'-r'}) FOR UPDATE`;
+    const hijas=cand.filter(function(r){ return re.test(r.id_registro); });
+    for(const h of hijas){
+      const est=parteEstadoDe_(h);
+      if(est==='aprobado'){ respuesta={ ok:false, error:parteTexto_(h.codigo)+' '+parteHoraStr_(h.hora_de)+'–'+parteHoraStr_(h.hora_a)+': esa parte del reparto ya está aprobada; devuélvela a pendiente o descártala antes de deshacer el reparto.' }; return; }
+      if(est==='descartado' && /\[Repartido en/.test(parteTexto_(h.observaciones))){ respuesta={ ok:false, error:'deshaz primero el reparto de la fila '+h.id_registro+' ('+parteTexto_(h.codigo)+' '+parteHoraStr_(h.hora_de)+'–'+parteHoraStr_(h.hora_a)+').' }; return; }
+    }
+    let cambiadas=0; const salida=[];
+    for(const h of hijas){
+      h.fecha=fdate(h.fecha);
+      if(parteEstadoDe_(h)!=='descartado'){
+        h.estado='descartado'; h.observaciones=(parteTexto_(h.observaciones)?parteTexto_(h.observaciones)+' · ':'')+'[Reparto deshecho]';
+        h.revisado_por=quien; h.revisado_ts=ts;
+        await actualizarFila_(sql, h); cambiadas++;
+      }
+      salida.push(parteFilaSalida_(c, h));
+    }
+    orig.fecha=fdate(orig.fecha);
+    orig.estado='pendiente'; orig.observaciones=parteTexto_(parteTexto_(orig.observaciones).replace(PARTE_RE_MARCA_REPARTO,''));
+    orig.revisado_por=quien; orig.revisado_ts=ts;
+    await actualizarFila_(sql, orig);
+    respuesta={ ok:true, original:parteFilaSalida_(c, orig), filas:salida, cambiadas:1+cambiadas };
+  });
+  if(respuesta && respuesta.ok) respuesta.continuidad=await parteContinuidad_(c, [respuesta.original].concat(respuesta.filas));
+  return json(c, respuesta);
+}
+
 /* ============ Base (TOKEN) ============ */
 function parteExcelFila_(r){
   const cols=parteExcelColumnas_(), esH = r.medidor==='HOROMETRO', esKm = r.medidor==='KM';
@@ -1003,5 +1136,6 @@ export async function parteDoPost_(c, body){
   if(ses.usuario) body.usuario=ses.usuario;
   if(op==='revisar')  return parteRevisar(c, body, ses);
   if(op==='repartir') return parteRepartir(c, body, ses);
+  if(op==='deshacer_reparto') return parteDeshacerReparto(c, body, ses);   // D228
   return json(c, { ok:false, error:'op desconocida: '+op });
 }

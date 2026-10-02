@@ -97,7 +97,7 @@ let OPERADORES = [], CC = [], SUGS = [], TOPES = {HOROMETRO:{bloquea:24,alerta:1
  * las actividades y los CC directos se retiró del formulario a pedido del residente: menos lista, menos error.
  * El PR se admite en METROS (14400) o en KILÓMETROS (14.4 · 32): un valor menor que 100 se lee como km. */
 const MAX_HABITUALES = 5;
-let ACTS = { habituales:[], todas:[], proyecto_habitual:'3701' };
+let ACTS = { habituales:[], todas:[], mas:[], proyecto_habitual:'3701' };
 function prMetros(pr){ const n=num(pr); if(n===null) return null; return n<100 ? Math.round(n*1000) : n; }
 function proyectoDe(pr){ const n=prMetros(pr); if(n===null) return ACTS.proyecto_habitual||'3701'; return n<=30000 ? '3701' : '3702'; }
 function ccDeItem(item, pr){ return item ? proyectoDe(pr)+'.'+item : ''; }
@@ -106,10 +106,12 @@ function ccConProyecto(cc, pr){ const m=/^370[12]\.(.+)$/.exec(String(cc||'')); 
 // «3701.2.7» escrito a mano: se lee como 02.07 si ese CC existe en la lista y 02.70 no (misma regla que el backend).
 function normCCTexto(cc){ const m=/^(37\d\d)\s*[.,]\s*(\d{1,2})\s*[.,]\s*(\d{1,2})$/.exec(String(cc||'').trim()); if(!m) return String(cc||'').trim(); const p2=x=>x.length>=2?x:('0'+x).slice(-2), pd=x=>x.length>=2?x.slice(0,2):(x+'00').slice(0,2); const num=m[1]+'.'+p2(m[2])+'.'+pd(m[3]), abr=m[1]+'.'+p2(m[2])+'.'+p2(m[3]); if(m[3].length===2) return num; return (!ccDe(num) && ccDe(abr)) ? abr : num; }
 function habituales(){ return (ACTS.habituales||[]).slice(0, MAX_HABITUALES); }
-function actLabel(item){ const a=(ACTS.habituales||[]).concat(ACTS.todas||[]).find(x=>x.item===item); return a ? a.actividad : item; }
+// D228: el resto de las activas del tipo (sin repetir las habituales). Ficha vieja sin `mas` (D176) → [] y no hay botón.
+function masActs(){ const h=habituales().map(a=>a.item); return (ACTS.mas||[]).filter(a=>a&&a.item&&h.indexOf(a.item)<0); }
+function actLabel(item){ const a=(ACTS.habituales||[]).concat(ACTS.mas||[], ACTS.todas||[]).find(x=>x.item===item); return a ? a.actividad : item; }
 function actLabelHTML(r){
   if(r.libre) return '<b>Otra actividad (escrita a mano)</b><small>'+(r.cc?'CC '+esc(r.cc)+' · UF'+ufDe(r.cc)+' · lo verifica revisión':'sin centro de coste: lo pone quien revisa el parte')+'</small>';
-  if(r.item){ const a=(ACTS.habituales||[]).concat(ACTS.todas||[]).find(x=>x.item===r.item); return '<b>'+esc(r.act||actLabel(r.item))+'</b><small>CC '+esc(r.cc||'')+(r.cc?' · UF'+ufDe(r.cc):'')+(a&&a.nombre?' · '+esc(a.nombre):'')+'</small>'; }
+  if(r.item){ const a=(ACTS.habituales||[]).concat(ACTS.mas||[], ACTS.todas||[]).find(x=>x.item===r.item); return '<b>'+esc(r.act||actLabel(r.item))+'</b><small>CC '+esc(r.cc||'')+(r.cc?' · UF'+ufDe(r.cc):'')+(a&&a.nombre?' · '+esc(a.nombre):'')+'</small>'; }
   return ccLabelHTML(r.cc);
 }
 let HOY = hoyBogota();
@@ -227,7 +229,7 @@ async function cargar(){
   // (el servidor todavía no los conoce). Nada más se toma de la cola: solo el medidor.
   const pend=ultimoFinalPendiente();
   if(pend) ULTIMO=pend;
-  if(data.actividades) ACTS=Object.assign({ habituales:[], todas:[], proyecto_habitual:'3701' }, data.actividades);
+  if(data.actividades) ACTS=Object.assign({ habituales:[], todas:[], mas:[], proyecto_habitual:'3701' }, data.actividades);
   if(data.topes) TOPES=data.topes;
   document.getElementById('hCodigo').textContent='🚜 '+EQ.codigo;
   document.getElementById('hSub').textContent=EQ.tipo+(EQ.placa?' · '+EQ.placa:'')+(EQ.proveedor?' · '+EQ.proveedor:'');
@@ -305,7 +307,7 @@ function tramoHTML(t,i){
    +'</div>'
    +'<div class="bloque"><div class="bloque-t">¿Qué hizo la máquina? <span class="req">*</span></div>'
    +repartoHTML(t)
-   +'<div class="hint">Toca lo que hizo la máquina: son las 5 actividades que más usa este equipo. Si no está, toca «Otra» y escríbela en la descripción. Si hizo más de un trabajo, usa «＋ Agregar otra actividad». El centro de coste sale solo con la actividad y el PR (hasta 30+000 → 3701; de ahí en adelante → 3702). El PR va en metros (14400) o en km (14.4).</div>'
+   +'<div class="hint">Toca lo que hizo la máquina: las 5 que más usa este equipo están a la vista; el resto, en «Más actividades». Si no está, toca «Otra» y escríbela en la descripción. Si hizo más de un trabajo, usa «＋ Agregar otra actividad». El centro de coste sale solo con la actividad y el PR (hasta 30+000 → 3701; de ahí en adelante → 3702). El PR va en metros (14400) o en km (14.4).</div>'
    +'</div>'
    +'<div class="field"><label>Descripción del trabajo</label>'
    +'<textarea rows="2" placeholder="ej. Cargue terraplen PR14+400" data-on-input="setT(\''+t.id+'\',\'desc\',this.value)">'+esc(t.desc)+'</textarea>'
@@ -320,13 +322,25 @@ function tramoHTML(t,i){
    +'</div>';
 }
 /* ---------- D174/D178: actividades habituales por fila del reparto ---------- */
+function actChip(t, j, r, a, extra){
+  return '<button type="button" class="sug'+(r.item===a.item?' sel':'')+'" data-on-click="usarAct(\''+t.id+'\','+j+','+esc(JSON.stringify(a.item))+')" title="CC '+esc(a.item)+(a.propio?' · esta máquina lo usó hace poco':'')+'">'+esc(a.actividad)+'</button>';
+}
 function actsHTML(t, j){
-  const r=(t.reparto||[])[j]||{}, hab=habituales();
+  const r=(t.reparto||[])[j]||{}, hab=habituales(), mas=masActs();
+  const elegidaMas = mas.find(a=>a.item===r.item);   // D228: la elegida de «más» se ve activa aunque el panel esté plegado
+  const abierto = !!r.masAbierto;
   return '<div class="acts">'
-    +hab.map(a=>'<button type="button" class="sug'+(r.item===a.item?' sel':'')+'" data-on-click="usarAct(\''+t.id+'\','+j+','+esc(JSON.stringify(a.item))+')" title="CC '+esc(a.item)+(a.propio?' · esta máquina lo usó hace poco':'')+'">'+esc(a.actividad)+'</button>').join('')
+    +hab.map(a=>actChip(t,j,r,a)).join('')
+    +(elegidaMas && !abierto ? actChip(t,j,r,elegidaMas) : '')
+    +(mas.length ? '<button type="button" class="sug mas mas-btn" aria-expanded="'+(abierto?'true':'false')+'" data-on-click="toggleMas(\''+t.id+'\','+j+')">Más actividades ('+mas.length+') '+(abierto?'▴':'▾')+'</button>' : '')
     +'<button type="button" class="sug mas'+(r.libre?' sel':'')+'" data-on-click="elegirLibre(\''+t.id+'\','+j+')">✍ Otra…</button>'
     +'</div>'
+    +(mas.length && abierto ? '<div class="acts acts-mas">'+mas.map(a=>actChip(t,j,r,a)).join('')+'</div>' : '')
     +(r.libre ? '<div class="cc-libre"><label>Centro de coste <span class="opt">(opcional, si lo sabes: ej. 3701.02.07)</span></label><input type="text" inputmode="decimal" placeholder="lo pone revisión si va vacío" value="'+esc(r.cc||'')+'" data-on-input="setRep(\''+t.id+'\','+j+',\'cc\',this.value)"></div>' : '');
+}
+function toggleMas(id, j){
+  const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return;
+  t.reparto[j].masAbierto=!t.reparto[j].masAbierto; render();
 }
 function usarAct(id, j, item, frase){
   const t=tramos.find(x=>x.id===id); if(!t||!t.reparto||!t.reparto[j]) return;

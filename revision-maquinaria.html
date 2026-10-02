@@ -47,6 +47,11 @@
       <button class="btn" data-on-click="moverDia(-1)">◀ Día</button>
       <button class="btn" data-on-click="moverDia(1)">Día ▶</button>
       <button class="btn" data-on-click="cargarBandeja()">↻ Actualizar</button>
+      <!-- D228: Hoja (cuadrícula tipo Excel) o Tarjetas; solo se ofrece en PC -->
+      <div class="seg-grupo seg-vista hidden" id="segVista" role="group" aria-label="Vista">
+        <button type="button" data-v="hoja" data-on-click="setVista('hoja')" title="Cuadrícula tipo Excel con todos los partes del día">Hoja</button>
+        <button type="button" data-v="tarjetas" data-on-click="setVista('tarjetas')" title="Una tarjeta por parte">Tarjetas</button>
+      </div>
       <div class="f grow"></div>
       <button class="btn ok" id="btnAprobarTodo" data-on-click="aprobarSinAlertas()">✓ Aprobar todo lo sin alertas</button>
     </div>
@@ -59,6 +64,28 @@
     <div id="fueraFlota"></div>
     <div class="layout">
       <div>
+        <!-- D228: hoja de pendientes (solo PC). Acciones sobre la selección, filtros por columna y ficha de la fila activa. -->
+        <div id="panelHoja" class="hidden">
+          <div class="cq-barra" id="barraHoja">
+            <button class="btn ok" id="bHAprobar" data-on-click="hojaAccion('aprobado')" title="Aprueba las filas marcadas (con lo que hayas editado en ellas) · Ctrl+Enter" disabled>✓ Aprobar (<span class="n">0</span>)</button>
+            <button class="btn mal" id="bHDescartar" data-on-click="hojaAccion('descartado')" title="Descarta las filas marcadas · Ctrl+−" disabled>✕ Descartar (<span class="n">0</span>)</button>
+            <button class="btn" id="bHRepartir" data-on-click="hojaRepartir()" title="Abre la fila marcada en varios CC o actividades" disabled>⑂ Repartir</button>
+            <button class="btn" id="bHDeshacerRep" data-on-click="hojaDeshacerReparto()" title="Vuelve a dejar la fila original pendiente y descarta las partes" disabled>↩ Deshacer reparto</button>
+            <button class="btn" id="bHSug" data-on-click="hojaUsarSugerido()" title="Pone el último CC de la máquina en las filas marcadas sin CC real" disabled>Usar CC sugerido</button>
+            <button class="btn" id="bHAlertas" data-on-click="hojaAlertas()" title="Explica las alertas de la fila marcada">¿Alertas?</button>
+            <span class="grp-sep"></span>
+            <button class="btn ico" id="bHUndo" data-on-click="deshacerHoja()" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶</button>
+            <button class="btn ico" id="bHRedo" data-on-click="rehacerHoja()" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷</button>
+            <select id="selVerHoja" data-on-change="setVerHoja(this.value)" title="Qué filas muestra la hoja"><option value="pend">Pendientes</option><option value="todas">Todas (también revisadas)</option></select>
+            <span class="kpi"><b id="nHojaF">0</b> filas</span>
+            <button class="btn" id="bHGuardar" data-on-click="hojaGuardar()" title="Guarda lo editado sin aprobar" disabled>💾 Guardar cambios (<span class="n">0</span>)</button>
+          </div>
+          <div class="cq-filtros" id="filtrosHoja">
+            <input type="text" id="qHoja" class="cq-buscar" placeholder="Buscar en cualquier columna…" aria-label="Buscar">
+          </div>
+          <div id="gridHoja"></div>
+          <div class="ficha" id="fichaHoja"></div>
+        </div>
         <div id="pendientes"><div class="vacio">Cargando…</div></div>
         <details class="rev card" id="revisadasBox" data-estilo="display:none">
           <summary>Revisadas del día (<span id="nRev">0</span>) — aprobadas y descartadas</summary>
@@ -68,7 +95,7 @@
       <div class="lateral">
         <div class="card" id="cardFalt">
           <div class="section-title">Equipos sin parte <span class="count" id="cntFalt">0</span></div>
-          <div class="u-mb8 intro">Equipos <b>vigentes ese día en la flota</b> (Maquinaria › Flota, hoja <code>MAQUINAS</code>; frente UF1-UF2) sin fila (no descartada) en la fecha. Una <b>varada</b> se cierra aquí como Taller; su <b>reemplazo</b> reporta por su QR sin pasar por la Flota (llega con la alerta <code>FUERA_DE_FLOTA</code>). Altas y bajas de verdad (equipo nuevo, devolución, camabaja del mes) van en la Flota. Marca los que aplican y elige el motivo; se crea una fila por equipo con el medidor sin cambio (inicial = final), igual que «Día sin operación» del parte del operador.</div>
+          <div class="u-mb8 intro" title="Vigentes ese día en la flota (Maquinaria › Flota) sin fila no descartada. Una varada se cierra aquí como Taller; su reemplazo reporta por su QR (alerta FUERA_DE_FLOTA). Se crea una fila por equipo con el medidor sin cambio (inicial = final). Altas y bajas de verdad van en la Flota.">Vigentes en la flota sin parte este día. Márcalos y ciérralos con el motivo.</div>
           <div class="sinop" id="sinopBar">
             <div class="sinop-top">
               <label class="sinop-todos"><input type="checkbox" id="selTodos" checked data-on-change="selFaltantes(this.checked)"> Todos</label>
@@ -88,7 +115,7 @@
         <!-- D223: equipos de parte periódico (torres de iluminación) — no se esperan a diario. -->
         <div class="card hidden" id="cardPeriodicos">
           <div class="section-title">Equipos de parte periódico <span class="count" id="cntPeriod">0</span></div>
-          <div class="u-mb8 intro">No se esperan a diario (torres de iluminación). Cuando llegue su parte físico —cada ~15 días— cárgalo con «+ manual»: horómetro inicial y final del periodo, la fecha de corte y el nº del parte.</div>
+          <div class="u-mb8 intro" title="Torres de iluminación: cuando llegue su parte físico (~15 días) cárgalo con «+ manual»: horómetro inicial y final del periodo, fecha de corte y nº del parte.">No se esperan a diario. Cárgalos con «+ manual» cuando llegue su parte.</div>
           <div class="lista-falt" id="periodicos"></div>
         </div>
       </div>
@@ -125,10 +152,8 @@
       <input type="text" id="qBase" class="cq-buscar" placeholder="Buscar en cualquier columna…" aria-label="Buscar">
     </div>
     <div id="gridBase"></div>
-    <p class="intro chico">Doble clic, <kbd>Enter</kbd> o escribir edita la celda (lo gris es calculado). Los cambios quedan en azul hasta
-      pulsar <b>Guardar</b>; <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace. <b>Clic derecho</b>: repartir en varios CC, descartar o volver a aprobar.
-      Se maneja como Excel: flechas, <kbd>Ctrl</kbd>+flechas, <kbd>Shift</kbd> para marcar, <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd>.
-      <b>Copiar para Excel</b> copia las aprobadas visibles como columnas B → AR (fechas dd/mm/aaaa, decimales con coma).</p>
+    <p class="intro chico">Doble clic, <kbd>Enter</kbd> o escribir edita (gris = calculado); lo editado queda en azul hasta <b>Guardar</b> (<kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace).
+      <b>Clic derecho</b>: repartir, descartar o volver a aprobar. <b>Copiar para Excel</b> copia las aprobadas visibles (B → AR, fechas dd/mm/aaaa, decimales con coma).</p>
   </div>
 </div>
 
@@ -136,7 +161,7 @@
 <div class="modal hidden" id="modal" data-on-click="cerrarModalFondo(event,this)">
   <div class="modal-box">
     <h3 id="mTitulo">Agregar parte manual</h3>
-    <p>Crea la fila como <b>pendiente</b> con <code>origen=manual</code> (luego se aprueba como cualquier otra).</p>
+    <p>Crea la fila como <b>pendiente</b> (<code>origen=manual</code>); luego se aprueba como cualquier otra.</p>
     <div class="campos" id="mCampos"></div>
     <div class="modal-acciones">
       <button class="btn" data-on-click="cerrarModal()">Cancelar</button>
@@ -149,7 +174,7 @@
 <div class="modal hidden" id="modalSinOp" data-on-click="cerrarSinOpFondo(event,this)">
   <div class="modal-box">
     <h3 id="soTitulo">Día sin operación</h3>
-    <p>Crea una fila por equipo con <b>inicial = final</b> (el último medidor registrado), el pseudo-centro de coste del motivo y <code>origen=manual</code>. El nº de parte físico puede ir vacío: estos días normalmente no tienen parte en papel.</p>
+    <p>Una fila por equipo con el medidor sin cambio. Elige el CC de cada equipo; <b>Taller</b> va sin CC.</p>
     <div class="campos" id="soCampos"></div>
     <div class="so-lista" id="soLista"></div>
     <label class="so-aprobar"><input type="checkbox" id="soAprobar" checked> Dejarlas <b>aprobadas</b> de una vez (si no, quedan pendientes para revisarlas)</label>
@@ -174,7 +199,7 @@
       <span class="rp-suma">Suma: <b id="rpSuma">100 %</b></span>
     </div>
     <div class="rp-lista" id="rpFilas"></div>
-    <p class="u-mt10">La fila original queda <b>descartada</b> con la marca <code>[Repartido en N filas]</code>; las nuevas nacen <b>pendientes</b> con <code>[Reparto X % · i/N]</code> en observaciones, listas para aprobar.</p>
+    <p class="u-mt10">La original queda <b>descartada</b> (<code>[Repartido en N filas]</code>); las nuevas nacen <b>pendientes</b> (<code>[Reparto X % · i/N]</code>). Se puede <b>deshacer</b>.</p>
     <div class="modal-acciones">
       <button class="btn" data-on-click="cerrarRepartir()">Cancelar</button>
       <button class="btn primario" id="rpGuardar" data-on-click="guardarRepartir()">Repartir</button>
