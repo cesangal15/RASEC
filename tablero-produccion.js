@@ -1551,11 +1551,18 @@ function resumenDia(p){
  * registrado" cuando falta en la ficha de personal). Una foto vieja sin `c` en
  * NINGUNA entrada -> ninguna fila se despliega (sin flecha, D316).
  *
- * V3-22/D210: columnas «Meta» y «% cumplido» (horas-hombre) para las CUATRO partidas con meta
- * (`conMeta`, abajo); Transporte/Otras van con «—» (sin meta, no es lo que pidió el dueño). La meta es
- * la del PERÍODO completo (p.hh, de la Proyección); con días elegidos en la escala de tiempo (D206) se
- * prorratea por CALENDARIO (días seleccionados ÷ días del período 16→15) — el tooltip lo dice. Sin meta
- * cargada (p.hh[k] es null): «—», nada se rompe. */
+ * V3-22/D210 + D229: la sección mide el personal directo con HH/m³ (ya no «% cumplido» contra una
+ * bolsa de horas). Columnas: Actividad · Personas/día · Horas-hombre · HH/m³ (real del ámbito) ·
+ * Ref. HH/m³ · Meta · Resultado. Solo para las CUATRO partidas con m³ (`conMeta`); Transporte/Otras van
+ * con «—» en las columnas nuevas.
+ *   · Ref. = ΣHH ÷ Σm³ compactos de los últimos 3 cortes (16→15) CERRADOS anteriores al período mostrado,
+ *     contando solo cortes ≥ HH_REF_DESDE (primer corte con asistencia completa en Galca). Total ponderado
+ *     (Σ/Σ), no promedio de razones; período completo y UF «Todo» (no depende del filtro de UF ni de días).
+ *   · HH ganadas = m³ del ámbito × Ref.; Resultado = HH ganadas − HH reales (positivo: la producción cubrió
+ *     más horas de las usadas). Solo horas.
+ *   · Meta = meta manual D210 (`p.hh`, de la Proyección) si está cargada; si no, plan del período × Ref.
+ *     (prorrateada por días calendario con selección de días, D206). Con UF ≠ Todo: «—» (el plan no viene por UF).
+ * El cálculo vive en el bloque D229-PURO (funciones puras, sin DOM) para poder probarlo en Node. */
 const ACT_PERS=[
   {k:'excavacion',n:'Excavación',   c:'var(--s1)', conMeta:true},
   {k:'terraplen', n:'Terraplén',    c:'var(--s2)', conMeta:true},
@@ -1577,15 +1584,76 @@ function diasEnRango(a,b){
   const d=s=>{const[y,m,dd]=s.split('-').map(Number);return Date.UTC(y,m-1,dd);};
   return Math.round((d(b)-d(a))/86400000)+1;
 }
-/* Meta de horas-hombre de la partida `k` en el período `p`: null si no hay meta cargada; si hay selección
-   de días, se prorratea por calendario (no por días CON datos). */
-function metaHH(p,k){
-  const m=p.hh&&p.hh[k];
-  if(m==null||!isFinite(m)) return null;
-  if(!selDias) return m;
-  const tot=diasEnPeriodo(p.p); if(!(tot>0)) return null;
-  return m*diasEnRango(selDias.a,selDias.b)/tot;
+/*D229-PURO-INICIO*/
+/* D229: primer corte con asistencia completa en Galca; los anteriores no cuentan para la Ref. */
+const HH_REF_DESDE='2026-08', HH_REF_CORTES=3;
+const HH_PART=[{k:'excavacion',d:'exc'},{k:'terraplen',d:'ter'},{k:'subbase',d:'sub'},{k:'base',d:'bas'}];
+/* Período 16→15 de una fecha ISO 'YYYY-MM-DD' (misma regla que `periodoDe` del motor, sin Date). */
+function periodoDeISO(f){
+  const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(f==null?'':f)); if(!m) return null;
+  let y=+m[1], mo=+m[2]; if(+m[3]>15){ mo++; if(mo>12){ mo=1; y++; } }
+  return y+'-'+String(mo).padStart(2,'0');
 }
+/* m³ COMPACTOS de la partida `k` en una lista de días, con la UF `ufSel` ('Todo'|'UF1'|'UF2').
+   La excavación no viene por UF (`d.exc` = apr+pre+nap, compacto = ÷fc): con UF ≠ Todo -> null.
+   No lee ningún global: `ufSel` y `fc` se pasan, así la Ref. (siempre 'Todo') no toca el filtro. */
+function m3Dias(dias,k,ufSel,fc){
+  const part=HH_PART.find(x=>x.k===k); if(!part) return null;
+  if(k==='excavacion' && ufSel!=='Todo') return null;
+  const col=k==='excavacion'?'exc':(ufSel==='UF1'?part.d+'1':ufSel==='UF2'?part.d+'2':part.d);
+  return (dias||[]).reduce((s,d)=>s+((d&&d[col])||0),0)/(fc||1.3);
+}
+/* Ref. HH/m³ por partida para el período `pAct`: ΣHH ÷ Σm³ de los últimos HH_REF_CORTES períodos de `per`
+   anteriores a `pAct` y ≥ HH_REF_DESDE. Devuelve {ref:{k:número|null}, cortes:['YYYY-MM',…]}. null si no hay
+   cortes o ΣHH / Σm³ es 0. Las HH salen de `personal` ([{f,act,h}], todas las UF), asignadas al período con el
+   mapa de `per[].d` (el de la producción) y, si la fecha no está, con la regla 16→15. */
+function refHHm3(per,personal,pAct,fc){
+  const cortes=(per||[]).map(x=>x.p).filter(q=>q>=HH_REF_DESDE && q<pAct).sort().slice(-HH_REF_CORTES);
+  const set=new Set(cortes), hh={};
+  /* Mismo mapa fecha→período que la producción (`per[].d`): en los días de borde (15/16) el Excel decide el
+     período, no la fecha. `periodoDeISO` solo es respaldo para fechas sin fila en la DATA (esas HH se cuentan). */
+  const mapa={};
+  (per||[]).forEach(x=>(x.d||[]).forEach(d=>{ if(d&&d.f) mapa[d.f]=x.p; }));
+  (personal||[]).forEach(x=>{
+    if(!x) return; const q=mapa[x.f]||periodoDeISO(x.f); if(!set.has(q)) return;
+    hh[x.act]=(hh[x.act]||0)+(isFinite(x.h)?+x.h:0);
+  });
+  const ref={};
+  HH_PART.forEach(({k})=>{
+    let sh=hh[k]||0, sm=0;
+    (per||[]).forEach(x=>{ if(set.has(x.p)) sm+=m3Dias(x.d,k,'Todo',fc)||0; });
+    ref[k]=(cortes.length && sh>0 && sm>0)?sh/sm:null;
+  });
+  return {ref,cortes};
+}
+/* Una partida: HH/m³ real, HH ganadas y Resultado (= ganadas − reales). null si falta m³ o Ref. */
+function filaHH(hh,m3,ref){
+  const hhm3=(m3!=null && m3>0)?hh/m3:null;
+  const ganadas=(m3!=null && ref!=null)?m3*ref:null;
+  return {hhm3,ganadas,resultado:ganadas==null?null:ganadas-hh};
+}
+/* Meta de HH de una partida. `manual` = p.hh[k] (Proyección, D210), `plan` = plan_per del período (m³),
+   `frac` = fracción del período (1, o días elegidos ÷ días del período). Manda la manual; si no hay,
+   plan × Ref.; con UF ≠ Todo -> null (el plan no viene por UF). `fuente`: 'manual'|'auto'|'uf'|null. */
+function metaHHPartida(manual,plan,ref,ufSel,frac){
+  if(ufSel!=='Todo') return {valor:null,fuente:'uf'};
+  const f=(frac==null?1:frac);
+  if(manual!=null && isFinite(manual)) return {valor:manual*f,fuente:'manual'};
+  if(plan>0 && ref!=null) return {valor:plan*ref*f,fuente:'auto'};
+  return {valor:null,fuente:null};
+}
+/* Total de Meta / Resultado: suma de las 4 SOLO si las 4 tienen valor; si no, null (sin parciales). */
+function sumaCuatro(vals){
+  return (vals.length===HH_PART.length && vals.every(v=>v!=null && isFinite(v)))?vals.reduce((s,v)=>s+v,0):null;
+}
+/*D229-PURO-FIN*/
+/* Fracción del período que cubre el ámbito: 1 sin selección; con días elegidos, días ÷ días del período (calendario). */
+function fracPeriodo(p){
+  if(!selDias) return 1;
+  const tot=diasEnPeriodo(p.p); return tot>0?diasEnRango(selDias.a,selDias.b)/tot:null;
+}
+const fSigno=n=>{ const r=Math.round(n*10)/10; return r===0?f1(0):(r>0?'+':'−')+f1(Math.abs(r)); };
+const f3=n=>n.toLocaleString('es-CO',{minimumFractionDigits:3,maximumFractionDigits:3});
 function personal(p){
   const sub=document.getElementById('perSub'), c=document.getElementById('perTabla');
   if(!sub||!c) return;
@@ -1608,6 +1676,16 @@ function personal(p){
   const hayCargo=TM2.personal.some(x=>x && Array.isArray(x.c));
   const filas=[]; let maxH=0;
   const totPorDia={};
+  /* D229: Ref. global (período completo, UF «Todo», sin tocar `uf` ni `selDias`), m³ del ámbito con el
+     filtro de UF y días de siempre, y fracción del período para prorratear la meta. */
+  const fc=TM2.fc||1.3;
+  const R=refHHm3(TM2.per,TM2.personal,p.p,fc);
+  const diasAmb=diasFiltrados(p), frac=fracPeriodo(p);
+  /* Los m³ del HH/m³ real y del Resultado cuentan solo hasta el último día con asistencia: si la asistencia va
+     atrasada frente a la producción, los m³ sin horas no inflan el Resultado. La Meta no cambia. */
+  const hastaAsis=TM2.personal_hasta||'';
+  const diasM3=hastaAsis?diasAmb.filter(d=>d.f<=hastaAsis):diasAmb;
+  const recortaM3=!!hastaAsis && diasM3.length<diasAmb.length;
   ACT_PERS.forEach(a=>{
     const porDia={}, cargos={};
     TM2.personal.forEach(x=>{
@@ -1633,8 +1711,17 @@ function personal(p){
     /* «Sin cargo registrado» siempre al final; el resto por horas desc. */
     const sinCargo=x=>x.k==='Sin cargo registrado'?1:0;
     cargoFilas.sort((x,y)=>sinCargo(x)-sinCargo(y) || (y.h-x.h));
-    const meta=a.conMeta?metaHH(p,a.k):null;
-    filas.push({a, prom:nd?sn/nd:0, sh, sn, nd, cargos:cargoFilas, meta});
+    let m3=null, ref=null, meta={valor:null,fuente:null}, calc={hhm3:null,ganadas:null,resultado:null};
+    if(a.conMeta){
+      m3=diasM3.length?m3Dias(diasM3,a.k,uf,fc):null; ref=R.ref[a.k];
+      calc=filaHH(sh,m3,ref);
+      meta=metaHHPartida(p.hh&&p.hh[a.k], p.a&&p.a[a.k]&&p.a[a.k].plan_per
+        /* El plan de excavación (CALCULOS) ya cubre lo mismo que `d.exc` (= apr+pre+nap): el motor compara
+           `a.excavacion.prod` (Σ d.exc ÷ fc) contra `a.excavacion.plan_per`, y `noaprov` es una fila aparte
+           «que sale de la excavación» (subconjunto). Sumarlo duplicaría el no aprovechable. */
+        , ref, uf, frac);
+    }
+    filas.push({a, prom:nd?sn/nd:0, sh, sn, nd, cargos:cargoFilas, meta, m3, ref, calc});
   });
   const clavesT=Object.keys(totPorDia);
   const snT=clavesT.reduce((s,f)=>s+totPorDia[f].n,0);
@@ -1651,9 +1738,11 @@ function personal(p){
   }
   const head=el('div','phH');
   head.append(el('div',null,'Actividad'),el('div',null,'Personas/día'),
-              el('div',null,'Horas-hombre'),el('div',null,'Meta'),el('div',null,'% cumplido'),el('div'));
+              el('div',null,'Horas-hombre'),el('div',null,'HH/m³'),el('div',null,'Ref. HH/m³'),
+              el('div',null,'Meta'),el('div',null,'Resultado'),el('div'));
   c.appendChild(head);
-  filas.forEach(({a,prom,sh,sn,nd,cargos,meta})=>{
+  const refTitle=R.cortes.length?'HH ÷ m³ de '+R.cortes.map(eti).join(' y '):'sin cortes cerrados desde '+eti(HH_REF_DESDE);
+  filas.forEach(({a,prom,sh,sn,nd,cargos,meta,m3,ref,calc})=>{
     /* V3-16: fila desplegable como en la cadena «Por qué vamos así» (misma
        idea de `abierto`/`.chainR`): solo se abre si hay desglose por cargo. */
     const puedeAbrir=hayCargo && cargos.length>0;
@@ -1667,12 +1756,24 @@ function personal(p){
     r.append(nm);
     r.append(el('div','num',nd?f1(prom):'—'));
     r.append(el('div','num',f1(sh)));
-    /* V3-22/D210: meta de horas-hombre del período (prorrateada si hay días elegidos, D206) y % cumplido
-       (real ÷ meta). Sin meta cargada, o partida sin meta (Transporte/Otras): «—», nada se rompe. */
-    const metaEl=el('div','num meta', meta==null?'—':f1(meta));
-    if(meta!=null && selDias) metaEl.title='Meta prorrateada por los '+diasEnRango(selDias.a,selDias.b)+' días elegidos de '+diasEnPeriodo(p.p)+' del período (16→15).';
+    /* D229: HH/m³ real del ámbito · Ref. · Meta · Resultado (HH ganadas − HH reales). Transporte/Otras y lo que
+       no se pueda calcular (excavación con UF, sin m³ o sin Ref.): «—», nada se rompe. */
+    const hm=el('div','num hhm3', calc.hhm3==null?'—':f3(calc.hhm3));
+    if(a.conMeta) hm.title=m3==null?(a.k==='excavacion'&&uf!=='Todo'?'la excavación no viene por UF':'sin días con asistencia en '+amb)
+      :'HH ÷ m³ ejecutados en '+amb+' ('+f0(m3)+' m³)'+(recortaM3?' · m³ hasta el '+fechaCorta(hastaAsis)+', último día con asistencia':'');
+    r.append(hm);
+    const rf=el('div','num ref', ref==null?'—':f3(ref));
+    if(a.conMeta) rf.title=ref==null?refTitle:refTitle+' (cortes cerrados, UF Todo)';
+    r.append(rf);
+    const metaEl=el('div','num meta', meta.valor==null?'—':f1(meta.valor));
+    if(meta.fuente==='uf') metaEl.title='sin meta con UF distinta de Todo: el plan no viene por UF';
+    else if(meta.fuente==='manual') metaEl.title='meta cargada en la Proyección'+(selDias?' · prorrateada por los '+diasEnRango(selDias.a,selDias.b)+' días elegidos de '+diasEnPeriodo(p.p)+' del período (16→15)':'');
+    else if(meta.fuente==='auto') metaEl.title='plan × Ref.'+(selDias?' · prorrateada por los '+diasEnRango(selDias.a,selDias.b)+' días elegidos de '+diasEnPeriodo(p.p)+' del período (16→15)':'');
     r.append(metaEl);
-    r.append(el('div','num pct', (meta>0)?pct(sh/meta):'—'));
+    const rs=calc.resultado;
+    const rsEl=el('div','num res'+(rs==null?'':(Math.round(rs*10)>0?' pos':Math.round(rs*10)<0?' neg':'')), rs==null?'—':fSigno(rs));
+    if(rs!=null) rsEl.title='HH ganadas '+f1(calc.ganadas)+' − HH reales '+f1(sh)+(recortaM3?' · m³ hasta el '+fechaCorta(hastaAsis)+', último día con asistencia':'');
+    r.append(rsEl);
     const bar=el('div','phBar'); const i=el('i');
     i.style.width=(maxH>0?sh/maxH*100:0)+'%'; i.style.background=a.c;
     bar.appendChild(i); r.appendChild(bar);
@@ -1703,21 +1804,23 @@ function personal(p){
       c.appendChild(drop);
     }
   });
-  /* Total: SOLO suma las metas de las 4 partidas con meta si las CUATRO la tienen cargada (si falta una, no
-     se inventa un parcial); el % es real ÷ meta de esas mismas cuatro, no del total de las 6 (Transporte/
-     Otras no tienen con qué compararse). */
-  const conMeta=filas.filter(f=>f.a.conMeta);
-  const metaTotal=conMeta.length && conMeta.every(f=>f.meta!=null) ? conMeta.reduce((s,f)=>s+f.meta,0) : null;
-  const shMetaTotal=conMeta.reduce((s,f)=>s+f.sh,0);
+  /* Total (D229): Meta y Resultado = suma de las 4 partidas SOLO si las 4 tienen valor (sin parciales
+     inventados); HH/m³ y Ref. no tienen sentido sumados: «—». */
+  const cuatro=filas.filter(f=>f.a.conMeta);
+  const metaTotal=sumaCuatro(cuatro.map(f=>f.meta.valor));
+  const resTotal=sumaCuatro(cuatro.map(f=>f.calc.resultado));
   const rt=el('div','ph phTot');
   rt.title=snT?'persona-días: '+f0(snT):'';
   rt.append(el('div','nm','Total'));
   rt.append(el('div','num',clavesT.length?f1(snT/clavesT.length):'—'));
   rt.append(el('div','num',f1(shT)));
+  rt.append(el('div','num hhm3','—'));
+  rt.append(el('div','num ref','—'));
   rt.append(el('div','num meta', metaTotal==null?'—':f1(metaTotal)));
-  rt.append(el('div','num pct', (metaTotal>0)?pct(shMetaTotal/metaTotal):'—'));
+  rt.append(el('div','num res'+(resTotal==null?'':(Math.round(resTotal*10)>0?' pos':Math.round(resTotal*10)<0?' neg':'')), resTotal==null?'—':fSigno(resTotal)));
   rt.append(el('div'));
   c.appendChild(rt);
+  c.appendChild(el('div','nota','Ref. = HH ÷ m³ de los últimos 3 cortes cerrados · Resultado = m³ × Ref. − HH: positivo, la producción cubrió más horas de las usadas.'));
 }
 
 /* --------------------------------- planificado vs ejecutado del período */
