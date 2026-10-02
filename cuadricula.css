@@ -22,6 +22,8 @@ table.cq td.cq-deriv{background:rgba(127,127,127,.06);}
 table.cq td.cq-c{cursor:cell;}
 table.cq .cq-v{padding:3px 8px;min-height:24px;line-height:18px;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
 table.cq td.cq-deriv .cq-v{color:var(--muted);}
+table.cq td.cq-env .cq-v{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word;word-break:normal;line-height:16px;padding-top:4px;padding-bottom:4px;}   /* D228: columna `envolver:true` (texto largo en varias líneas, sin «…») */
+table.cq td.cq-env{vertical-align:top;}
 table.cq td.cq-num .cq-v{text-align:right;font-variant-numeric:tabular-nums;}
 table.cq td.cq-mod .cq-v{color:var(--info);font-weight:600;}
 table.cq td.cq-sel{background:rgba(245,166,35,.14)!important;}

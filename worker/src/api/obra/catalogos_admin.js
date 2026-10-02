@@ -194,7 +194,7 @@ const CA_TABLAS = {
     ]
   },
   parte_actividades: {
-    tabla:'parte_actividades', grupo:'parte', titulo:'Actividades del Parte', descripcion:'Descripción de trabajo por tipo de equipo.',
+    tabla:'parte_actividades', grupo:'parte', titulo:'Actividades del Parte', descripcion:'Frases que se le sugieren al operador mientras escribe la descripción del trabajo (por tipo de equipo). No son los botones de actividad con CC: esos están en «Ítems del Parte».',
     pk:['tipo_equipo','descripcion_trabajo'], alta:true, baja:true, baja_es:'borrar',
     columnas:[
       { id:'tipo_equipo', etiqueta:'Tipo equipo', tipo:'texto', editable:false, requerido:true },
@@ -203,7 +203,7 @@ const CA_TABLAS = {
     ]
   },
   parte_items: {
-    tabla:'parte_items', grupo:'parte', titulo:'Ítems del Parte', descripcion:'Actividad → ítem por tipo de equipo (D174).',
+    tabla:'parte_items', grupo:'parte', titulo:'Ítems del Parte', descripcion:'Actividad → ítem por tipo de equipo (D174). Activo = SI: el operador de ese tipo la ve en su parte (las 5 más usadas como botones y el resto en «Más actividades», D228); «Veces» ordena cuáles salen primero. Activo = NO: no le aparece.',
     pk:['tipo_equipo','item','actividad'], alta:true, baja:true, baja_es:'borrar',
     columnas:[
       { id:'tipo_equipo', etiqueta:'Tipo equipo', tipo:'texto', editable:false, requerido:true },

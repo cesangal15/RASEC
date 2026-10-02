@@ -69,6 +69,8 @@
   /* D174: actividades habituales (capa 1) encima del centro de coste */
   .acts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
   .acts .sug{font-size:14px;padding:11px 14px;min-height:44px;}
+  .acts .sug.mas-btn{min-height:52px;}
+  .acts-mas{margin-top:-2px;padding:8px;border:1px dashed var(--border);border-radius:12px;}
   .acts .sug.sel{border-color:var(--accent);background:rgba(245,166,35,0.12);font-weight:600;}
   .picker-item.libre{border-style:dashed;color:var(--accent-txt);}
   /* D178: la actividad elegida se muestra en una etiqueta (ya no abre buscador); los chips van debajo, por fila */

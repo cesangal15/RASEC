@@ -72,7 +72,7 @@
     function sucia(r){ return COLS.some(function(c){ return c.edita && String(r[c.k]==null?'':r[c.k])!==String(r._orig[c.k]==null?'':r._orig[c.k]); }); }
     function pendiente(r){ return sucia(r) || !!r._accion; }
     function celda(r,c,ci,ri){
-      const d=disp(r,c), cls='cq-c'+(c.edita&&EDIT?'':' cq-deriv')+(c.tipo==='num'?' cq-num':'')+(c.clase?' '+c.clase(r):'')
+      const d=disp(r,c), cls='cq-c'+(c.edita&&EDIT?'':' cq-deriv')+(c.tipo==='num'?' cq-num':'')+(c.envolver?' cq-env':'')+(c.clase?' '+c.clase(r):'')
         +(c.edita && String(r[c.k]==null?'':r[c.k])!==String(r._orig[c.k]==null?'':r._orig[c.k]) ? ' cq-mod':'');
       return '<td class="'+cls+'" data-r="'+ri+'" data-c="'+ci+'"><div class="cq-v" title="'+escH(d)+'">'+escH(d)+'</div></td>';
     }
@@ -145,7 +145,7 @@
       v=String(v==null?'':v).trim(); if(c.tipo!=='lista' || !v) return v;
       const ops=opciones(c,r), t=normN(v);
       const m=ops.filter(function(o){ return normN(o.v)===t; })[0] || ops.filter(function(o){ return normN(o.t)===t || normN(o.v+' · '+o.t)===t; })[0];
-      return m ? m.v : v;
+      return m ? m.v : (c.normalizar ? c.normalizar(v) : v);   // D228: valor libre (columna `libre`) normalizado si la columna lo pide
     }
     function fijar(ri,ci,v){
       const r=VIS[ri], c=COLS[ci]; if(!r||!c||!c.edita||!EDIT || r._bloqueada) return false;
@@ -161,7 +161,7 @@
       if(!c.edita || r._bloqueada){ aviso(r._bloqueada ? r._bloqueada : ('«'+c.etiqueta+'» es calculada: no se edita aquí.')); return; }
       const t=td(ri,ci); if(!t) return; editando={r:ri,c:ci};
       let el; const actual=String(r[c.k]==null?'':r[c.k]), ops=c.tipo==='lista'?opciones(c,r):null;
-      if(ops && ops.length<=15){
+      if(ops && ops.length<=15 && !c.libre){   // `libre:true` (D228): acepta un valor que no está en la lista → entrada con sugerencias, no <select>
         el=document.createElement('select'); const lista=ops.slice(); if(actual && !lista.some(function(o){ return o.v===actual; })) lista.push({v:actual,t:actual+' (fuera de la lista)'});
         let elegida=actual; if(ini){ const q=normN(ini), m=lista.filter(function(o){ return o.v && (normN(o.v).indexOf(q)===0 || normN(o.t).indexOf(q)===0); })[0]; if(m) elegida=m.v; }
         lista.forEach(function(o){ const op=document.createElement('option'); op.value=o.v; op.textContent=o.v===o.t?(o.t||'—'):(o.v?o.v+' · '+o.t:'—'); if(o.v===elegida) op.selected=true; el.appendChild(op); });
@@ -349,6 +349,7 @@
       limpiarFiltros:limpiarFiltros, hayFiltros:hayFiltros, puedeDeshacer:function(){ return undo.length>0; }, puedeRehacer:function(){ return redo.length>0; },
       editando:function(){ return !!editando; }, cerrarEditor:function(){ cerrarEditor(true); }, cerrarMenu:cerrarMenu,
       activa:function(){ return act ? { fila:VIS[act.r], col:COLS[act.c] } : null; },
+      activar:function(r,c){ activar(r,c,false,true); },               // D228: pone la celda activa (fila y columna por posición)
     };
     return api;
   }
