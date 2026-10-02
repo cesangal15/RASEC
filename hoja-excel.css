@@ -1,0 +1,98 @@
+/* ============================================================================
+ * HOJA EXCEL (D230) — estilos de hoja-excel.js: barra de fórmulas, barra de estado, controlador de relleno, marco
+ * de copia, menú de columna y resaltes de la selección. Todo bajo `hx-*` (no choca con data.css ni cuadricula.css);
+ * solo tokens de tema.css → claro y oscuro. Sirve igual para la tabla de data.css (td.cell/.cv) y la de
+ * cuadricula.css (td.cq-c/.cq-v).
+ * ==========================================================================*/
+:root{ --hx-sel:rgba(245,166,35,.14); --hx-cebra:rgba(127,127,127,.035); --hx-deriv:rgba(127,127,127,.06); --hx-cab-sel:rgba(245,166,35,.22); }
+
+/* Barra de fórmulas: [cuadro de nombre] fx [contenido completo de la celda] */
+.hx-barra{display:flex;align-items:center;gap:0;margin:0 0 6px;border:1px solid var(--border);border-radius:9px;background:var(--surface);min-height:32px;flex:0 0 auto;overflow:hidden;}
+.hx-barra .hx-nombre{flex:0 0 auto;width:178px;max-width:34%;padding:0 10px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:1px solid var(--border);line-height:32px;background:var(--surface2);}
+.hx-barra .hx-fx{flex:0 0 auto;padding:0 9px;font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:13px;color:var(--muted);border-right:1px solid var(--border);line-height:32px;user-select:none;}
+.hx-barra input.hx-formula{flex:1 1 auto;min-width:0;width:auto;height:32px;border:none;border-radius:0;background:transparent;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:0 10px;outline:none;box-shadow:none;margin:0;}
+.hx-barra input.hx-formula:focus{box-shadow:inset 0 0 0 2px var(--accent);background:var(--input-bg);}
+.hx-barra input.hx-formula.hx-ro{color:var(--muted);cursor:default;}
+.hx-barra input.hx-formula.hx-ro:focus{box-shadow:inset 0 0 0 2px var(--border);background:transparent;}
+.hx-barra .hx-kbd{flex:0 0 auto;height:32px;min-height:0;border:none;border-left:1px solid var(--border);border-radius:0;background:var(--surface2);color:var(--muted);font-size:14px;padding:0 11px;cursor:pointer;text-transform:none;letter-spacing:0;}
+.hx-barra .hx-kbd:hover{color:var(--text);}
+
+/* Barra de estado: modo · N de M filas · Recuento / Suma / Promedio / Mín / Máx */
+.hx-pie{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-height:24px;margin-top:4px;padding:0 4px;font-family:'DM Sans',sans-serif;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;}
+.hx-pie .hx-modo{font-weight:600;}
+.hx-pie .hx-modo.hx-modo-marco{color:var(--accent-txt);}
+.hx-pie .hx-cuenta{flex:0 0 auto;}
+.hx-pie .hx-stats{margin-left:auto;display:flex;gap:4px;align-items:center;overflow:hidden;}
+.hx-pie .hx-st0,.hx-pie .hx-st{font-size:11.5px;color:var(--muted);padding:2px 7px;border-radius:6px;}
+.hx-pie .hx-st0 b,.hx-pie .hx-st b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+.hx-pie button.hx-st{background:none;border:1px solid transparent;cursor:pointer;font-family:'DM Sans',sans-serif;min-height:0;height:auto;text-transform:none;letter-spacing:0;}
+.hx-pie button.hx-st:hover{border-color:var(--border);background:var(--surface2);}
+@media(max-width:640px){ .hx-barra .hx-nombre{width:118px;} .hx-pie .hx-cuenta{display:none;} }
+
+/* La tabla: posición para el marco; encabezado con ▾; resaltes de fila/columna de la selección */
+.hx-wrap{position:relative;}
+.hx-wrap thead th.hx-th{padding-right:19px;}
+.hx-wrap thead th .hx-cm{position:absolute;right:4px;top:50%;width:14px;height:14px;margin-top:-7px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;color:var(--muted);opacity:.45;cursor:pointer;z-index:6;}
+.hx-wrap thead th .hx-cm svg{width:10px;height:10px;}
+.hx-wrap thead th .hx-cm .i-f{display:none;}
+.hx-wrap thead th:hover .hx-cm{opacity:1;}
+.hx-wrap thead th .hx-cm:hover{background:var(--border);color:var(--text);}
+.hx-wrap thead th.hx-filtrado .hx-cm{opacity:1;color:var(--accent-txt);background:rgba(245,166,35,.16);}
+.hx-wrap thead th.hx-filtrado .hx-cm .i-v{display:none;}
+.hx-wrap thead th.hx-filtrado .hx-cm .i-f{display:inline;}
+/* !important: data.css y cuadricula.css repintan el nº de fila de las filas pares con `background:` (que borra la imagen) */
+.hx-wrap thead th.hx-cab-sel{background-image:linear-gradient(var(--hx-cab-sel),var(--hx-cab-sel))!important;color:var(--text);}
+.hx-wrap thead th.hx-esquina{cursor:pointer;}
+.hx-wrap thead th.hx-esquina:hover{color:var(--text);}
+.hx-wrap tbody td.hx-rn-sel{background-image:linear-gradient(var(--hx-cab-sel),var(--hx-cab-sel))!important;color:var(--text);font-weight:600;}
+.hx-wrap tbody tr[data-r] > td:first-child{cursor:pointer;}
+.hx-wrap tbody tr[data-r] > td:first-child:hover{color:var(--text);}
+
+/* Controlador de relleno: el cuadrito en la esquina inferior derecha de la selección */
+.hx-wrap tbody td.hx-asa{position:relative;}
+.hx-wrap tbody td.hx-asa::after{content:'';position:absolute;right:-4px;bottom:-4px;width:8px;height:8px;box-sizing:border-box;background:var(--accent);border:1px solid var(--surface);z-index:2;cursor:crosshair;}
+.hx-wrap tbody td.hx-relleno{outline:1px dashed var(--accent);outline-offset:-2px;background-image:linear-gradient(rgba(245,166,35,.07),rgba(245,166,35,.07));}
+/* Sin clase en <body> durante el arrastre: una regla `body.x *` recalcula el estilo de TODA la tabla (≈1 s con miles de filas). */
+
+/* Marco de copia (punteado); al cortar, más marcado */
+.hx-marco{position:absolute;pointer-events:none;z-index:3;border:2px dashed var(--accent);border-radius:1px;}
+.hx-marco.hx-corte{border-color:var(--info);}
+.hx-marco[hidden]{display:none;}
+
+/* Menú de columna (▾ o clic derecho en el encabezado) */
+.hx-cmenu{position:fixed;z-index:72;width:290px;max-width:calc(100vw - 12px);max-height:calc(100vh - 12px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.28);padding:5px;font-family:'DM Sans',sans-serif;}
+.hx-cmenu[hidden]{display:none;}
+.hx-cmenu .hx-cm-tit{font-size:11.5px;font-weight:600;color:var(--muted);padding:5px 10px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hx-cmenu button[data-a]{display:flex;width:100%;align-items:center;gap:8px;background:none;border:none;border-radius:6px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-align:left;text-transform:none;letter-spacing:0;min-height:0;height:auto;}
+.hx-cmenu button[data-a]:hover{background:var(--surface2);}
+.hx-cmenu .hx-ck{flex:0 0 14px;color:var(--accent-txt);font-weight:700;}
+.hx-cmenu hr{border:none;border-top:1px solid var(--border);margin:4px 2px;}
+.hx-cmenu .hx-cm-filtro{padding:2px 6px 4px;}
+.hx-cmenu .hx-cm-sub{font-size:12px;font-weight:600;color:var(--text);padding:4px 4px 6px;}
+.hx-cmenu .hx-cm-sub em{font-style:normal;color:var(--accent-txt);font-weight:600;}
+.hx-cmenu > .hx-cm-sub{padding:4px 10px 2px;color:var(--muted);font-weight:500;font-size:11.5px;}
+.hx-cmenu input.hx-cm-q{width:100%;height:30px;margin:0 0 6px;font-size:13px;padding:5px 9px;border:1px solid var(--border);border-radius:7px;background:var(--input-bg);color:var(--text);}
+.hx-cmenu input.hx-cm-q[hidden]{display:none;}
+.hx-cmenu .hx-cm-acc{display:flex;gap:12px;padding:0 4px 6px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+.hx-cmenu .hx-cm-acc button{background:none;border:none;color:var(--accent-txt);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;padding:0;min-height:0;height:auto;text-transform:none;letter-spacing:0;}
+.hx-cmenu .hx-cm-lista{max-height:240px;overflow:auto;}
+.hx-cmenu label.hx-cm-op{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer;margin:0;text-transform:none;letter-spacing:0;font-size:13px;font-weight:400;color:var(--text);}
+.hx-cmenu label.hx-cm-op:hover{background:var(--surface2);}
+.hx-cmenu label.hx-cm-op input{width:15px;height:15px;margin:0;accent-color:var(--accent);flex:0 0 auto;}
+.hx-cmenu label.hx-cm-op .txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hx-cmenu label.hx-cm-op.vacias .txt{font-style:italic;color:var(--muted);}
+.hx-cmenu label.hx-cm-op em{font-style:normal;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.hx-cmenu label.hx-cm-op.cero .txt{color:var(--muted);}
+.hx-cmenu label.hx-cm-op .solo{display:none;background:none;border:1px solid var(--border);border-radius:5px;color:var(--muted);font-size:10.5px;padding:1px 6px;cursor:pointer;font-family:'DM Sans',sans-serif;min-height:0;height:auto;text-transform:none;letter-spacing:0;}
+.hx-cmenu label.hx-cm-op:hover .solo{display:inline-block;}
+.hx-cmenu .hx-cm-mas{padding:8px 6px;color:var(--muted);font-size:12px;}
+
+/* Atajos (pantallas sin panel propio: botón ⌨ de la barra) */
+.hx-atajos{position:fixed;z-index:71;width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 120px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 34px rgba(0,0,0,.28);padding:12px 14px;font-family:'DM Sans',sans-serif;font-size:12.5px;}
+.hx-atajos[hidden]{display:none;}
+.hx-atajos-cab{margin-bottom:8px;color:var(--text);}
+.hx-atajos dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:baseline;margin:0;}
+.hx-atajos dt{white-space:nowrap;color:var(--text);font-weight:600;}
+.hx-atajos dd{color:var(--muted);margin:0;}
+
+.hx-oculto{position:fixed;left:-9999px;top:0;opacity:0;}

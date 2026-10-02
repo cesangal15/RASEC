@@ -833,6 +833,7 @@ function montarBase(){
     alPintar:kpisBase, alCambiarDirty:dirtyBase, aviso:toast,
     menu:menuBase,
     teclas:function(ev){ const ctrl=ev.ctrlKey||ev.metaKey; if(ctrl && (ev.key==='-'||ev.key==='_')){ marcarAccion('descartar'); return true; } return false; },
+    atajos:[['Ctrl+−','Marca las filas para descartar (se aplica al Guardar)'], ['Clic derecho','Repartir, descartar o volver a aprobar']],   // D230: panel ⌨ de la barra
   });
 }
 function kpisBase(vis){
@@ -885,7 +886,7 @@ async function cargarBase(){
 // D198: la cuadrícula ocupa el alto que queda en la ventana (sin scroll de página), como DATA.
 function ajustarAltoBase(){
   const g=document.getElementById('gridBase'); if(!g || document.getElementById('vistaBase').classList.contains('hidden')) return;
-  const top=g.getBoundingClientRect().top + window.scrollY, pie=EMBED ? 10 : 58;
+  const top=g.getBoundingClientRect().top + window.scrollY, pie=(EMBED ? 10 : 58) + (GB ? GB.altoPie() : 0);   // D230: + la barra de estado
   g.style.height=Math.max(260, Math.round(window.innerHeight - top - pie))+'px';
 }
 window.addEventListener('resize', ajustarAltoBase);
@@ -1026,6 +1027,7 @@ function montarHoja(){
     },
     alPintar:alPintarHoja, alSeleccionar:alSelHoja, alCambiarDirty:dirtyHoja, aviso:toast, menu:menuHoja,
     teclas:function(ev){ const ctrl=ev.ctrlKey||ev.metaKey; if(ctrl && ev.key==='Enter'){ hojaAccion('aprobado'); return true; } if(ctrl && (ev.key==='-'||ev.key==='_')){ hojaAccion('descartado'); return true; } return false; },
+    atajos:[['Ctrl+Enter (sin editar)','Aprueba las filas marcadas con lo editado'], ['Ctrl+−','Descarta las filas marcadas'], ['Clic derecho','Repartir, deshacer reparto, CC sugerido y alertas']],   // D230: panel ⌨ de la barra
   });
 }
 let HOJA_ID_ACTIVA=null;
@@ -1142,7 +1144,7 @@ function pintarFicha(){
 function ajustarAltoHoja(){
   const g=document.getElementById('gridHoja'); if(!g || !modoHoja()) return;
   const top=g.getBoundingClientRect().top + window.scrollY, ficha=(document.getElementById('fichaHoja')||{}).offsetHeight||90;
-  g.style.height=Math.max(340, Math.round(window.innerHeight - top - ficha - (EMBED ? 10 : 34)))+'px';   // embebida en el Hub no hay pie
+  g.style.height=Math.max(340, Math.round(window.innerHeight - top - ficha - (GP ? GP.altoPie() : 0) - (EMBED ? 10 : 34)))+'px';   // embebida en el Hub no hay pie; D230: menos la barra de estado
 }
 window.addEventListener('resize', ajustarAltoHoja);
 function setVerHoja(v){ VER_HOJA=v==='todas'?'todas':'pend'; if(GP) GP.pintar(); }

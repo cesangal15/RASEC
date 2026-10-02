@@ -14,6 +14,7 @@
 <script src="tema.js"></script>
 <!-- Misma hoja que «Revisión de DATA» (V3-08b): se reutiliza su CSS tal cual; catalogos.css solo añade lo propio. -->
 <link rel="stylesheet" href="data.css">
+<link rel="stylesheet" href="hoja-excel.css">
 <link rel="stylesheet" href="catalogos.css">
 </head>
 <body>
@@ -122,9 +123,16 @@
       <dt><kbd>Ctrl</kbd>+<kbd>Inicio</kbd> / <kbd>Fin</kbd></dt><dd>Primera / última celda · <kbd>Inicio</kbd>/<kbd>Fin</kbd>: principio / final de la fila</dd>
       <dt><kbd>Re Pág</kbd> / <kbd>Av Pág</kbd></dt><dd>Subir / bajar una página</dd>
       <dt><kbd>Shift</kbd>+<kbd>Espacio</kbd></dt><dd>Marcar la fila entera · <kbd>Ctrl</kbd>+<kbd>Espacio</kbd>: la columna · <kbd>Ctrl</kbd>+<kbd>A</kbd>: todo</dd>
-      <dt><kbd>Enter</kbd> / <kbd>F2</kbd> / escribir</dt><dd>Editar la celda · <kbd>Esc</kbd> cancela · <kbd>Tab</kbd> pasa a la siguiente</dd>
-      <dt><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>V</kbd></dt><dd>Copiar / pegar (también desde y hacia Excel)</dd>
+      <dt>Clic en el nº de fila / encabezado</dt><dd>Marca la fila / la columna (Shift o arrastrar: varias) · la esquina <b>#</b> marca todo</dd>
+      <dt><b>▾</b> del encabezado</dt><dd>Ordenar, filtrar esa columna (casillas, «(Vacías)»), ajustar texto, ancho e inmovilizar · doble clic en el borde: ancho al contenido</dd>
+      <dt>Cuadrito de la esquina</dt><dd>Arrástralo para rellenar hacia abajo o arriba · doble clic: hasta el final del bloque</dd>
+      <dt>Barra <i>fx</i></dt><dd>Muestra y edita el contenido completo de la celda · abajo: recuento, suma y promedio de lo marcado</dd>
+      <dt><kbd>Enter</kbd> / <kbd>F2</kbd> / escribir</dt><dd>Editar la celda · <kbd>Esc</kbd> cancela · <kbd>Tab</kbd> pasa a la siguiente · <kbd>Shift</kbd>+<kbd>Enter</kbd> sube</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>Enter</kbd> (editando)</dt><dd>Pone lo escrito en <b>todas</b> las celdas marcadas</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>Copiar / cortar (se mueve al pegar) / pegar (también desde y hacia Excel) · un valor sobre varias celdas se repite</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>Rellenar hacia abajo · <kbd>Supr</kbd>: vaciar</dd>
+      <dt><kbd>Alt</kbd>+<kbd>↓</kbd> · <kbd>Ctrl</kbd>+<kbd>;</kbd></dt><dd>Abrir la lista de la celda · fecha de hoy en una columna de fecha</dd>
+      <dt><kbd>Ctrl</kbd>+<kbd>F</kbd> · <kbd>Shift</kbd>+<kbd>F10</kbd></dt><dd>Buscar · menú del clic derecho</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>+</kbd></dt><dd>Insertar una fila debajo (si la tabla admite altas)</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>D</kbd></dt><dd>Duplicar las filas marcadas</dd>
       <dt><kbd>Ctrl</kbd>+<kbd>−</kbd></dt><dd>Eliminar (o descartar, en bandeja) las filas marcadas</dd>
@@ -134,6 +142,7 @@
   </div>
 </div>
 
+<script src="hoja-excel.js"></script>
 <script src="catalogos.js"></script>
 </body>
 </html>

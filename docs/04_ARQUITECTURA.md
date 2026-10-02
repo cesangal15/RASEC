@@ -54,6 +54,15 @@ tema.js    Bloqueante en el <head> a propósito: aplica data-tema ANTES del prim
            Sin tema.js una pantalla NO responde a ningún botón: es obligatorio.
 <nombre>.js / <nombre>.css   (D170) el JS y el CSS de cada pantalla, que antes
            iban dentro del HTML; el tablero usa tablero-xlsx.js + tablero-produccion.js.
+cuadricula.js/.css  (D197) motor de cuadrícula tipo Excel reutilizable: Hoja y Base de
+           revision-maquinaria.html (data.js y catalogos.js tienen el suyo, D196/D211).
+hoja-excel.js/.css  (D230) comodidades de Excel COMUNES a las tres hojas editables, montadas
+           sobre data.js, catalogos.js y cuadricula.js con un adaptador: barra de fórmulas,
+           barra de estado (recuento/suma/promedio), controlador de relleno, ▾ por columna
+           (ordenar · filtrar · ajustar texto · ancho · inmovilizar), selección por nº de
+           fila / encabezado, cortar y pegar repetido, Ctrl+Enter… Todo cambio pasa por el
+           lote y el deshacer del motor. Sin ella cada motor funciona como antes (el clic en
+           el encabezado vuelve a ordenar). Precacheada (sw.js v19): catalogos.html lo está.
 ```
 
 Los `:root` locales de las 18 pantallas DESAPARECIERON: la paleta vive solo en `tema.css`.
@@ -143,12 +152,14 @@ Complementa el diagrama de arriba. Todas hablan con la API en **`https://api.gal
 | `residente-drenajes.html` | residente_dren, admin | Bandeja combinada ODT+ODL, envío por área. |
 | `residente.html` | residente, admin | Panel de selección del residente. |
 | `jefe.html` | jefe, residente, admin | Consulta post-DATA por rango, filtro de área, copiado A:S (D65). |
+| `data.html` (Revisión de DATA) | admin, jefe, residente; `jeisson` (también como pestaña del Hub del Jefe) | Hoja DATA editable por rango o actas: corrige o añade filas; CC, grupo, UF, acta y cantidad se derivan (D181/D184); clima del día (D182). Comodidades de Excel de `hoja-excel.js` (D230). |
+| `catalogos.html` (Catálogos) | solo admin | Edita y consulta las tablas sin pantalla propia (lista blanca del Worker, D211), con la misma hoja que DATA y `hoja-excel.js` (D230). |
 | `resumen-ejecutivo.html` | jefe, residente, admin, residentes de drenajes | Resumen ejecutivo por rango (pestaña del Hub del Jefe y acceso en `jefe.html`): texto por reglas con «Copiar» (D217); el botón de IA está oculto (D220). |
 | `tablero-produccion.html` (+`tablero/`) | admin, jefe, residentes | Tablero de producción; foto compartida (D158). |
 | `produccion-maquinaria.html` («Maquinaria») | admin, residente; jeisson (Flota); jefe (lectura) | Producción del día + Flota sobre `MAQUINAS` (D59–D62/D139). |
 | `parte.html?eq=<código>` | **público por QR** | Parte digital del equipo; identidad = equipo (D165). |
 | `parte.html` | público por QR (`parte.html?eq=<codigo>`, sin login); quien revisa también lo abre con selector de equipo | Parte digital del operador: medidor, horas, actividad → CC, tramos, día sin operación, sin señal (D165, D174, D176, D178). Desde D228, «Más actividades» con el resto de las activas de su tipo. |
-| `revision-maquinaria.html` | admin, encargado, residente, parte_maquinaria | Revisión de partes, «Equipos sin parte», Base B→AR (D165). Desde D228: en PC (≥1100 px) Pendientes es una Hoja tipo Revisión de DATA (Hoja \| Tarjetas); en el celular, tarjetas agrupadas por máquina; CC escrito a mano, CC sugerido, deshacer reparto y días sin operación con CC por equipo. |
+| `revision-maquinaria.html` | admin, encargado, residente, parte_maquinaria | Revisión de partes, «Equipos sin parte», Base B→AR (D165). Desde D228: en PC (≥1100 px) Pendientes es una Hoja tipo Revisión de DATA (Hoja \| Tarjetas); en el celular, tarjetas agrupadas por máquina; CC escrito a mano, CC sugerido, deshacer reparto y días sin operación con CC por equipo. Desde D230, la Hoja y la Base llevan las comodidades de Excel de `hoja-excel.js` y el panel ⌨ de atajos. |
 | `digitadora.html` | digitadora, admin | Pre-llenado de la BASE de transporte (D83). |
 | `asistencia.html` | responsables de cuadrilla + roles de asistencias | Formulario de asistencia (D69). |
 | `resumen-asistencia.html` | residente, admin, roles de asistencias/drenajes | Resumen del día, faltantes, export Navision, gestión de personal (D69). |

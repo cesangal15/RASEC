@@ -54,7 +54,9 @@ async function api(url, body){
 let toastT=null; function toast(msg, err){ let t=document.querySelector('.toast'); if(!t){ t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); } t.textContent=msg; t.classList.toggle('err',!!err); t.style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none', err?6000:2600); }
 
 function num(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
-function fmt(n){ return (n===null||n===''||n===undefined)?'':(Math.round(Number(n)*100)/100).toLocaleString('es-CO',{maximumFractionDigits:2}); }
+// D230: formateadores es-CO creados UNA vez (toLocaleString crea uno por llamada: con miles de celdas, segundos). Mismo texto.
+const NF2=new Intl.NumberFormat('es-CO',{maximumFractionDigits:2}), NF3=new Intl.NumberFormat('es-CO',{maximumFractionDigits:3});
+function fmt(n){ return (n===null||n===''||n===undefined)?'':NF2.format(Math.round(Number(n)*100)/100); }
 function normNom(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase(); }
 function hoyBogota(){ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'}); }
 
@@ -66,6 +68,7 @@ let OPC={};                                // opciones de las columnas tipo 'lis
 let RANGO={ desde:'', hasta:'' };          // rango CARGADO (FILAS trae todas las filas de esas fechas)
 let tempSeq=0;
 let act=null, anc=null, editando=null;    // celda activa / ancla del rango / edición en curso
+let HX=null;                               // D230: comodidades de Excel comunes (hoja-excel.js), se monta en montarEventos()
 let undoStack=[], redoStack=[];            // deshacer / rehacer (Ctrl+Z / Ctrl+Y)
 const DRIVERS = ['fecha','descripcion','elemento','largo','espesor','fc'];
 
@@ -181,13 +184,16 @@ function pintarCols(){
   COLS.forEach(function(c){ const col=document.getElementById('colw-'+c.k); if(col) col.style.width=anchoDe(c.k)+'px'; });
   const acc=cg.querySelector('col[data-acc]'); if(acc) acc.style.width='40px';
   const t=document.getElementById('tabla'); if(t) t.style.width=total+'px';
+  if(HX) HX.alAnchos();
 }
+// D230: con hoja-excel.js el clic en el encabezado selecciona la columna; ordenar va en su ▾ (sin ella, el clic ordena).
 function pintarCab(){
   let h='<th class="rownum">#</th>';
-  COLS.forEach(function(c,i){ h+='<th class="'+(c.edita?'':'deriv')+(c.tipo==='num'?' num':'')+'" data-k="'+c.k+'" data-on-click="ordenarPor('+i+')" title="'+(c.edita?'editable':'calculado')+'">'+esc(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'<span class="rz" data-k="'+c.k+'" title="Arrastra para el ancho · doble clic para reiniciar"></span></th>'; });
+  COLS.forEach(function(c,i){ h+='<th class="'+(c.edita?'':'deriv')+(c.tipo==='num'?' num':'')+'" data-k="'+c.k+'"'+(HX?'':' data-on-click="ordenarPor('+i+')"')+' title="'+(c.edita?'editable':'calculado')+'">'+esc(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'<span class="rz" data-k="'+c.k+'" title="Arrastra para el ancho · doble clic: ajustar al contenido"></span></th>'; });
   if(PUEDE_EDITAR) h+='<th class="rownum"></th>';
   document.getElementById('cab').innerHTML=h;
   pintarCols();
+  if(HX) HX.alPintarCab();
 }
 /* ---------- alto de fila (densidad): compacto / normal / amplio, se guarda en el navegador ---------- */
 function setAlto(v){
@@ -218,7 +224,7 @@ function ordenarVals(f, arr){ return arr.sort(f.num ? function(a,b){ return (Num
 // Valores de un filtro con los OTROS aplicados, con su número de filas; lo ya marcado se conserva aunque quede en 0.
 function valoresFiltro(f){
   const cnt={};
-  FILAS.forEach(function(r){ if(r._baja || !pasaFiltros(r, f.id)) return; const v=valCampo(r,f.k); if(v) cnt[v]=(cnt[v]||0)+1; });
+  FILAS.forEach(function(r){ if(r._baja || !pasaFiltros(r, f.id) || (HX && !HX.pasa(r))) return; const v=valCampo(r,f.k); if(v) cnt[v]=(cnt[v]||0)+1; });
   FSEL[f.id].forEach(function(v){ if(!(v in cnt)) cnt[v]=0; });
   return ordenarVals(f, Object.keys(cnt)).map(function(v){ return { v:v, n:cnt[v] }; });
 }
@@ -292,13 +298,13 @@ function llenarFiltros(){
   });
   pintarEtiquetasFiltros();
 }
-function quitarFiltros(){ FILTROS.forEach(function(f){ FSEL[f.id].clear(); }); const q=document.getElementById('q'); if(q) q.value=''; }
+function quitarFiltros(){ FILTROS.forEach(function(f){ FSEL[f.id].clear(); }); if(HX) HX.limpiarFiltros(); const q=document.getElementById('q'); if(q) q.value=''; }
 function limpiarFiltros(){ quitarFiltros(); cerrarFiltro(); pintar(); }
 // «Filtrar por este valor» (clic derecho): deja ese filtro SOLO con el valor de la celda.
 function filtrarPorValor(k, v){ const f=FILTROS.filter(function(x){ return x.k===k; })[0]; if(!f) return; FSEL[f.id].clear(); if(v) FSEL[f.id].add(v); pintar(); }
 function filasVisibles(){
   const q=normNom(document.getElementById('q').value);
-  let vis=FILAS.filter(function(r){ return !r._baja && (r._alta || pasaFiltros(r, null)); });
+  let vis=FILAS.filter(function(r){ return !r._baja && (r._alta || (pasaFiltros(r, null) && (!HX || HX.pasa(r)))); });
   if(q) vis=vis.filter(function(r){ return r._alta || COLS.some(function(c){ return normNom(r[c.k]).indexOf(q)>=0; }); });
   if(ordCol>=0 && COLS[ordCol]){
     const c=COLS[ordCol], k=c.k, esNum=(c.tipo==='num');
@@ -311,7 +317,7 @@ function filasVisibles(){
 }
 function disp(r, c){
   const v=r[c.k]; if(v===''||v==null) return '';
-  if(c.tipo==='num'){ if(c.k==='cantidad') return fmt(v); const n=num(v); if(n!=null) return n.toLocaleString('es-CO',{maximumFractionDigits:3}); }
+  if(c.tipo==='num'){ if(c.k==='cantidad') return fmt(v); const n=num(v); if(n!=null) return NF3.format(n); }
   return String(v);
 }
 function celHTML(r, c, ci, ri){
@@ -339,6 +345,7 @@ function pintar(){
   cuerpo.innerHTML = VIS.length ? VIS.map(filaHTML).join('') : '<tr><td class="vacio" colspan="'+(COLS.length+2)+'">Sin filas en el rango.</td></tr>';
   pintarKPIs(); aplicaSel();
   pintarEtiquetasFiltros();   // resalta los filtros aplicados (para no olvidar que la vista está recortada)
+  if(HX) HX.alPintar();
 }
 
 /* ---------- selección / navegación (modo hoja de cálculo) ---------- */
@@ -361,12 +368,13 @@ function aplicaSel(){
     td.classList.toggle('sel', !!rc && r>=rc.r0 && r<=rc.r1 && c>=rc.c0 && c<=rc.c1);
     td.classList.toggle('activa', !!act && r===act.r && c===act.c);
   });
+  if(HX) HX.alSeleccionar();
 }
 
 /* ---------- edición ---------- */
 function beginEdit(r,c,inicial){
   if(!PUEDE_EDITAR) return;
-  setActiva(r,c,false,false);
+  if(!(act && act.r===r && act.c===c)) setActiva(r,c,false,false);   // D230: escribir sobre una selección la conserva (Ctrl+Enter la llena)
   const col=COLS[c], row=VIS[r], td=tdDe(r,c); if(!td) return;
   editando={r:r,c:c};
   let el;
@@ -388,7 +396,8 @@ function beginEdit(r,c,inicial){
     el.value = (inicial!==undefined && inicial!==null) ? inicial : (row[col.k]==null?'':row[col.k]);
   }
   td.classList.add('editando'); const cv=td.querySelector('.cv'); if(cv) cv.style.display='none'; td.appendChild(el);
-  el.focus(); if(el.select && col.tipo!=='fecha' && inicial===undefined) el.select();
+  el.focus();
+  if(inicial==null && el.type==='text' && el.setSelectionRange){ const n=el.value.length; el.setSelectionRange(n,n); }   // D230: F2 / Enter / doble clic → cursor al final, como Excel
   el.addEventListener('keydown', function(ev){
     if(ev.key==='Enter'){ ev.preventDefault(); commitEdit(1,0); }
     else if(ev.key==='Tab'){ ev.preventDefault(); commitEdit(0, ev.shiftKey?-1:1); }
@@ -415,11 +424,12 @@ function cancelEdit(){
   if(td){ const ed=td.querySelector('.editor'); if(ed) ed.remove(); const cv=td.querySelector('.cv'); if(cv) cv.style.display=''; td.classList.remove('editando'); }
   const wrap=document.getElementById('wrap'); if(wrap) wrap.focus({preventScroll:true});
 }
+// Devuelve true si la celda cambió (D230: el lote de hoja-excel.js cuenta lo cambiado y suelta el deshacer si nada cambió).
 function setValor(r,c,val){
-  const row=VIS[r], col=COLS[c], k=col.k; if(!row) return;
-  if(String(row[k]==null?'':row[k])===String(val)) { refrescarFila(r); return; }   // (un valor viejo que se deja igual NO se «corrige»)
+  const row=VIS[r], col=COLS[c]; if(!row || !col) return false; const k=col.k;
+  if(String(row[k]==null?'':row[k])===String(val)) { refrescarFila(r); return false; }   // (un valor viejo que se deja igual NO se «corrige»)
   if(col.tipo==='lista') val=canonLista(col, val);
-  if(String(row[k]==null?'':row[k])===String(val)) { refrescarFila(r); return; }
+  if(String(row[k]==null?'':row[k])===String(val)) { refrescarFila(r); return false; }
   const noOpAntes=esNoOperativo(row.elemento);   // D185 [O]
   row[k]=val;
   // D184: elegir/cambiar la DESCRIPCIÓN pone el FC de esa actividad (el jefe lo corrige después si quiere). Va
@@ -431,7 +441,8 @@ function setValor(r,c,val){
   if(DRIVERS.indexOf(k)>=0) Object.assign(row, derivar(row));
   if(k==='fecha') climaAlMoverFecha(row);      // D182: la fila toma el clima de su nuevo día
   if(k==='clima') propagarClima(row);          // D182: el clima es del día → a todas las filas de esa fecha
-  refrescarFila(r); pintarKPIs(); actualizarDirty();
+  refrescarFila(r); if(!LOTE){ pintarKPIs(); actualizarDirty(); }
+  return true;
 }
 /* ---------- listas: opciones por columna ---------- */
 function opcionesDe(col){ return (col && (col.opciones || OPC[col.k])) || ['']; }
@@ -475,9 +486,27 @@ function climaAlMoverFecha(row){
   row.clima='';
   toast('La fila pasa al '+row.fecha+', fuera del rango cargado: al guardar tomará el clima de ese día.');
 }
-function refrescarFila(r){
-  const row=VIS[r], tr=document.querySelector('#cuerpo tr[data-r="'+r+'"]'); if(!tr) return;
-  COLS.forEach(function(c,ci){ const cv=tr.querySelector('td[data-c="'+ci+'"] .cv'); if(cv){ const d=disp(row,c); cv.textContent=d; cv.title=d; } });
+/* D230: en un lote (relleno, pegar, Ctrl+Enter, Ctrl+D, Supr…) las filas tocadas se anotan y se refrescan una vez al
+ * final, con los KPIs y el «sin guardar» (antes cada celda recorría toda la hoja: con ~4.500 filas, segundos). */
+let LOTE=null;                                   // Set de índices de VIS por refrescar, o null fuera de un lote
+function enLote(fn){
+  if(LOTE) return fn();
+  LOTE=new Set(); let n;
+  try{ n=fn(); } finally {
+    const t=LOTE; LOTE=null;
+    // Solo las filas tocadas, sobre una lista FIJA de <tr> (tbody.rows y querySelector se recalculan tras cada cambio
+    // del DOM: con miles de filas volvería a ser cuadrático).
+    const trs=document.querySelectorAll('#cuerpo > tr');
+    t.forEach(function(r){ const tr=trs[r]; refrescarFila(r, (tr && tr.dataset.r===String(r)) ? tr : null); });
+    pintarKPIs(); actualizarDirty();
+  }
+  return n;
+}
+function refrescarFila(r, trDado){
+  if(LOTE){ LOTE.add(r); return; }
+  const row=VIS[r], tr=trDado || document.querySelector('#cuerpo tr[data-r="'+r+'"]'); if(!tr) return;
+  // Solo se escribe lo que cambió (cada escritura obliga al navegador a recalcular; leer no cuesta).
+  COLS.forEach(function(c,ci){ const td=tr.cells[ci+1], cv=td && td.dataset.c===String(ci) ? td.firstElementChild : tr.querySelector('td[data-c="'+ci+'"] .cv'); if(cv){ const d=disp(row,c); if(cv.textContent!==d) cv.textContent=d; if(cv.title!==d) cv.title=d; } });
   tr.classList.toggle('dirty', pendiente(row)); tr.classList.toggle('sincc', !String(row.centro_de_costo||'').trim());
 }
 
@@ -584,8 +613,9 @@ function montarEventos(){
   document.addEventListener('mousedown', function(ev){ const m=document.getElementById('menuCtx'); if(m && !m.hidden && !m.contains(ev.target)) cerrarMenu(); });
   document.addEventListener('keydown', function(ev){ if(ev.key==='Escape'){ cerrarMenu(); const at=document.getElementById('atajos'); if(at) at.hidden=true; } });
   wrap.addEventListener('scroll', cerrarMenu);
-  document.addEventListener('copy', function(ev){ if(editando) return; if(!enGrid()) return; const t=tsvSeleccion(); if(t==null) return; ev.preventDefault(); ev.clipboardData.setData('text/plain', t); });
-  document.addEventListener('paste', function(ev){ if(editando || !PUEDE_EDITAR) return; if(!enGrid()) return; const t=(ev.clipboardData||window.clipboardData).getData('text'); if(!t) return; ev.preventDefault(); pegar(t); });
+  // Copiar / pegar propios solo sin hoja-excel.js (con ella: marco de copia, cortar y pegar repetido sobre la selección, D230).
+  document.addEventListener('copy', function(ev){ if(HX || editando) return; if(!enGrid()) return; const t=tsvSeleccion(); if(t==null) return; ev.preventDefault(); ev.clipboardData.setData('text/plain', t); });
+  document.addEventListener('paste', function(ev){ if(HX || editando || !PUEDE_EDITAR) return; if(!enGrid()) return; const t=(ev.clipboardData||window.clipboardData).getData('text'); if(!t) return; ev.preventDefault(); pegar(t); });
   document.addEventListener('keydown', function(ev){
     const ctrl=ev.ctrlKey||ev.metaKey; if(!ctrl) return;
     const k=(ev.key||'').toLowerCase(); if(k!=='z' && k!=='y') return;
@@ -595,6 +625,42 @@ function montarEventos(){
     if(!PUEDE_EDITAR) return;
     ev.preventDefault();
     if(k==='y' || (k==='z' && ev.shiftKey)) rehacer(); else deshacer();
+  });
+  montarHojaExcel();
+}
+/* ---------- comodidades de Excel comunes (D230, hoja-excel.js) ---------- */
+function montarHojaExcel(){
+  if(!window.TM2HojaExcel) return;
+  HX=TM2HojaExcel.montar({
+    wrap:document.getElementById('wrap'), cuerpo:document.getElementById('cuerpo'), cab:document.getElementById('cab'),
+    celdaSel:'td.cell', valorSel:'.cv', numFilaSel:'td.rownum:not(.acc)', clases:{ sel:'sel', act:'activa', deriv:'deriv' },
+    almacen:'tm2_data', puedeEditar:PUEDE_EDITAR,
+    filas:function(){ return VIS; }, cols:function(){ return COLS; }, todas:function(){ return FILAS; },
+    total:function(){ return FILAS.filter(function(r){ return !r._baja; }).length; },
+    pasaMotor:function(r){ return !r._baja && pasaFiltros(r, null); },
+    hayFiltrosMotor:function(){ const q=document.getElementById('q'); return FILTROS.some(function(f){ return FSEL[f.id].size>0; }) || !!(q && q.value.trim()); },
+    valor:function(r,c){ return r[c.k]; },
+    copia:function(r,c){ return String(r[c.k]==null?'':r[c.k]); },
+    mostrar:function(r,c){ return disp(r,c); },
+    editable:function(){ return PUEDE_EDITAR; },                       // como al teclear: en DATA toda celda se corrige (lo gris se recalcula)
+    tipoDe:function(c){ return c.tipo==='num' ? 'num' : c.tipo==='fecha' ? 'fecha' : 'otro'; },
+    rango:rango, activa:function(){ return act; }, ancla:function(){ return anc; },
+    marcar:marcar, activar:function(r,c){ setActiva(r,c,false,true); },
+    editando:function(){ return !!editando; }, abrirEditor:function(r,c){ beginEdit(r,c); },
+    confirmarEditor:function(dr,dc){ commitEdit(dr,dc); }, cancelarEditor:cancelEdit,
+    lote:function(fn,msg){   // un paso de deshacer; si nada cambió se suelta (y el rehacer se conserva)
+      const rh=redoStack.slice(); pushUndo(); const n=enLote(function(){ return fn(setValor); });
+      if(n){ if(msg) toast(msg.replace('#',n)); } else { undoStack.pop(); Array.prototype.push.apply(redoStack, rh); actualizarUndoBtns(); }
+      return n; },
+    repintar:pintar,
+    orden:function(){ return { c:ordCol, dir:ordCol<0 ? 0 : ordDir }; },
+    ordenar:function(c,dir){ if(!dir){ ordCol=-1; ordDir=1; } else { ordCol=c; ordDir=dir; } pintarCab(); pintar(); },
+    anchoCol:function(c){ return COLS[c] ? anchoDe(COLS[c].k) : 90; },
+    fijarAncho:function(c,px){ const col=COLS[c]; if(!col) return; if(px) ANCHOS[col.k]=px; else delete ANCHOS[col.k]; guardarAnchos(); pintarCols(); },
+    filtroMotor:function(c){ const col=COLS[c], f=col && FILTROS.filter(function(x){ return x.k===col.k; })[0]; if(!f) return null;
+      return { valores:function(){ return valoresFiltro(f); }, marcados:function(){ return FSEL[f.id]; }, fijar:function(){ pintar(); } }; },
+    menu:function(){ if(!act) return; const td=tdDe(act.r,act.c), b=td ? td.getBoundingClientRect() : {left:40,bottom:40}; abrirMenu(b.left+10, b.bottom); },
+    buscar:document.getElementById('q'), aviso:toast, cerrarMenus:function(){ cerrarMenu(); cerrarFiltro(); },
   });
 }
 function enGrid(){ const w=document.getElementById('wrap'); return !!(w && (document.activeElement===w || (act && w.contains(document.activeElement)))); }
@@ -615,23 +681,28 @@ function pegar(txt){
   const grid=txt.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(function(l){ return l.split('\t'); });
   pushUndo();
   let n=0;
-  for(let dr=0;dr<grid.length;dr++){ const r=act.r+dr; if(r>=VIS.length) break;
-    for(let dc=0;dc<grid[dr].length;dc++){ const c=act.c+dc; if(c>=COLS.length) break; setValor(r,c,grid[dr][dc].trim()); n++; } }
+  enLote(function(){
+    for(let dr=0;dr<grid.length;dr++){ const r=act.r+dr; if(r>=VIS.length) break;
+      for(let dc=0;dc<grid[dr].length;dc++){ const c=act.c+dc; if(c>=COLS.length) break; setValor(r,c,grid[dr][dc].trim()); n++; } }
+  });
   if(n) toast('Pegadas '+n+' celda(s).');
 }
 function rellenar(){
   const rc=rango(); if(!rc){ toast('Elige la celda o el rango a rellenar.', true); return; }
   pushUndo();
   let n=0;
-  if(rc.r0===rc.r1){ // una fila seleccionada → rellena su valor a TODAS las de abajo (por columna del rango)
-    for(let c=rc.c0;c<=rc.c1;c++){ const base=VIS[rc.r0][COLS[c].k]; for(let r=rc.r0+1;r<VIS.length;r++){ setValor(r,c,base); n++; } }
-  } else {
-    for(let c=rc.c0;c<=rc.c1;c++){ const base=VIS[rc.r0][COLS[c].k]; for(let r=rc.r0+1;r<=rc.r1;r++){ setValor(r,c,base); n++; } }
-  }
+  enLote(function(){
+    if(rc.r0===rc.r1){ // una fila seleccionada → rellena su valor a TODAS las de abajo (por columna del rango)
+      for(let c=rc.c0;c<=rc.c1;c++){ const base=VIS[rc.r0][COLS[c].k]; for(let r=rc.r0+1;r<VIS.length;r++){ setValor(r,c,base); n++; } }
+    } else {
+      for(let c=rc.c0;c<=rc.c1;c++){ const base=VIS[rc.r0][COLS[c].k]; for(let r=rc.r0+1;r<=rc.r1;r++){ setValor(r,c,base); n++; } }
+    }
+  });
   if(n) toast('Rellenadas '+n+' celda(s).');
 }
 function borrarSeleccion(){ const rc=rango(); if(!rc) return; pushUndo(); let n=0;
-  for(let r=rc.r0;r<=rc.r1;r++) for(let c=rc.c0;c<=rc.c1;c++){ setValor(r,c,''); n++; } if(n) toast('Vaciadas '+n+' celda(s).'); }
+  enLote(function(){ for(let r=rc.r0;r<=rc.r1;r++) for(let c=rc.c0;c<=rc.c1;c++){ setValor(r,c,''); n++; } });
+  if(n) toast('Vaciadas '+n+' celda(s).'); }
 
 /* ---------- KPIs ---------- */
 function pintarKPIs(){
@@ -734,11 +805,13 @@ function abrirMenu(x, y, cel){
     items.push(['del','Eliminar '+filas,'Ctrl + −']);
     items.push(null);
   }
+  if(PUEDE_EDITAR && HX) items.push(['cut','Cortar','Ctrl+X']);
   items.push(['copy','Copiar','Ctrl+C']);
+  if(PUEDE_EDITAR && HX) items.push(['paste','Pegar','Ctrl+V']);
   if(PUEDE_EDITAR){ items.push(['fill','Rellenar hacia abajo','Ctrl+D']); items.push(['clear','Vaciar celdas','Supr']); }
   const f=FILTROS.filter(function(x){ return col && x.k===col.k; })[0], v=row && col ? valCampo(row, col.k) : '';
   if(f && v){ items.push(null); items.push(['filt','Filtrar por «'+(v.length>28?v.slice(0,27)+'…':v)+'»','']); }
-  if(Object.keys(FSEL).some(function(k){ return FSEL[k].size; })) items.push(['nofilt','Quitar todos los filtros','']);
+  if(Object.keys(FSEL).some(function(k){ return FSEL[k].size; }) || (HX && HX.hayFiltros())) items.push(['nofilt','Quitar todos los filtros','']);
   m.innerHTML=items.map(function(it){ return it ? '<button type="button" role="menuitem" data-a="'+it[0]+'"'+(it[0]==='del'?' class="peligro"':'')+'><span>'+esc(it[1])+'</span><kbd>'+esc(it[2])+'</kbd></button>' : '<hr>'; }).join('');
   m.hidden=false;
   const W=window.innerWidth, H=window.innerHeight, bw=m.offsetWidth, bh=m.offsetHeight;
@@ -746,7 +819,8 @@ function abrirMenu(x, y, cel){
   m.onclick=function(ev){
     const b=ev.target.closest && ev.target.closest('button[data-a]'); if(!b) return; const a=b.dataset.a; cerrarMenu();
     if(a==='ins') insertarFila(false); else if(a==='dup') duplicarFilas(); else if(a==='del') eliminarFilas();
-    else if(a==='copy') copiarSel(null); else if(a==='fill') rellenar(); else if(a==='clear') borrarSeleccion();
+    else if(a==='copy'){ if(HX) HX.copiar(); else copiarSel(null); } else if(a==='cut') HX.cortar(); else if(a==='paste') HX.pegarPortapapeles();
+    else if(a==='fill') rellenar(); else if(a==='clear') borrarSeleccion();
     else if(a==='filt') filtrarPorValor(col.k, v); else if(a==='nofilt') limpiarFiltros();
     const w=document.getElementById('wrap'); if(w && !editando) w.focus({preventScroll:true});
   };
@@ -937,7 +1011,7 @@ function montarRapidos(){
  * solo al desaparecer la fila), sin cálculo aparte. */
 function filtrosOcultosGuardado(){ try{ return localStorage.getItem('tm2_data_filtros_ocultos')==='1'; }catch(e){ return false; } }
 function guardarFiltrosOcultos(v){ try{ localStorage.setItem('tm2_data_filtros_ocultos', v?'1':'0'); }catch(e){} }
-function filtrosAplicadosN(){ const q=document.getElementById('q'); return FILTROS.filter(function(f){ return FSEL[f.id].size>0; }).length + ((q && q.value.trim())?1:0); }
+function filtrosAplicadosN(){ const q=document.getElementById('q'); return FILTROS.filter(function(f){ return FSEL[f.id].size>0; }).length + ((q && q.value.trim())?1:0) + (HX ? HX.nFiltros() : 0); }
 function estaFiltrosOculto(){ const f=document.getElementById('filtros'); return !!(f && f.classList.contains('oculto')); }
 function actualizarBtnFiltros(){
   const b=document.getElementById('btnFiltrosToggle'); if(!b) return;
