@@ -43,6 +43,10 @@ const DIAS=[
  * horas que Ayudante (90 > 72) a propósito — así se comprueba que igual queda
  * AL FINAL de la lista, no ordenado por horas como el resto. */
 const PERSONAL=[
+  /* D228: asistencia del corte anterior (2026-08, ≥ piso) para la Ref. HH/m³ de sep-2026: excavación 75 h
+   * ÷ 1.500 m³ = 0,050 · terraplén 90 h ÷ 900 m³ = 0,100 · subbase y base sin HH -> Ref. «—». */
+  {f:'2026-08-10',uf:'UF1',act:'excavacion',n:5,h:75},
+  {f:'2026-08-10',uf:'UF1',act:'terraplen', n:5,h:90},
   {f:'2026-09-10',uf:'UF1',act:'excavacion',n:10,h:80,c:[{k:'Oficial de obra',n:6,h:48},{k:'Ayudante',n:4,h:32}]},
   {f:'2026-09-10',uf:'UF2',act:'excavacion',n:5, h:40,c:[{k:'Oficial de obra',n:3,h:24},{k:'Ayudante',n:2,h:16}]},
   {f:'2026-09-11',uf:'UF1',act:'excavacion',n:8, h:64,c:[{k:'Oficial de obra',n:5,h:40},{k:'Ayudante',n:3,h:24}]},
@@ -277,19 +281,37 @@ const server=http.createServer((req,res)=>{
       cols:[...e.querySelectorAll('.num')].map(n=>n.textContent.trim())
     })));
     const porNombreCompleto=Object.fromEntries(filasCompleto.map(f=>[f.nm,f.cols]));
-    ok('Excavación (período completo): meta 3.100,0 (sin prorratear) y 9 % cumplido (280,0 h de 3.100,0)',
-       porNombreCompleto['Excavación'] && porNombreCompleto['Excavación'][2]==='3.100,0' && porNombreCompleto['Excavación'][3]==='9%',
+    // D228: columnas .num = [personas/día, HH, HH/m³, Ref., Meta, Resultado]
+    // La asistencia llega hasta el 12-sep: los m³ del HH/m³ y del Resultado cuentan solo hasta ese día (10–12 sep:
+    // excavación 1.000+1.200+800 = 3.000; terraplén 600+800+400 = 1.800), no los 4.600 / 2.650 de los 5 días.
+    ok('Excavación (período completo): 280,0 HH ÷ 3.000 m³ (hasta el 12 sep) = 0,093 · Ref. 0,050 (ago) · meta manual 3.100,0 · Resultado 150−280 = −130,0',
+       JSON.stringify(porNombreCompleto['Excavación'])===JSON.stringify(['11,7','280,0','0,093','0,050','3.100,0','−130,0']),
        JSON.stringify(porNombreCompleto['Excavación']));
-    ok('Subbase/Base sin meta (período completo): «—» en Meta y % cumplido',
-       porNombreCompleto['Subbase'] && porNombreCompleto['Subbase'][2]==='—' && porNombreCompleto['Subbase'][3]==='—' &&
-       porNombreCompleto['BTC / Base'][2]==='—' && porNombreCompleto['BTC / Base'][3]==='—',
+    ok('Terraplén (período completo): 104,0 HH ÷ 1.800 m³ (hasta el 12 sep) = 0,058 · Ref. 0,100 · meta manual 3.410,0 · Resultado 180−104 = +76,0',
+       JSON.stringify(porNombreCompleto['Terraplén'].slice(1))===JSON.stringify(['104,0','0,058','0,100','3.410,0','+76,0']),
+       JSON.stringify(porNombreCompleto['Terraplén']));
+    ok('Subbase sin Ref. (ago sin HH de subbase): Ref., Meta y Resultado «—»',
+       JSON.stringify(porNombreCompleto['Subbase'].slice(3))===JSON.stringify(['—','—','—']) &&
+       JSON.stringify(porNombreCompleto['BTC / Base'].slice(2))===JSON.stringify(['—','—','—','—']),
        JSON.stringify([porNombreCompleto['Subbase'],porNombreCompleto['BTC / Base']]));
-    ok('Transporte/Otras nunca tienen meta (no es lo que pidió el dueño): «—» en Meta y % cumplido',
-       porNombreCompleto['Transporte'][2]==='—' && porNombreCompleto['Transporte'][3]==='—' &&
-       porNombreCompleto['Otras actividades'][2]==='—' && porNombreCompleto['Otras actividades'][3]==='—',
+    ok('Transporte/Otras: «—» en HH/m³, Ref., Meta y Resultado',
+       JSON.stringify(porNombreCompleto['Transporte'].slice(2))===JSON.stringify(['—','—','—','—']) &&
+       JSON.stringify(porNombreCompleto['Otras actividades'].slice(2))===JSON.stringify(['—','—','—','—']),
        JSON.stringify([porNombreCompleto['Transporte'],porNombreCompleto['Otras actividades']]));
-    ok('Total: no TODAS las 4 partidas con meta la tienen cargada (falta Subbase/Base) → «—», no un parcial inventado',
-       porNombreCompleto['Total'][2]==='—' && porNombreCompleto['Total'][3]==='—', JSON.stringify(porNombreCompleto['Total']));
+    ok('Total: HH/m³ y Ref. «—»; Meta y Resultado «—» porque no TODAS las 4 partidas tienen valor (sin parciales)',
+       JSON.stringify(porNombreCompleto['Total'].slice(2))===JSON.stringify(['—','—','—','—']), JSON.stringify(porNombreCompleto['Total']));
+    ok('encabezado nuevo: sin «% cumplido»; con HH/m³, Ref. HH/m³, Meta y Resultado',
+       !/% cumplido/i.test(await $(pg,'#perTabla .phH').textContent()) && /Ref\. HH\/m³/.test(await $(pg,'#perTabla .phH').textContent()) &&
+       /Resultado/.test(await $(pg,'#perTabla .phH').textContent()));
+    ok('nota bajo la tabla explica Ref. y Resultado', /Ref\. = HH ÷ m³ de los últimos 3 cortes cerrados/.test(await $(pg,'#perTabla .nota').textContent()));
+    ok('title de la Ref. dice qué cortes usó (ago 26) y el de la meta «meta cargada en la Proyección»',
+       /HH ÷ m³ de ago 26/.test(await $(pg,'#perTabla .ph .ref').first().getAttribute('title')) &&
+       /meta cargada en la Proyección/.test(await $(pg,'#perTabla .ph .meta').first().getAttribute('title')));
+    ok('el title de HH/m³ y de Resultado dice que los m³ llegan hasta el último día con asistencia',
+       /m³ hasta el 12-sep, último día con asistencia/.test(await $(pg,'#perTabla .ph .hhm3').first().getAttribute('title')) &&
+       /m³ hasta el 12-sep, último día con asistencia/.test(await $(pg,'#perTabla .ph .res').first().getAttribute('title')));
+    ok('Resultado: clase pos en Terraplén (+76,0) y neg en Excavación (−130,0)',
+       await $(pg,'#perTabla .ph .res.neg').count()===1 && await $(pg,'#perTabla .ph .res.pos').count()===1);
     // se filtra al rango 10–12 sep (3 días) para las cuentas exactas
     await $(pg,'#escala .ecell').nth(0).click(); await $(pg,'#escala .ecell').nth(2).click();
     await pg.waitForFunction(()=>/10–12 sep/.test(document.getElementById('diaResumen').textContent));
@@ -304,12 +326,13 @@ const server=http.createServer((req,res)=>{
        JSON.stringify(porNombre['Excavación']));
     ok('Terraplén trae cifras correctas pero NO es desplegable (sin `c` en sus entradas)',
        porNombre['Terraplén'] && porNombre['Terraplén'].cols[0]==='6,5' && porNombre['Terraplén'].cols[1]==='104,0' && !porNombre['Terraplén'].abrible);
-    // V3-22/D210: con 3 de los 31 días del período (10–12 sep) elegidos, la meta se PRORRATEA por calendario:
-    // Excavación 3.100 × 3/31 = 300,0 (280,0 h ÷ 300,0 = 93 %); Terraplén 3.410 × 3/31 = 330,0 (104,0 ÷ 330,0 = 32 %).
-    ok('Excavación con 3 días elegidos: meta prorrateada 300,0 y 93 % cumplido',
-       porNombre['Excavación'].cols[2]==='300,0' && porNombre['Excavación'].cols[3]==='93%', JSON.stringify(porNombre['Excavación']));
-    ok('Terraplén con 3 días elegidos: meta prorrateada 330,0 y 32 % cumplido',
-       porNombre['Terraplén'].cols[2]==='330,0' && porNombre['Terraplén'].cols[3]==='32%', JSON.stringify(porNombre['Terraplén']));
+    // V3-22/D210 + D228: con 3 de los 31 días (10–12 sep) la meta manual se PRORRATEA por calendario (3.100 × 3/31 = 300,0;
+    // 3.410 × 3/31 = 330,0) y los m³ son los del rango: excavación 3.000 (HH/m³ 0,093; ganadas 150 − 280 = −130,0),
+    // terraplén 1.800 (0,058; 180 − 104 = +76,0). La Ref. no cambia con la selección.
+    ok('Excavación con 3 días elegidos: HH/m³ 0,093 · Ref. 0,050 · meta 300,0 · Resultado −130,0',
+       JSON.stringify(porNombre['Excavación'].cols.slice(2))===JSON.stringify(['0,093','0,050','300,0','−130,0']), JSON.stringify(porNombre['Excavación']));
+    ok('Terraplén con 3 días elegidos: HH/m³ 0,058 · Ref. 0,100 · meta 330,0 · Resultado +76,0',
+       JSON.stringify(porNombre['Terraplén'].cols.slice(2))===JSON.stringify(['0,058','0,100','330,0','+76,0']), JSON.stringify(porNombre['Terraplén']));
     ok('el tooltip de la meta prorrateada dice cuántos días de cuántos', /3 días elegidos de 31 del período/.test(
        await $(pg,'#perTabla .ph .meta').first().getAttribute('title')));
     ok('orden de filas: Excavación, Terraplén, Subbase, BTC/Base, Transporte, Otras actividades, Total',
