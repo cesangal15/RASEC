@@ -283,14 +283,16 @@ console.log('\n6 · 017_depurar_tractocamion.sql');
   const estado = async () => Object.fromEntries((await sql2`SELECT tipo_equipo||'|'||item AS k, activo FROM parte_items ORDER BY 1`).map((r) => [r.k, r.activo]));
   await pg2.exec(M17);
   const a = await estado();
-  const apagados = ['11.01', '2.07', '2.03', '2.05', '06.01', '7.01'].map((i) => 'TRACTOCAMION|' + i);
-  const quedan = ['2.1', '3.02', '3.03', '4.03', '5.04', '6.02', '6.04', '11.04'].map((i) => 'TRACTOCAMION|' + i);
-  ok('los 6 ítems quedan en activo=NO (también «06.01» con ceros)', apagados.every((k) => a[k] === 'NO'), a);
-  ok('los 8 ítems del tractocamión siguen activos', quedan.every((k) => a[k] === 'SI'), a);
+  // Dueño (2-oct): la mula solo transporta granulares → quedan 03.02 y 03.04 (nueva); todo lo demás se apaga.
+  const apagados = ['11.01', '2.07', '2.03', '2.05', '06.01', '7.01', '2.1', '3.03', '4.03', '5.04', '6.02', '6.04', '11.04'].map((i) => 'TRACTOCAMION|' + i);
+  ok('los 13 ítems que no son transporte de granulares quedan en activo=NO (también «06.01» con ceros)', apagados.every((k) => a[k] === 'NO'), a);
+  ok('03.02 Transporte de subbase sigue activo', a['TRACTOCAMION|3.02'] === 'SI', a);
+  const n34 = await sql2`SELECT item, actividad, activo FROM parte_items WHERE tipo_equipo='TRACTOCAMION' AND actividad='Transporte de BTC (La Putana)'`;
+  ok('se agrega 03.04 «Transporte de BTC (La Putana)» activo', n34.length === 1 && n34[0].activo === 'SI' && n34[0].item === '3.04', n34);
   ok('otros tipos (CAMABAJA, TRACTOCAMIONES) intactos', a['CAMABAJA|2.07'] === 'SI' && a['CAMABAJA|11.01'] === 'SI' && a['TRACTOCAMIONES|2.07'] === 'SI', a);
   const res1 = await sql2`SELECT item FROM parte_items_respaldo_017 ORDER BY item`;
-  ok('respaldo con exactamente las 6 filas tocadas, con su estado anterior', res1.length === 6, res1);
-  ok('el respaldo guarda activo=SI (estado previo)', (await sql2`SELECT count(*)::int AS n FROM parte_items_respaldo_017 WHERE activo='SI'`)[0].n === 6);
+  ok('respaldo con exactamente las 13 filas apagadas, con su estado anterior', res1.length === 13, res1);
+  ok('el respaldo guarda activo=SI (estado previo)', (await sql2`SELECT count(*)::int AS n FROM parte_items_respaldo_017 WHERE activo='SI'`)[0].n === 13);
   ok('esquema_version 17 una vez', (await sql2`SELECT count(*)::int AS n FROM esquema_version WHERE version=17`)[0].n === 1);
   // una fila nueva entre corridas: se apaga, pero el respaldo ya no se vuelve a llenar
   await pg2.exec(`INSERT INTO parte_items (tipo_equipo,item,actividad,veces,activo) VALUES ('TRACTOCAMION','2.03','Otra frase',1,'SI')`);
@@ -298,12 +300,15 @@ console.log('\n6 · 017_depurar_tractocamion.sql');
   const b = await estado();
   ok('segunda corrida idempotente: mismo estado salvo la fila nueva (también apagada)', JSON.stringify(Object.entries(b).filter(([k]) => k !== 'TRACTOCAMION|2.03')) === JSON.stringify(Object.entries(a).filter(([k]) => k !== 'TRACTOCAMION|2.03')) && true, null);
   ok('la fila nueva del ítem 2.03 también queda NO', (await sql2`SELECT activo FROM parte_items WHERE actividad='Otra frase'`)[0].activo === 'NO');
-  ok('respaldo: una sola vez (sigue con 6 filas)', (await sql2`SELECT count(*)::int AS n FROM parte_items_respaldo_017`)[0].n === 6);
+  ok('respaldo: una sola vez (sigue con 13 filas)', (await sql2`SELECT count(*)::int AS n FROM parte_items_respaldo_017`)[0].n === 13);
+  ok('03.04 no se duplica en la segunda corrida', (await sql2`SELECT count(*)::int AS n FROM parte_items WHERE tipo_equipo='TRACTOCAMION' AND actividad='Transporte de BTC (La Putana)'`)[0].n === 1);
   ok('esquema_version 17 sigue una vez', (await sql2`SELECT count(*)::int AS n FROM esquema_version WHERE version=17`)[0].n === 1);
-  // vuelta atrás desde el respaldo
-  await pg2.exec(`UPDATE parte_items p SET activo = r.activo FROM parte_items_respaldo_017 r WHERE p.obra_id=r.obra_id AND p.tipo_equipo=r.tipo_equipo AND p.item=r.item AND p.actividad=r.actividad`);
+  // vuelta atrás desde el respaldo (bloque comentado de la migración)
+  await pg2.exec(`UPDATE parte_items p SET activo = r.activo FROM parte_items_respaldo_017 r WHERE p.obra_id=r.obra_id AND p.tipo_equipo=r.tipo_equipo AND p.item=r.item AND p.actividad=r.actividad;
+    DELETE FROM parte_items WHERE obra_id='tm2sur' AND tipo_equipo='TRACTOCAMION' AND actividad='Transporte de BTC (La Putana)';
+    DELETE FROM parte_items WHERE actividad='Otra frase';`);   // fila de prueba creada entre corridas (no está en el respaldo)
   const c0 = await estado();
-  ok('vuelta atrás desde el respaldo restaura los 6 ítems', apagados.every((k) => c0[k] === 'SI'), c0);
+  ok('vuelta atrás desde el respaldo restaura los 13 ítems y quita la fila agregada', apagados.every((k) => c0[k] === 'SI') && !('TRACTOCAMION|3.04' in c0), c0);
 }
 
 console.log('\n' + casos + ' comprobaciones · ' + fallos + ' fallo(s)');
