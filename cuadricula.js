@@ -15,6 +15,12 @@
  * encabezado; ancho de columna arrastrable (se recuerda por navegador); separador por día; menú de clic derecho
  * (acciones propias de la pantalla + copiar, rellenar, vaciar, filtrar por valor). CSP D170: nada en línea; los
  * eventos se enganchan con addEventListener y los estilos van en cuadricula.css (clases `cq-*`).
+ *
+ * D230: si la pantalla carga hoja-excel.js, la cuadrícula gana las comodidades comunes de Excel (barra de fórmulas,
+ * barra de estado, controlador de relleno, ▾ por columna con ordenar / filtrar / inmovilizar, selección por nº de
+ * fila y encabezado, cortar y pegar repetido, Ctrl+Enter…): el encabezado ya no ordena con un clic (selecciona la
+ * columna; ordenar está en ▾). Sin hoja-excel.js funciona como antes. `cfg.atajos` ([[tecla, texto]]) añade los
+ * atajos propios de la pantalla al panel ⌨ de la barra.
  * ==========================================================================*/
 (function(){
   'use strict';
@@ -22,13 +28,16 @@
   function normN(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase(); }
   function numN(v){ if(v===''||v===null||v===undefined) return null; const n=Number(String(v).replace(',','.')); return isFinite(n)?n:null; }
   function val(r,k){ return String(r[k]==null?'':r[k]).trim(); }
+  // D230: formateadores es-CO por (decimales, miles), creados una vez (toLocaleString crea uno por llamada). Mismo texto.
+  const NFS={};
+  function nf(dec, miles){ const k=dec+'|'+miles; return NFS[k] || (NFS[k]=new Intl.NumberFormat('es-CO',{maximumFractionDigits:dec, useGrouping:miles})); }
 
   function crear(cfg){
     const wrap=cfg.wrap, COLS=cfg.columnas, CLAVE=cfg.clave||'id', EDIT=!!cfg.puedeEditar;
     const FILT=(cfg.filtros||[]).map(function(f,i){ return Object.assign({ id:'cqf'+i+'-'+f.k, todas:'Todos' }, f); });
     const FSEL={}; FILT.forEach(function(f){ FSEL[f.id]=new Set(); });
     const LSK=cfg.almacen||'';                                     // prefijo localStorage (anchos)
-    let FILAS=[], VIS=[], act=null, anc=null, editando=null, ordCol=-1, ordDir=1, undo=[], redo=[], msAbierto=null;
+    let FILAS=[], VIS=[], act=null, anc=null, editando=null, ordCol=-1, ordDir=1, undo=[], redo=[], msAbierto=null, hx=null;
     let ANCHOS={}; try{ if(LSK) ANCHOS=JSON.parse(localStorage.getItem(LSK+'_anchos')||'{}')||{}; }catch(e){ ANCHOS={}; }
 
     /* ---------- estructura ---------- */
@@ -44,24 +53,26 @@
       cg.querySelector('col[data-rn]').style.width='44px';
       COLS.forEach(function(c){ const col=cg.querySelector('col[data-k="'+c.k+'"]'); if(col) col.style.width=anchoDe(c)+'px'; });
       tabla.style.width=total+'px';
+      if(hx) hx.alAnchos();
     }
     function pintarCab(){
       let h='<th class="cq-rn">#</th>';
       COLS.forEach(function(c,i){ h+='<th data-i="'+i+'" class="'+(c.edita&&EDIT?'':'cq-deriv')+(c.tipo==='num'?' cq-num':'')+'" title="'+escH((c.ayuda||c.etiqueta)+(c.edita&&EDIT?' · editable':' · solo lectura'))+'">'+escH(c.etiqueta)+(ordCol===i?(ordDir>0?' ▲':' ▼'):'')+'<span class="cq-rz" data-k="'+c.k+'"></span></th>'; });
       cab.innerHTML=h; pintarCols();
+      if(hx) hx.alPintarCab();
     }
 
     /* ---------- vista ---------- */
     function disp(r,c){
       const v=r[c.k]; if(c.fmt) return c.fmt(v,r);
       if(v===''||v==null) return '';
-      if(c.tipo==='num'){ const n=numN(v); return n==null?String(v):n.toLocaleString('es-CO',{maximumFractionDigits:c.dec==null?2:c.dec, useGrouping:c.miles!==false}); }
+      if(c.tipo==='num'){ const n=numN(v); return n==null?String(v):nf(c.dec==null?2:c.dec, c.miles!==false).format(n); }
       return String(v);
     }
     function pasa(r, salvo){ return FILT.every(function(f){ return f.id===salvo || !FSEL[f.id].size || FSEL[f.id].has(val(r,f.k)); }); }
     function visibles(){
       const q=cfg.buscarEl ? normN(cfg.buscarEl.value) : '';
-      let vis=FILAS.filter(function(r){ return !r._oculta && (!cfg.filtroExtra || cfg.filtroExtra(r)) && pasa(r,null); });
+      let vis=FILAS.filter(function(r){ return !r._oculta && (!cfg.filtroExtra || cfg.filtroExtra(r)) && pasa(r,null) && (!hx || hx.pasa(r)); });
       if(q) vis=vis.filter(function(r){ return COLS.some(function(c){ return normN(disp(r,c)).indexOf(q)>=0; }) || (cfg.buscarMas && normN(cfg.buscarMas(r)).indexOf(q)>=0); });
       if(ordCol>=0){ const c=COLS[ordCol], esNum=c.tipo==='num';
         vis=vis.slice().sort(function(a,b){
@@ -94,6 +105,7 @@
       aplicaSel(); pintarEtiquetas();
       if(cfg.alPintar) cfg.alPintar(VIS);
       avisarDirty();
+      if(hx) hx.alPintar();
     }
     function refrescar(ri){
       const r=VIS[ri], tr=cuerpo.querySelector('tr[data-r="'+ri+'"]'); if(!r||!tr) return;
@@ -108,6 +120,7 @@
         td.classList.toggle('cq-sel', !!rc && r>=rc.r0 && r<=rc.r1 && c>=rc.c0 && c<=rc.c1);
         td.classList.toggle('cq-act', !!act && r===act.r && c===act.c); });
       if(cfg.alSeleccionar) cfg.alSeleccionar(marcadas(), rc);
+      if(hx) hx.alSeleccionar();
     }
     function td(r,c){ return cuerpo.querySelector('td.cq-c[data-r="'+r+'"][data-c="'+c+'"]'); }
     function activar(r,c,ext,scroll){
@@ -157,7 +170,7 @@
     }
     function abrirEditor(ri,ci,ini){
       if(!EDIT) return; const r=VIS[ri], c=COLS[ci]; if(!r||!c) return;
-      activar(ri,ci,false,false);
+      if(!(act && act.r===ri && act.c===ci)) activar(ri,ci,false,false);   // D230: escribir sobre una selección la conserva (Ctrl+Enter la llena)
       if(!c.edita || r._bloqueada){ aviso(r._bloqueada ? r._bloqueada : ('«'+c.etiqueta+'» es calculada: no se edita aquí.')); return; }
       const t=td(ri,ci); if(!t) return; editando={r:ri,c:ci};
       let el; const actual=String(r[c.k]==null?'':r[c.k]), ops=c.tipo==='lista'?opciones(c,r):null;
@@ -171,7 +184,8 @@
         el.value = (ini!=null) ? ini : actual;
       }
       el.className='cq-ed'+(c.tipo==='num'?' cq-num':'');
-      t.classList.add('cq-editando'); t.appendChild(el); el.focus(); if(el.select && ini==null && el.type==='text') el.select();
+      t.classList.add('cq-editando'); t.appendChild(el); el.focus();
+      if(ini==null && el.type==='text' && el.setSelectionRange){ const n=el.value.length; el.setSelectionRange(n,n); }   // D230: F2 / Enter / doble clic → cursor al final, como Excel
       el.addEventListener('keydown', function(ev){
         if(ev.key==='Enter'){ ev.preventDefault(); cerrarEditor(true,1,0); }
         else if(ev.key==='Tab'){ ev.preventDefault(); cerrarEditor(true,0,ev.shiftKey?-1:1); }
@@ -220,7 +234,7 @@
     /* ---------- filtros de selección múltiple ---------- */
     function ordVals(f,a){ return a.sort(f.num?function(x,y){ return (Number(x)||0)-(Number(y)||0); }:function(x,y){ return x.localeCompare(y,'es'); }); }
     function valores(f){ const n={};
-      FILAS.forEach(function(r){ if(r._oculta || (cfg.filtroExtra && !cfg.filtroExtra(r)) || !pasa(r,f.id)) return; const v=val(r,f.k); if(v) n[v]=(n[v]||0)+1; });
+      FILAS.forEach(function(r){ if(r._oculta || (cfg.filtroExtra && !cfg.filtroExtra(r)) || !pasa(r,f.id) || (hx && !hx.pasa(r))) return; const v=val(r,f.k); if(v) n[v]=(n[v]||0)+1; });
       FSEL[f.id].forEach(function(v){ if(!(v in n)) n[v]=0; });
       return ordVals(f,Object.keys(n)).map(function(v){ return {v:v,n:n[v]}; }); }
     function etiqueta(f){ const s=ordVals(f,Array.from(FSEL[f.id])); if(!s.length) return f.todas; if(s.length===1) return s[0]; const j=s.join(', '); return j.length<=18?j:(s.length+' elegidos'); }
@@ -256,8 +270,9 @@
         pop.querySelectorAll('input[type=checkbox]').forEach(function(c){ c.checked=(c.value===b.dataset.solo); }); pintar(); }); });
     }
     function cerrarFiltro(){ if(!msAbierto) return; const box=document.getElementById(msAbierto); msAbierto=null; if(box){ const p=box.querySelector('.cq-ms-pop'); p.hidden=true; p.innerHTML=''; box.classList.remove('abierto'); } }
-    function limpiarFiltros(){ FILT.forEach(function(f){ FSEL[f.id].clear(); }); if(cfg.buscarEl) cfg.buscarEl.value=''; cerrarFiltro(); pintar(); }
-    function hayFiltros(){ return FILT.some(function(f){ return FSEL[f.id].size; }) || !!(cfg.buscarEl && cfg.buscarEl.value); }
+    function limpiarFiltros(){ FILT.forEach(function(f){ FSEL[f.id].clear(); }); if(hx) hx.limpiarFiltros(); if(cfg.buscarEl) cfg.buscarEl.value=''; cerrarFiltro(); pintar(); }
+    function hayFiltrosMotor(){ return FILT.some(function(f){ return FSEL[f.id].size; }) || !!(cfg.buscarEl && cfg.buscarEl.value); }
+    function hayFiltros(){ return hayFiltrosMotor() || !!(hx && hx.hayFiltros()); }
 
     /* ---------- menú del clic derecho ---------- */
     function cerrarMenu(){ if(!menu.hidden){ menu.hidden=true; menu.innerHTML=''; } }
@@ -266,7 +281,9 @@
       const col=COLS[cel.c], row=VIS[cel.r], sel=marcadas();
       const items=(cfg.menu ? cfg.menu(sel, row, col) : []).slice();
       if(items.length) items.push(null);
-      items.push({ t:'Copiar', atajo:'Ctrl+C', fn:copiar });
+      if(EDIT && hx) items.push({ t:'Cortar', atajo:'Ctrl+X', fn:hx.cortar });
+      items.push({ t:'Copiar', atajo:'Ctrl+C', fn:hx ? hx.copiar : copiar });
+      if(EDIT && hx) items.push({ t:'Pegar', atajo:'Ctrl+V', fn:hx.pegarPortapapeles });
       if(EDIT){ items.push({ t:'Rellenar hacia abajo', atajo:'Ctrl+D', fn:rellenar }); items.push({ t:'Vaciar celdas', atajo:'Supr', fn:vaciar }); }
       const f=FILT.filter(function(x){ return col && x.k===col.k; })[0], v=row&&col?val(row,col.k):'';
       if(f && v){ items.push(null); items.push({ t:'Filtrar por «'+(v.length>28?v.slice(0,27)+'…':v)+'»', fn:function(){ FSEL[f.id].clear(); FSEL[f.id].add(v); pintar(); } }); }
@@ -295,12 +312,14 @@
     });
     document.addEventListener('mousedown', function(ev){ if(!menu.hidden && !menu.contains(ev.target)) cerrarMenu(); });
     wrap.addEventListener('scroll', cerrarMenu);
-    cab.addEventListener('click', function(ev){ if(ev.target.closest('.cq-rz')) return; const th=ev.target.closest('th[data-i]'); if(!th) return; const i=+th.dataset.i; if(ordCol===i){ ordDir=-ordDir; if(ordDir>0) ordCol=-1; } else { ordCol=i; ordDir=1; } pintarCab(); pintar(); });
+    // Sin hoja-excel.js, el clic en el encabezado ordena (D197); con ella selecciona la columna y ordenar va en su ▾ (D230).
+    cab.addEventListener('click', function(ev){ if(hx) return; if(ev.target.closest('.cq-rz')) return; const th=ev.target.closest('th[data-i]'); if(!th) return; const i=+th.dataset.i; if(ordCol===i){ ordDir=-ordDir; if(ordDir>0) ordCol=-1; } else { ordCol=i; ordDir=1; } pintarCab(); pintar(); });
     let rz=null;
     cab.addEventListener('mousedown', function(ev){ const g=ev.target.closest&&ev.target.closest('.cq-rz'); if(!g) return; ev.preventDefault(); ev.stopPropagation(); const c=COLS.filter(function(x){ return x.k===g.dataset.k; })[0]; rz={ c:c, col:cg.querySelector('col[data-k="'+c.k+'"]'), x0:ev.clientX, w0:Math.round(g.parentNode.getBoundingClientRect().width), w:anchoDe(c) }; document.body.classList.add('cq-rz-on'); });
     document.addEventListener('mousemove', function(ev){ if(!rz) return; rz.w=Math.max(44,Math.round(rz.w0+ev.clientX-rz.x0)); if(rz.col) rz.col.style.width=rz.w+'px'; });
     document.addEventListener('mouseup', function(){ if(!rz) return; ANCHOS[rz.c.k]=rz.w; try{ if(LSK) localStorage.setItem(LSK+'_anchos', JSON.stringify(ANCHOS)); }catch(e){} pintarCols(); document.body.classList.remove('cq-rz-on'); rz=null; });
-    cab.addEventListener('dblclick', function(ev){ const g=ev.target.closest&&ev.target.closest('.cq-rz'); if(!g) return; delete ANCHOS[g.dataset.k]; try{ if(LSK) localStorage.setItem(LSK+'_anchos', JSON.stringify(ANCHOS)); }catch(e){} pintarCols(); });
+    // Doble clic en la agarradera: con hoja-excel.js autoajusta al contenido (lo intercepta ella); sin ella, ancho por defecto.
+    cab.addEventListener('dblclick', function(ev){ if(hx) return; const g=ev.target.closest&&ev.target.closest('.cq-rz'); if(!g) return; delete ANCHOS[g.dataset.k]; try{ if(LSK) localStorage.setItem(LSK+'_anchos', JSON.stringify(ANCHOS)); }catch(e){} pintarCols(); });
     wrap.addEventListener('keydown', function(ev){
       if(editando) return;
       const k=ev.key, ctrl=ev.ctrlKey||ev.metaKey, sh=ev.shiftKey, F={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};
@@ -327,8 +346,39 @@
       if(k.length===1 && !ctrl && !ev.altKey && EDIT){ ev.preventDefault(); abrirEditor(act.r,act.c,k); }
     });
     function enGrid(){ return document.activeElement===wrap || (act && wrap.contains(document.activeElement)); }
-    document.addEventListener('copy', function(ev){ if(editando||!enGrid()) return; const t=tsv(); if(t==null) return; ev.preventDefault(); ev.clipboardData.setData('text/plain', t); });
-    document.addEventListener('paste', function(ev){ if(editando||!EDIT||!enGrid()) return; const t=(ev.clipboardData||window.clipboardData).getData('text'); if(!t) return; ev.preventDefault(); pegar(t); });
+    // Copiar / pegar propios solo sin hoja-excel.js (con ella: marco de copia, cortar y pegar repetido sobre la selección).
+    document.addEventListener('copy', function(ev){ if(hx||editando||!enGrid()) return; const t=tsv(); if(t==null) return; ev.preventDefault(); ev.clipboardData.setData('text/plain', t); });
+    document.addEventListener('paste', function(ev){ if(hx||editando||!EDIT||!enGrid()) return; const t=(ev.clipboardData||window.clipboardData).getData('text'); if(!t) return; ev.preventDefault(); pegar(t); });
+
+    /* ---------- comodidades de Excel comunes (D230, hoja-excel.js) ---------- */
+    if(window.TM2HojaExcel) hx=TM2HojaExcel.montar({
+      wrap:wrap, cuerpo:cuerpo, cab:cab, celdaSel:'td.cq-c', valorSel:'.cq-v', numFilaSel:'td.cq-rn',
+      clases:{ sel:'cq-sel', act:'cq-act', deriv:'cq-deriv' }, almacen:LSK, puedeEditar:EDIT,
+      filas:function(){ return VIS; }, cols:function(){ return COLS; }, todas:function(){ return FILAS; },
+      total:function(){ return FILAS.filter(function(r){ return !r._oculta && (!cfg.filtroExtra || cfg.filtroExtra(r)); }).length; },
+      pasaMotor:function(r){ return !r._oculta && (!cfg.filtroExtra || cfg.filtroExtra(r)) && pasa(r,null); },
+      hayFiltrosMotor:hayFiltrosMotor,
+      valor:function(r,c){ return r[c.k]; },
+      copia:function(r,c){ let v=r[c.k]; v=v==null?'':v; if(cfg.decimalComa && typeof v==='number') v=String(v).replace('.',','); return String(v); },
+      texto:function(r,c){ return r[c.k]==null ? '' : String(r[c.k]); },
+      mostrar:function(r,c){ return disp(r,c); },
+      editable:function(r,c){ return EDIT && !!c.edita && !r._bloqueada; },
+      tipoDe:function(c){ return c.tipo==='num' ? 'num' : c.tipo==='fecha' ? 'fecha' : c.tipo==='hora' ? 'hora' : 'otro'; },
+      rango:rango, activa:function(){ return act; }, ancla:function(){ return anc; },
+      marcar:marcar, activar:function(r,c){ activar(r,c,false,true); },
+      editando:function(){ return !!editando; }, abrirEditor:function(r,c){ abrirEditor(r,c); },
+      confirmarEditor:function(dr,dc){ cerrarEditor(true,dr,dc); }, cancelarEditor:function(){ cerrarEditor(false); },
+      lote:function(fn,msg){ const rh=redo.slice(); pushUndo(); const n=fn(fijar); if(n){ pintar(); if(msg) aviso(msg.replace('#',n)); } else { undo.pop(); redo=rh; } return n; },   // un paso de deshacer; sin cambios se suelta y el rehacer se conserva
+      repintar:pintar,
+      orden:function(){ return { c:ordCol, dir:ordCol<0 ? 0 : ordDir }; },
+      ordenar:function(c,dir){ if(!dir){ ordCol=-1; ordDir=1; } else { ordCol=c; ordDir=dir; } pintarCab(); pintar(); },
+      anchoCol:function(c){ return COLS[c] ? anchoDe(COLS[c]) : 90; },
+      fijarAncho:function(c,px){ const col=COLS[c]; if(!col) return; if(px) ANCHOS[col.k]=px; else delete ANCHOS[col.k]; try{ if(LSK) localStorage.setItem(LSK+'_anchos', JSON.stringify(ANCHOS)); }catch(e){} pintarCols(); },
+      filtroMotor:function(c){ const col=COLS[c], f=col && FILT.filter(function(x){ return x.k===col.k; })[0]; if(!f) return null;
+        return { valores:function(){ return valores(f); }, marcados:function(){ return FSEL[f.id]; }, fijar:function(){ pintar(); } }; },
+      menu:function(){ if(!act) return; const t=td(act.r,act.c), b=t ? t.getBoundingClientRect() : {left:40,bottom:40}; abrirMenu(b.left+10, b.bottom); },
+      buscar:cfg.buscarEl||null, aviso:aviso, cerrarMenus:function(){ cerrarMenu(); cerrarFiltro(); }, atajos:cfg.atajos||null,
+    });
 
     montarFiltros(); pintarCab();
 
@@ -350,6 +400,7 @@
       editando:function(){ return !!editando; }, cerrarEditor:function(){ cerrarEditor(true); }, cerrarMenu:cerrarMenu,
       activa:function(){ return act ? { fila:VIS[act.r], col:COLS[act.c] } : null; },
       activar:function(r,c){ activar(r,c,false,true); },               // D228: pone la celda activa (fila y columna por posición)
+      altoPie:function(){ return hx ? hx.altoPie() : 0; },              // D230: alto de la barra de estado (para ajustar el alto de la hoja)
     };
     return api;
   }
