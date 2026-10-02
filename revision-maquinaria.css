@@ -257,3 +257,96 @@
   .cc-op.sel b{color:var(--accent-txt);}
   .cc-vacio{color:var(--muted);font-size:13px;padding:12px 8px;}
   .rp-fila .cc-pick{min-width:0;}
+
+  /* ===== D228: revisión más ágil (agrupar por equipo, guardar vs aprobar, CC a mano y sugerido, hoja de PC) ===== */
+  .cc-pick.falta{border-color:var(--error);background-color:rgba(239,106,92,.12);}
+  .cc-op.cc-libre b{color:var(--accent-txt);}
+  .cc-otro{border-top:1px solid var(--border);margin-top:2px;padding:9px 8px 4px;font-size:13px;color:var(--accent-txt);font-weight:600;cursor:pointer;flex:none;}
+  .cc-otro:hover{background:var(--surface2);border-radius:6px;}
+  /* CC sugerido (último CC real de la máquina) */
+  .cc-sug{margin-top:5px;}
+  .cc-sug.hidden{display:none;}
+  .chip-sug{display:inline-block;max-width:100%;background:rgba(58,155,220,.12);border:1px solid rgba(58,155,220,.55);color:var(--uf1-txt);border-radius:16px;padding:4px 11px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:normal;text-align:left;line-height:1.3;}
+  .chip-sug:hover{border-color:var(--accent);}
+  /* tarjeta con cambios sin guardar */
+  .badge.sin-guardar{border-color:var(--info);color:var(--info);background:rgba(58,155,220,.1);}
+  .badge.reparto{border-color:rgba(58,155,220,.5);color:var(--uf1-txt);}
+  /* equipo con varias filas el mismo día */
+  .grupo-eq{border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:12px;padding:8px 8px 0;margin-bottom:12px;background:var(--surface2);}
+  .grupo-eq.repartida{border-left-color:var(--info);}
+  .grupo-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:2px 4px 10px;}
+  .grupo-head .cod{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--accent-txt);}
+  .grupo-head .tipo{font-size:12px;color:var(--muted);min-width:0;}
+  .grupo-head .grupo-tot{font-weight:700;color:var(--text);}
+  .grupo-head .btn{margin-left:auto;}
+  .grupo-eq .fila{margin-bottom:8px;}
+  .fila.en-grupo .fila-head .tipo{display:none;}
+  /* equipos sin parte: el tipo se envuelve en vez de cortarse */
+  .falt-info{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;}
+  .falt .tipo{flex:none;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;line-height:1.3;}
+  .falt .btn{flex:none;}
+  .seg-vista{margin:0;align-self:flex-end;}
+  .seg-vista button{min-height:40px;}
+  /* hoja de pendientes (PC ≥1100 px): ancho completo y KPI en una línea */
+  .container.completo{max-width:none;}
+  #panelHoja .cq-barra{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-bottom:8px;}
+  #panelHoja .btn{height:32px;min-height:0;padding:0 11px;border-radius:7px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;letter-spacing:0;text-transform:none;display:inline-flex;align-items:center;gap:0;}
+  #panelHoja .btn.ico{width:32px;padding:0;justify-content:center;font-size:15px;}
+  #panelHoja select{width:auto;height:32px;padding:0 30px 0 9px;font-size:13px;}
+  #panelHoja .grp-sep{width:1px;height:22px;background:var(--border);margin:0 2px;}
+  #panelHoja .kpi{min-width:0;font-size:12.5px;color:var(--muted);border-radius:20px;padding:4px 11px;white-space:nowrap;}
+  #panelHoja .kpi b{color:var(--text);}
+  #bHGuardar{margin-left:auto;}
+  #panelHoja .cq-filtros{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-bottom:8px;}
+  #panelHoja .cq-buscar{width:240px;flex:0 1 240px;height:32px;padding:5px 10px;font-size:13px;}
+  #gridHoja.cq-wrap{max-height:none;}
+  #gridHoja td.b-alto .cq-v{color:var(--accent-txt);font-weight:700;}
+  #gridHoja td.b-alerta .cq-v{color:var(--accent-txt);}
+  #gridHoja td.b-tardio .cq-v{color:var(--accent-txt);}
+  #gridHoja td.b-sincc .cq-v{background:rgba(239,106,92,.14);}
+  #gridHoja tr.h-par td.cq-c:not(.cq-sel){background:rgba(127,127,127,.075);}
+  #gridHoja tr.h-reparto td.cq-rn{border-left:3px solid var(--info);}
+  #gridHoja tr.h-aprob td.cq-c .cq-v{color:var(--success-txt);}
+  #gridHoja tr.h-desc td.cq-c .cq-v{text-decoration:line-through;color:var(--muted);}
+  #vistaPend.modo-hoja .kpis{gap:6px;margin-bottom:8px;}
+  #vistaPend.modo-hoja .kpi{display:flex;align-items:baseline;gap:6px;min-width:0;padding:4px 12px;border-radius:20px;}
+  #vistaPend.modo-hoja .kpi .v{font-size:15px;}
+  #vistaPend.modo-hoja .kpi .l{letter-spacing:.5px;}
+  #vistaPend.modo-hoja .toolbar{margin-bottom:8px;}
+  @media(min-width:1600px){ #vistaPend.modo-hoja .layout{grid-template-columns:minmax(0,1fr) 264px;} #vistaPend.modo-hoja .lateral .card{padding:12px;} }
+  /* 1100–1599 px: «Equipos sin parte» pasa DEBAJO de la hoja (ancho completo, lista en varias columnas) para no quitarle ancho */
+  @media(min-width:1100px) and (max-width:1599px){
+    #vistaPend.modo-hoja .layout{grid-template-columns:minmax(0,1fr);}
+    #vistaPend.modo-hoja .lateral{position:static;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;}
+    #vistaPend.modo-hoja .lista-falt{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));max-height:none;}
+    #vistaPend.modo-hoja .lista-falt .falt-grupo{grid-column:1 / -1;}
+  }
+  /* ficha de la fila activa */
+  .ficha{margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 12px;font-size:12.5px;min-height:64px;}
+  .ficha-vacia{color:var(--muted);padding:8px 0;}
+  .ficha-cab{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;}
+  .ficha-cab .cod{font-family:'Syne',sans-serif;font-size:15px;color:var(--accent-txt);}
+  .ficha-cab .tipo,.ficha-cab .rec{color:var(--muted);font-size:12px;}
+  .ficha .cont,.fila .cont{font-size:12px;color:var(--muted);margin-top:8px;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);line-height:1.45;}
+  .ficha .cont b{color:var(--text);}
+  .ficha .cont small{font-size:11px;}
+  .ficha .cont.ok{border-color:var(--success);}
+  .ficha .cont.mal{border-color:var(--error);}
+  .ficha .cont .si{color:var(--success-txt);font-weight:600;white-space:nowrap;}
+  .ficha .cont .no{color:var(--error-txt);font-weight:600;white-space:nowrap;}
+  .ficha .cont.hidden{display:none;}
+  .ficha .nota{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4;}
+  .ficha .nota b{color:var(--accent-txt);font-weight:600;}
+  .ficha .nota.err{color:var(--error-txt);}
+  /* «Día sin operación» con CC por equipo */
+  .so-cab,.so-eq{grid-template-columns:minmax(0,1fr) 110px minmax(0,1.5fr);}
+  .so-lista.sin-cc .so-cab,.so-lista.sin-cc .so-eq{grid-template-columns:minmax(0,1fr) 120px 1fr;}
+  .so-eq .cc-pick{min-width:0;}
+  .so-res{grid-column:1 / -1;}
+  .so-res:empty{display:none;}
+  @media(max-width:699px){
+    .so-cab,.so-eq,.so-lista.sin-cc .so-cab,.so-lista.sin-cc .so-eq{grid-template-columns:minmax(0,1fr) 110px;}
+    .so-cab span:last-child{grid-column:auto;} .so-cab span:nth-child(3){display:none;}
+    .so-eq .cc-pick{grid-column:1 / -1;}
+    .grupo-head .btn{margin-left:0;flex:1 1 100%;}
+  }

@@ -1551,7 +1551,7 @@ function resumenDia(p){
  * registrado" cuando falta en la ficha de personal). Una foto vieja sin `c` en
  * NINGUNA entrada -> ninguna fila se despliega (sin flecha, D316).
  *
- * V3-22/D210 + D228: la sección mide el personal directo con HH/m³ (ya no «% cumplido» contra una
+ * V3-22/D210 + D229: la sección mide el personal directo con HH/m³ (ya no «% cumplido» contra una
  * bolsa de horas). Columnas: Actividad · Personas/día · Horas-hombre · HH/m³ (real del ámbito) ·
  * Ref. HH/m³ · Meta · Resultado. Solo para las CUATRO partidas con m³ (`conMeta`); Transporte/Otras van
  * con «—» en las columnas nuevas.
@@ -1562,7 +1562,7 @@ function resumenDia(p){
  *     más horas de las usadas). Solo horas.
  *   · Meta = meta manual D210 (`p.hh`, de la Proyección) si está cargada; si no, plan del período × Ref.
  *     (prorrateada por días calendario con selección de días, D206). Con UF ≠ Todo: «—» (el plan no viene por UF).
- * El cálculo vive en el bloque D228-PURO (funciones puras, sin DOM) para poder probarlo en Node. */
+ * El cálculo vive en el bloque D229-PURO (funciones puras, sin DOM) para poder probarlo en Node. */
 const ACT_PERS=[
   {k:'excavacion',n:'Excavación',   c:'var(--s1)', conMeta:true},
   {k:'terraplen', n:'Terraplén',    c:'var(--s2)', conMeta:true},
@@ -1584,8 +1584,8 @@ function diasEnRango(a,b){
   const d=s=>{const[y,m,dd]=s.split('-').map(Number);return Date.UTC(y,m-1,dd);};
   return Math.round((d(b)-d(a))/86400000)+1;
 }
-/*D228-PURO-INICIO*/
-/* D228: primer corte con asistencia completa en Galca; los anteriores no cuentan para la Ref. */
+/*D229-PURO-INICIO*/
+/* D229: primer corte con asistencia completa en Galca; los anteriores no cuentan para la Ref. */
 const HH_REF_DESDE='2026-08', HH_REF_CORTES=3;
 const HH_PART=[{k:'excavacion',d:'exc'},{k:'terraplen',d:'ter'},{k:'subbase',d:'sub'},{k:'base',d:'bas'}];
 /* Período 16→15 de una fecha ISO 'YYYY-MM-DD' (misma regla que `periodoDe` del motor, sin Date). */
@@ -1646,7 +1646,7 @@ function metaHHPartida(manual,plan,ref,ufSel,frac){
 function sumaCuatro(vals){
   return (vals.length===HH_PART.length && vals.every(v=>v!=null && isFinite(v)))?vals.reduce((s,v)=>s+v,0):null;
 }
-/*D228-PURO-FIN*/
+/*D229-PURO-FIN*/
 /* Fracción del período que cubre el ámbito: 1 sin selección; con días elegidos, días ÷ días del período (calendario). */
 function fracPeriodo(p){
   if(!selDias) return 1;
@@ -1676,7 +1676,7 @@ function personal(p){
   const hayCargo=TM2.personal.some(x=>x && Array.isArray(x.c));
   const filas=[]; let maxH=0;
   const totPorDia={};
-  /* D228: Ref. global (período completo, UF «Todo», sin tocar `uf` ni `selDias`), m³ del ámbito con el
+  /* D229: Ref. global (período completo, UF «Todo», sin tocar `uf` ni `selDias`), m³ del ámbito con el
      filtro de UF y días de siempre, y fracción del período para prorratear la meta. */
   const fc=TM2.fc||1.3;
   const R=refHHm3(TM2.per,TM2.personal,p.p,fc);
@@ -1756,7 +1756,7 @@ function personal(p){
     r.append(nm);
     r.append(el('div','num',nd?f1(prom):'—'));
     r.append(el('div','num',f1(sh)));
-    /* D228: HH/m³ real del ámbito · Ref. · Meta · Resultado (HH ganadas − HH reales). Transporte/Otras y lo que
+    /* D229: HH/m³ real del ámbito · Ref. · Meta · Resultado (HH ganadas − HH reales). Transporte/Otras y lo que
        no se pueda calcular (excavación con UF, sin m³ o sin Ref.): «—», nada se rompe. */
     const hm=el('div','num hhm3', calc.hhm3==null?'—':f3(calc.hhm3));
     if(a.conMeta) hm.title=m3==null?(a.k==='excavacion'&&uf!=='Todo'?'la excavación no viene por UF':'sin días con asistencia en '+amb)
@@ -1804,7 +1804,7 @@ function personal(p){
       c.appendChild(drop);
     }
   });
-  /* Total (D228): Meta y Resultado = suma de las 4 partidas SOLO si las 4 tienen valor (sin parciales
+  /* Total (D229): Meta y Resultado = suma de las 4 partidas SOLO si las 4 tienen valor (sin parciales
      inventados); HH/m³ y Ref. no tienen sentido sumados: «—». */
   const cuatro=filas.filter(f=>f.a.conMeta);
   const metaTotal=sumaCuatro(cuatro.map(f=>f.meta.valor));

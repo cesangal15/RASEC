@@ -11,7 +11,7 @@
  *   NODE_PATH=/opt/node22/lib/node_modules node backend/pruebas/verificar_v301_pantallas.js
  */
 const fs=require('fs'), path=require('path'), vm=require('vm'), http=require('http');
-const { chromium } = require('playwright');
+let chromium; try{ ({ chromium } = require('playwright')); }catch(e){ ({ chromium } = require('playwright-core')); }   // CHROME=<ruta> si no hay Chromium de playwright
 const REPO=path.resolve(__dirname,'..','..');
 const SRC=fs.readFileSync(path.join(REPO,'backend','Codigo.gs'),'utf8')+'\n'+fs.readFileSync(path.join(REPO,'backend','CodigoParte.gs'),'utf8');
 const OUT=process.env.CAPTURAS || path.join(process.env.TMPDIR||'/tmp','v301-capturas'); fs.mkdirSync(OUT,{recursive:true});
@@ -81,7 +81,7 @@ const server=http.createServer((req,res)=>{
 
 (async()=>{
   await new Promise(r=>server.listen(0,r)); const BASE='http://127.0.0.1:'+server.address().port;
-  const browser=await chromium.launch();
+  const browser=await chromium.launch(process.env.CHROME?{ executablePath:process.env.CHROME }:undefined);
   const errores=[];
   async function pagina(vp, storage){
     // sin service worker (como verificar_d176): con la API en el mismo origen (auth.js, modo sandbox) el SW
@@ -98,6 +98,7 @@ const server=http.createServer((req,res)=>{
       else { const parameter={}; u.searchParams.forEach((v,k)=>parameter[k]=v); out=ctx.doGet({ parameter }); }
       await r.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(out) });
     });
+    storage=Object.assign({ tm2_rev_vista:'tarjetas' }, storage||{});   // D228: en PC la revisión abre en Hoja; estas pruebas recorren las tarjetas (la hoja se prueba en worker/pruebas/verificar_d228_revision_pantalla.mjs)
     if(storage){ await pg.goto(BASE+'/tema.css'); await pg.evaluate(s=>{ for(const k in s) localStorage.setItem(k,s[k]); }, storage); }
     return pg;
   }
@@ -276,8 +277,8 @@ const server=http.createServer((req,res)=>{
     const filaV=$(pg,'#pendientes .fila').filter({ has: pg.locator('input[data-k=hora_de][value="07:00"]') }).filter({ hasText:'VOL048' }).first();
     await filaV.locator('input[data-k=pr]').fill('14500'); await filaV.locator('input[data-k=pr]').dispatchEvent('change');
     await pg.waitForSelector('.fila.dirty');
-    ok('al editar, la tarjeta queda marcada y aparece «Guardar»', await $(pg,'.fila.dirty button:has-text("Guardar")').count()===1);
-    await $(pg,'.fila.dirty button:has-text("Aprobar")').click(); await pg.waitForFunction(()=>document.querySelectorAll('#pendientes .fila').length===5);
+    ok('al editar, la tarjeta queda marcada, aparece «Guardar» y el principal pasa a «Guardar y aprobar» (D228)', await $(pg,'.fila.dirty .btn-guardar').isVisible() && /Guardar y aprobar/.test(await $(pg,'.fila.dirty .btn-aprobar').textContent()));
+    await $(pg,'.fila.dirty .btn-aprobar').click(); await pg.waitForFunction(()=>document.querySelectorAll('#pendientes .fila').length===5);
     const h=ctx._hojas.PARTE_BANDEJA, fV=h._f.find(r=>col(r,'codigo')==='VOL048' && col(r,'hora_de')==='07:00');
     ok('la fila quedó aprobada con PR 14500 y revisado_por=admin, el resto intacto', col(fV,'estado')==='aprobado' && col(fV,'pr')===14500 && col(fV,'revisado_por')==='admin' && col(fV,'total')===140);
     // descartar la de CR026
@@ -304,16 +305,18 @@ const server=http.createServer((req,res)=>{
       await pm.screenshot({ path:path.join(OUT,'revision_390_sinop_modal.png'), fullPage:false });
       const an=await pm.evaluate(()=>({ sw:document.documentElement.scrollWidth, w:window.innerWidth, mb:document.querySelector('#modalSinOp .modal-box').scrollWidth, mc:document.querySelector('#modalSinOp .modal-box').clientWidth }));
       ok('390px: la barra y el modal «Día sin operación» no desbordan', an.sw<=an.w+1 && an.mb<=an.mc+1, JSON.stringify(an));
-      ok('390px: el motivo Lluvia precarga «Disponible por lluvia» → CC Disponible', await $(pm,'#so_desc').inputValue()==='Disponible por lluvia' && /Disponible$/.test(await $(pm,'#so_motivo option:checked').textContent()));
+      ok('390px: el motivo Lluvia precarga «Disponible por lluvia» y pide un CC por equipo (D228)', await $(pm,'#so_desc').inputValue()==='Disponible por lluvia' && /CC por equipo/.test(await $(pm,'#so_motivo option:checked').textContent()) && await $(pm,'#soLista .cc-pick').count()===1);
       await pm.context().close();
     }
-    await $(pg,'#sinopBar .motivos button:has-text("Domingo")').click(); await pg.waitForSelector('#modalSinOp:not(.hidden)');
-    ok('el modal precarga el medidor de CR026 con su último final (1698), operador «Sin operador» y CC Domingo/Festivo', await $(pg,'#so_med_0').inputValue()==='1698' && await $(pg,'#so_operador').inputValue()==='Sin operador' && /Domingo\/Festivo/.test(await $(pg,'#so_motivo option:checked').textContent()) && await $(pg,'#so_desc').inputValue()==='Domingo');
+    // D228: Domingo/Festivo/Lluvia/Disponible/Sin operador piden un CC REAL por equipo (cubierto contra el Worker real en
+    // worker/pruebas/verificar_d228_revision_pantalla.mjs; el .gs congelado no conoce sin_operacion). Aquí queda Taller, que sigue sin CC.
+    await $(pg,'#sinopBar .motivos button:has-text("Taller")').click(); await pg.waitForSelector('#modalSinOp:not(.hidden)');
+    ok('el modal precarga el medidor de CR026 con su último final (1698), operador «Sin operador», descripción Taller y sin selector de CC', await $(pg,'#so_med_0').inputValue()==='1698' && await $(pg,'#so_operador').inputValue()==='Sin operador' && await $(pg,'#so_desc').inputValue()==='Taller' && await $(pg,'#soLista .cc-pick').count()===0);
     await pg.screenshot({ path:path.join(OUT,'revision_1440_sinop.png'), fullPage:true });
     const antesSO=h._f.length;
     await $(pg,'#soGuardar').click(); await pg.waitForFunction(()=>document.getElementById('modalSinOp').classList.contains('hidden') && document.querySelector('#faltantes .vacio'));
     const fSO=h._f[antesSO];
-    ok('fila de CR026 creada con inicial = final = 1698, total 0, CC Domingo/Festivo, sin nº de parte y origen manual', h._f.length===antesSO+1 && col(fSO,'codigo')==='CR026' && col(fSO,'inicial')===1698 && col(fSO,'final')===1698 && col(fSO,'total')===0 && col(fSO,'centro_coste')==='Domingo/Festivo' && col(fSO,'reporte_num')==='' && col(fSO,'origen')==='manual' && col(fSO,'descripcion_trabajo')==='Domingo', JSON.stringify(fSO));
+    ok('fila de CR026 creada con inicial = final = 1698, total 0, CC Taller, sin nº de parte y origen manual', h._f.length===antesSO+1 && col(fSO,'codigo')==='CR026' && col(fSO,'inicial')===1698 && col(fSO,'final')===1698 && col(fSO,'total')===0 && col(fSO,'centro_coste')==='Taller' && col(fSO,'reporte_num')==='' && col(fSO,'origen')==='manual' && col(fSO,'descripcion_trabajo')==='Taller', JSON.stringify(fSO));
     ok('y quedó aprobada de una vez por admin, sin alertas', col(fSO,'estado')==='aprobado' && col(fSO,'revisado_por')==='admin' && col(fSO,'alertas')==='');
     ok('«Equipos sin parte» queda vacío y la KPI en 0', (await $(pg,'#kFalt').textContent())==='0' && (await $(pg,'#faltantes').textContent()).includes('Todos los equipos activos tienen parte'));
     ok('el backend sigue exigiendo nº de parte a un envío QR', /parte físico/.test((post(ctx,{ mod:'parte', op:'reporte', codigo:'MO004', tramos:[{ fecha:HOY, reporte_num:'', operador:'Sin operador', inicial:2337, final:2337, centro_coste:'Domingo/Festivo', descripcion_trabajo:'Domingo' }] })).error||''));

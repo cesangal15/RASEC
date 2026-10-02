@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Verificación D228 — Tablero de producción, «Horas del personal» con HH/m³.
- * Carga SOLO el bloque `D228-PURO` de tablero-produccion.js (funciones puras, sin DOM) en un vm y comprueba:
+ * Verificación D229 — Tablero de producción, «Horas del personal» con HH/m³.
+ * Carga SOLO el bloque `D229-PURO` de tablero-produccion.js (funciones puras, sin DOM) en un vm y comprueba:
  * Ref. con 0/1/2/3/4 cortes previos, piso 2026-08, ponderado Σ/Σ, ΣHH o Σm³ = 0 → null, Resultado con signo,
  * meta manual sobre automática, meta prorrateada, UF ≠ Todo, Total solo con las 4.
- *   node backend/pruebas/verificar_d228_hh_m3.js
+ *   node backend/pruebas/verificar_d229_hh_m3.js
  */
 const fs=require('fs'), path=require('path'), vm=require('vm');
 const SRC=fs.readFileSync(path.join(__dirname,'..','..','tablero-produccion.js'),'utf8');
-const m=/\/\*D228-PURO-INICIO\*\/([\s\S]*?)\/\*D228-PURO-FIN\*\//.exec(SRC);
+const m=/\/\*D229-PURO-INICIO\*\/([\s\S]*?)\/\*D229-PURO-FIN\*\//.exec(SRC);
 let fallos=0, casos=0;
 function ok(n,c,x){ casos++; if(!c){ fallos++; console.log('  ✗ '+n+(x?'  → '+x:'')); } else console.log('  ✓ '+n); }
-ok('el bloque D228-PURO existe en tablero-produccion.js', !!m);
+ok('el bloque D229-PURO existe en tablero-produccion.js', !!m);
 if(!m){ process.exit(1); }
 const ctx={}; vm.createContext(ctx);
 vm.runInContext(m[1]+'\nthis.X={HH_REF_DESDE,HH_REF_CORTES,periodoDeISO,m3Dias,refHHm3,filaHH,metaHHPartida,sumaCuatro};',ctx);

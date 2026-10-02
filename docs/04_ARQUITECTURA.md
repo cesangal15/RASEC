@@ -147,7 +147,8 @@ Complementa el diagrama de arriba. Todas hablan con la API en **`https://api.gal
 | `tablero-produccion.html` (+`tablero/`) | admin, jefe, residentes | Tablero de producción; foto compartida (D158). |
 | `produccion-maquinaria.html` («Maquinaria») | admin, residente; jeisson (Flota); jefe (lectura) | Producción del día + Flota sobre `MAQUINAS` (D59–D62/D139). |
 | `parte.html?eq=<código>` | **público por QR** | Parte digital del equipo; identidad = equipo (D165). |
-| `revision-maquinaria.html` | admin, encargado, residente, parte_maquinaria | Revisión de partes, «Equipos sin parte», Base B→AR (D165). |
+| `parte.html` | público por QR (`parte.html?eq=<codigo>`, sin login); quien revisa también lo abre con selector de equipo | Parte digital del operador: medidor, horas, actividad → CC, tramos, día sin operación, sin señal (D165, D174, D176, D178). Desde D228, «Más actividades» con el resto de las activas de su tipo. |
+| `revision-maquinaria.html` | admin, encargado, residente, parte_maquinaria | Revisión de partes, «Equipos sin parte», Base B→AR (D165). Desde D228: en PC (≥1100 px) Pendientes es una Hoja tipo Revisión de DATA (Hoja \| Tarjetas); en el celular, tarjetas agrupadas por máquina; CC escrito a mano, CC sugerido, deshacer reparto y días sin operación con CC por equipo. |
 | `digitadora.html` | digitadora, admin | Pre-llenado de la BASE de transporte (D83). |
 | `asistencia.html` | responsables de cuadrilla + roles de asistencias | Formulario de asistencia (D69). |
 | `resumen-asistencia.html` | residente, admin, roles de asistencias/drenajes | Resumen del día, faltantes, export Navision, gestión de personal (D69). |
@@ -397,6 +398,10 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 │        parte_bandeja queda en `parte_auditoria` (trigger, solo inserción, quién/antes/después)│
 │      · BASE: aprobados por rango/equipo/CC/texto, edición por fila, «Copiar para Excel»    │
 │        = TSV con las columnas B→AR de BASE MAQUINARIA (vacío donde va fórmula)             │
+│      · D228: PC (≥1100 px) → vista «Hoja» (TM2Cuadricula, como DATA) con los partes del día,│
+│        acciones sobre la selección y ficha; celular → tarjetas agrupadas por máquina;      │
+│        «✓ Guardar y aprobar»; CC escrito a mano; chip «Usar <último CC>»; «↩ Deshacer     │
+│        reparto»; días sin operación con CC por equipo (Taller sin CC)                      │
 │  menu.html  grupo «Maquinaria · parte digital» con los dos accesos                         │
 └─────────────────────────────────────┬────────────────────────────────────────────────────┘
                                       │ fetch (POST text/plain); revisión con token (auth.js)
@@ -417,6 +422,16 @@ Reemplaza al digitador del parte físico de maquinaria. **No toca** BANDEJA/DATA
 │  POST {mod:'parte',op:'repartir',id_registro,reparto:[{centro_coste,pct,pr?,descripcion_trabajo?}]}│
 │        TOKEN+ROL (D178) → original → descartado [Repartido en N filas]; N hijas pendiente  │
 │        encadenadas (motor de parteExpandirReparto_), ids <id>-r1…-rN                       │
+│  D228 (solo Worker, worker/src/api/parte.js; el .gs queda congelado):                      │
+│  POST {mod:'parte',op:'deshacer_reparto',id_registro}  TOKEN+ROL → original → pendiente sin │
+│        la marca; hijas <id>-rN → descartado [Reparto deshecho]; no si una hija está        │
+│        aprobada o re-repartida; auditoría op 'deshacer_reparto' (016)                      │
+│  op=bandeja → + cc_sugerido {CODIGO:{centro_coste,fecha,descripcion_trabajo}} (último CC   │
+│        real ≤ fecha); listas.cc sin Disponible / Domingo-Festivo (sí Taller)               │
+│  op=reporte → pseudo Disponible / Domingo-Festivo → último CC real (CC_SUGERIDO) o '' (SIN_CC);│
+│        tramo.sin_operacion (opcional) exime del nº de parte en filas manuales              │
+│  op=revisar → aprobar exige CC real (Taller sí); CC a mano sin CC_DESCONOCIDO              │
+│  op=equipo → actividades.mas = resto de las activas del tipo («Más actividades»)           │
 │  GET  ?mod=parte&op=base&desde=&hasta=[&estado=todos]  TOKEN+ROL → filas + excel.filas     │
 │        (B→AR, mapeo PARTE_EXCEL_MAPA) ; rango ≤ 186 días                                   │
 │  setupParte()  a mano: crea las hojas, completa columnas, siembra pseudo-CC, formato texto │

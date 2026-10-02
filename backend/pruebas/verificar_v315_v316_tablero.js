@@ -43,7 +43,7 @@ const DIAS=[
  * horas que Ayudante (90 > 72) a propósito — así se comprueba que igual queda
  * AL FINAL de la lista, no ordenado por horas como el resto. */
 const PERSONAL=[
-  /* D228: asistencia del corte anterior (2026-08, ≥ piso) para la Ref. HH/m³ de sep-2026: excavación 75 h
+  /* D229: asistencia del corte anterior (2026-08, ≥ piso) para la Ref. HH/m³ de sep-2026: excavación 75 h
    * ÷ 1.500 m³ = 0,050 · terraplén 90 h ÷ 900 m³ = 0,100 · subbase y base sin HH -> Ref. «—». */
   {f:'2026-08-10',uf:'UF1',act:'excavacion',n:5,h:75},
   {f:'2026-08-10',uf:'UF1',act:'terraplen', n:5,h:90},
@@ -281,7 +281,7 @@ const server=http.createServer((req,res)=>{
       cols:[...e.querySelectorAll('.num')].map(n=>n.textContent.trim())
     })));
     const porNombreCompleto=Object.fromEntries(filasCompleto.map(f=>[f.nm,f.cols]));
-    // D228: columnas .num = [personas/día, HH, HH/m³, Ref., Meta, Resultado]
+    // D229: columnas .num = [personas/día, HH, HH/m³, Ref., Meta, Resultado]
     // La asistencia llega hasta el 12-sep: los m³ del HH/m³ y del Resultado cuentan solo hasta ese día (10–12 sep:
     // excavación 1.000+1.200+800 = 3.000; terraplén 600+800+400 = 1.800), no los 4.600 / 2.650 de los 5 días.
     ok('Excavación (período completo): 280,0 HH ÷ 3.000 m³ (hasta el 12 sep) = 0,093 · Ref. 0,050 (ago) · meta manual 3.100,0 · Resultado 150−280 = −130,0',
@@ -326,7 +326,7 @@ const server=http.createServer((req,res)=>{
        JSON.stringify(porNombre['Excavación']));
     ok('Terraplén trae cifras correctas pero NO es desplegable (sin `c` en sus entradas)',
        porNombre['Terraplén'] && porNombre['Terraplén'].cols[0]==='6,5' && porNombre['Terraplén'].cols[1]==='104,0' && !porNombre['Terraplén'].abrible);
-    // V3-22/D210 + D228: con 3 de los 31 días (10–12 sep) la meta manual se PRORRATEA por calendario (3.100 × 3/31 = 300,0;
+    // V3-22/D210 + D229: con 3 de los 31 días (10–12 sep) la meta manual se PRORRATEA por calendario (3.100 × 3/31 = 300,0;
     // 3.410 × 3/31 = 330,0) y los m³ son los del rango: excavación 3.000 (HH/m³ 0,093; ganadas 150 − 280 = −130,0),
     // terraplén 1.800 (0,058; 180 − 104 = +76,0). La Ref. no cambia con la selección.
     ok('Excavación con 3 días elegidos: HH/m³ 0,093 · Ref. 0,050 · meta 300,0 · Resultado −130,0',

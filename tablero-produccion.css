@@ -404,7 +404,7 @@ body{background:var(--bg);color:var(--text);font-size:14px;
 .franjaSel .tbtn{align-self:flex-start;}
 
 /* ---------- V3-16: horas del personal por actividad ---------- */
-/* D228: Actividad · Personas/día · HH · HH/m³ · Ref. HH/m³ · Meta · Resultado · barra. El desglose por cargo
+/* D229: Actividad · Personas/día · HH · HH/m³ · Ref. HH/m³ · Meta · Resultado · barra. El desglose por cargo
    (.phC) comparte la rejilla: sus celdas nuevas quedan vacías y la barra cae en la última columna. */
 .phH,.ph,.phC{display:grid;grid-template-columns:140px 80px 96px 72px 76px 80px 88px 1fr;gap:0 13px;align-items:center;}
 .phC .phBar{grid-column:8;}
@@ -442,7 +442,7 @@ body{background:var(--bg);color:var(--text);font-size:14px;
   .ph .phBar,.phC .phBar{grid-column:1/4;}
   .ph.phTot{border-bottom:0;}
   .phC{padding-bottom:8px;}
-  /* V3-22/D210 + D228: HH/m³, Ref., meta y resultado se ocultan en móvil (mismo criterio que siempre: menos
+  /* V3-22/D210 + D229: HH/m³, Ref., meta y resultado se ocultan en móvil (mismo criterio que siempre: menos
      columnas, no una tabla más chica); personas/día y horas-hombre siguen viéndose igual que antes de V3-22. */
   .ph .hhm3,.ph .ref,.ph .meta,.ph .res{display:none;}
 }
